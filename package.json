@@ -1,0 +1,21 @@
+{
+  "name": "joplin-plugin-explorer",
+  "version": "1.0.0",
+  "description": "A unified sidebar that displays notebooks and notes together in a single tree view",
+  "scripts": {
+    "dist": "webpack --env production",
+    "prepare": "npm run dist",
+    "dev": "webpack --watch"
+  },
+  "keywords": ["joplin-plugin"],
+  "license": "MIT",
+  "devDependencies": {
+    "api": "file:api",
+    "copy-webpack-plugin": "^11.0.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "files": ["publish"]
+}

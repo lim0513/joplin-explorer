@@ -1,0 +1,108 @@
+#notes-in-list-root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  color: var(--joplin-color);
+  background-color: var(--joplin-background-color);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+.toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.toolbar button {
+  background: var(--joplin-background-color3, #f0f0f0);
+  border: 1px solid var(--joplin-divider-color, #ccc);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  color: var(--joplin-color);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.toolbar button:hover {
+  background: var(--joplin-background-color-hover3, #e0e0e0);
+}
+
+#search-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--joplin-divider-color, #ccc);
+  border-radius: 4px;
+  background: var(--joplin-background-color, #fff);
+  color: var(--joplin-color);
+  font-size: 12px;
+  outline: none;
+}
+
+#search-input:focus {
+  border-color: var(--joplin-color2, #4a9cf5);
+}
+
+#tree-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  cursor: pointer;
+  gap: 4px;
+  border-radius: 3px;
+  margin: 0 4px;
+}
+
+.tree-item:hover {
+  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.1));
+}
+
+.tree-item.selected {
+  background: var(--joplin-selected-color, rgba(74, 156, 245, 0.2));
+  font-weight: 600;
+}
+
+.toggle {
+  width: 16px;
+  text-align: center;
+  font-size: 10px;
+  flex-shrink: 0;
+  color: var(--joplin-color-faded, #888);
+}
+
+.icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  color: var(--joplin-color-faded, #888);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.children.collapsed {
+  display: none;
+}
+
+.folder .label {
+  font-weight: 600;
+}
