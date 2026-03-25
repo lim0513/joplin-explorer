@@ -5,7 +5,9 @@ var i18nData = {
   'zh_CN': {
     newNotebook: '新建笔记本', newNote: '新建笔记', newTodo: '新建待办',
     sort: '排序', collapseAll: '全部折叠', expandAll: '全部展开',
-    search: '搜索...', sync: '同步', syncing: '同步中...', syncDone: '\u2714 同步完成', loading: '加载中...',
+    search: '搜索笔记内容...', searchResultCount: '找到 {count} 条结果',
+    searchNoResult: '没有找到匹配的笔记', searching: '搜索中...',
+    sync: '同步', syncing: '同步中...', syncDone: '\u2714 同步完成', loading: '加载中...',
     sortUpdatedDesc: '\u2193 修改时间', sortUpdatedAsc: '\u2191 修改时间',
     sortTitleAsc: '\u2191 标题', sortTitleDesc: '\u2193 标题',
     // Folder context menu
@@ -27,7 +29,9 @@ var i18nData = {
   'zh_TW': {
     newNotebook: '新建筆記本', newNote: '新建筆記', newTodo: '新建待辦',
     sort: '排序', collapseAll: '全部摺疊', expandAll: '全部展開',
-    search: '搜尋...', sync: '同步', syncing: '同步中...', syncDone: '\u2714 同步完成', loading: '載入中...',
+    search: '搜尋筆記內容...', searchResultCount: '找到 {count} 條結果',
+    searchNoResult: '沒有找到匹配的筆記', searching: '搜尋中...',
+    sync: '同步', syncing: '同步中...', syncDone: '\u2714 同步完成', loading: '載入中...',
     sortUpdatedDesc: '\u2193 修改時間', sortUpdatedAsc: '\u2191 修改時間',
     sortTitleAsc: '\u2191 標題', sortTitleDesc: '\u2193 標題',
     ctxNewNoteHere: '在此新建筆記', ctxNewTodoHere: '在此新建待辦',
@@ -45,7 +49,9 @@ var i18nData = {
   'en_US': {
     newNotebook: 'New Notebook', newNote: 'New Note', newTodo: 'New To-do',
     sort: 'Sort', collapseAll: 'Collapse All', expandAll: 'Expand All',
-    search: 'Search...', sync: 'Synchronise', syncing: 'Syncing...', syncDone: '\u2714 Sync Done', loading: 'Loading...',
+    search: 'Search note contents...', searchResultCount: '{count} results found',
+    searchNoResult: 'No matching notes found', searching: 'Searching...',
+    sync: 'Synchronise', syncing: 'Syncing...', syncDone: '\u2714 Sync Done', loading: 'Loading...',
     sortUpdatedDesc: '\u2193 Updated', sortUpdatedAsc: '\u2191 Updated',
     sortTitleAsc: '\u2191 Title', sortTitleDesc: '\u2193 Title',
     ctxNewNoteHere: 'New Note Here', ctxNewTodoHere: 'New To-do Here',
@@ -59,6 +65,26 @@ var i18nData = {
     confirmDeleteFolder: 'Delete this notebook and all its contents?',
     confirmDeleteNote: 'Delete this note?',
     promptRename: 'Enter new name:', promptMoveNote: 'Enter target notebook name:',
+  },
+  'ja_JP': {
+    newNotebook: '\u65B0\u898F\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF', newNote: '\u65B0\u898F\u30CE\u30FC\u30C8', newTodo: '\u65B0\u898F\u30BF\u30B9\u30AF',
+    sort: '\u4E26\u3079\u66FF\u3048', collapseAll: '\u3059\u3079\u3066\u6298\u308A\u305F\u305F\u3080', expandAll: '\u3059\u3079\u3066\u5C55\u958B',
+    search: '\u30CE\u30FC\u30C8\u5185\u5BB9\u3092\u691C\u7D22...', searchResultCount: '{count} \u4EF6\u306E\u7D50\u679C',
+    searchNoResult: '\u4E00\u81F4\u3059\u308B\u30CE\u30FC\u30C8\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093', searching: '\u691C\u7D22\u4E2D...',
+    sync: '\u540C\u671F', syncing: '\u540C\u671F\u4E2D...', syncDone: '\u2714 \u540C\u671F\u5B8C\u4E86', loading: '\u8AAD\u307F\u8FBC\u307F\u4E2D...',
+    sortUpdatedDesc: '\u2193 \u66F4\u65B0\u65E5\u6642', sortUpdatedAsc: '\u2191 \u66F4\u65B0\u65E5\u6642',
+    sortTitleAsc: '\u2191 \u30BF\u30A4\u30C8\u30EB', sortTitleDesc: '\u2193 \u30BF\u30A4\u30C8\u30EB',
+    ctxNewNoteHere: '\u3053\u3053\u306B\u65B0\u898F\u30CE\u30FC\u30C8', ctxNewTodoHere: '\u3053\u3053\u306B\u65B0\u898F\u30BF\u30B9\u30AF',
+    ctxNewSubNotebook: '\u65B0\u898F\u30B5\u30D6\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF', ctxRenameFolder: '\u540D\u524D\u3092\u5909\u66F4',
+    ctxExportFolder: '\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF\u3092\u30A8\u30AF\u30B9\u30DD\u30FC\u30C8', ctxDeleteFolder: '\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF\u3092\u524A\u9664',
+    ctxOpenNote: '\u30CE\u30FC\u30C8\u3092\u958B\u304F', ctxOpenInNewWindow: '\u65B0\u3057\u3044\u30A6\u30A3\u30F3\u30C9\u30A6\u3067\u958B\u304F',
+    ctxCopyLink: 'Markdown\u30EA\u30F3\u30AF\u3092\u30B3\u30D4\u30FC', ctxDuplicateNote: '\u8907\u88FD',
+    ctxSwitchNoteType: '\u30CE\u30FC\u30C8/\u30BF\u30B9\u30AF\u5207\u308A\u66FF\u3048', ctxToggleTodo: '\u5B8C\u4E86\u72B6\u614B\u3092\u5207\u308A\u66FF\u3048',
+    ctxRenameNote: '\u540D\u524D\u3092\u5909\u66F4', ctxMoveNote: '\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF\u306B\u79FB\u52D5...',
+    ctxNoteInfo: '\u30CE\u30FC\u30C8\u30D7\u30ED\u30D1\u30C6\u30A3', ctxDeleteNote: '\u30CE\u30FC\u30C8\u3092\u524A\u9664',
+    confirmDeleteFolder: '\u3053\u306E\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF\u3068\u305D\u306E\u5185\u5BB9\u3092\u3059\u3079\u3066\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F',
+    confirmDeleteNote: '\u3053\u306E\u30CE\u30FC\u30C8\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F',
+    promptRename: '\u65B0\u3057\u3044\u540D\u524D\u3092\u5165\u529B\uFF1A', promptMoveNote: '\u79FB\u52D5\u5148\u306E\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF\u540D\uFF1A',
   },
 };
 
@@ -340,6 +366,62 @@ joplin.plugins.register({
       } else if (msg.name === 'newTodo') {
         await joplin.commands.execute('newTodo');
         await refreshPanel();
+      } else if (msg.name === 'search') {
+        var query = msg.query;
+        if (!query || !query.trim()) {
+          // Empty query: tell webview to clear search results
+          await joplin.views.panels.postMessage(panel, { name: 'searchResults', results: null, query: '' });
+          return;
+        }
+        try {
+          var searchResults = [];
+          var page = 1;
+          var hasMore = true;
+          while (hasMore && searchResults.length < 100) {
+            var result = await joplin.data.get(['search'], {
+              query: query,
+              fields: ['id', 'title', 'body', 'parent_id', 'is_todo', 'todo_completed'],
+              page: page, limit: 20,
+            });
+            searchResults = searchResults.concat(result.items);
+            hasMore = result.has_more;
+            page++;
+          }
+          // Build folder name lookup
+          var folderNameMap = {};
+          for (var i = 0; i < allFoldersCache.length; i++) {
+            folderNameMap[allFoldersCache[i].id] = allFoldersCache[i].title;
+          }
+          // Extract snippet around the matched keyword
+          var items = [];
+          for (var i = 0; i < searchResults.length; i++) {
+            var note = searchResults[i];
+            var snippet = '';
+            var body = note.body || '';
+            var lowerBody = body.toLowerCase();
+            var lowerQuery = query.toLowerCase();
+            var matchIdx = lowerBody.indexOf(lowerQuery);
+            if (matchIdx >= 0) {
+              var start = Math.max(0, matchIdx - 40);
+              var end = Math.min(body.length, matchIdx + lowerQuery.length + 80);
+              snippet = (start > 0 ? '...' : '') + body.substring(start, end).replace(/\n/g, ' ') + (end < body.length ? '...' : '');
+            } else {
+              // Title match - show beginning of body
+              snippet = body.substring(0, 120).replace(/\n/g, ' ') + (body.length > 120 ? '...' : '');
+            }
+            items.push({
+              id: note.id,
+              title: note.title || '(untitled)',
+              is_todo: note.is_todo,
+              todo_completed: note.todo_completed,
+              snippet: snippet,
+              folderName: folderNameMap[note.parent_id] || '',
+            });
+          }
+          await joplin.views.panels.postMessage(panel, { name: 'searchResults', results: items, query: query });
+        } catch (err) {
+          console.error('Joplin Explorer: search error', err);
+        }
       } else if (msg.name === 'cycleSort') {
         var sortModes = ['updated_desc', 'updated_asc', 'title_asc', 'title_desc'];
         var idx = sortModes.indexOf(currentSort);

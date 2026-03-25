@@ -273,3 +273,64 @@ html, body {
 .tree-item.drop-below {
   box-shadow: 0 2px 0 0 var(--joplin-color2, #4a9cf5);
 }
+
+/* Search results */
+.search-status {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--joplin-color-faded, #888);
+  border-bottom: 1px solid var(--joplin-divider-color, #eee);
+}
+
+.search-result-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 10px;
+  gap: 8px;
+  min-height: auto;
+}
+
+.search-result-item .icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.search-result-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.search-result-title {
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-result-folder {
+  font-size: 10px;
+  color: var(--joplin-color-faded, #999);
+  margin-top: 1px;
+}
+
+.search-result-snippet {
+  font-size: 11px;
+  color: var(--joplin-color-faded, #777);
+  margin-top: 3px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+mark.search-highlight {
+  background: rgba(255, 213, 0, 0.4);
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
