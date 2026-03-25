@@ -21,7 +21,6 @@ var _observer = new MutationObserver(function() {
   if (!container) return;
 
   if (_isFirstRender) {
-    // First render: scroll to selected note
     _isFirstRender = false;
     var selected = container.querySelector('.tree-item.note.selected');
     if (selected) {
@@ -30,7 +29,6 @@ var _observer = new MutationObserver(function() {
       }, 30);
     }
   } else {
-    // Subsequent renders: restore previous scroll position
     container.scrollTop = _savedScrollTop;
   }
 });
@@ -214,8 +212,9 @@ webviewApi.onMessage(function(msg) {
       }, 2000);
     }
   } else if (m.name === 'searchResults') {
+    // Ignore stale search results
+    if (m.searchId !== undefined && m.searchId !== _searchId) return;
     if (m.results === null) {
-      // Cleared search
       if (_searchMode) exitSearchMode();
     } else {
       renderSearchResults(m.results, m.query);
@@ -351,6 +350,7 @@ document.addEventListener('drop', function(e) {
 // ======================== Content Search ========================
 var _searchTimer = null;
 var _searchMode = false;
+var _searchId = 0;
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -364,9 +364,18 @@ function highlightText(text, query) {
   return escaped.replace(regex, '<mark class="search-highlight">$1</mark>');
 }
 
+function showSearchContainer(show) {
+  var tree = document.getElementById('tree-container');
+  var search = document.getElementById('search-results');
+  if (tree) tree.style.display = show ? 'none' : '';
+  if (search) search.style.display = show ? '' : 'none';
+}
+
 function renderSearchResults(results, query) {
-  var container = document.getElementById('tree-container');
+  var container = document.getElementById('search-results');
   if (!container) return;
+
+  showSearchContainer(true);
 
   if (!results || results.length === 0) {
     container.innerHTML = '<div class="search-status">' + T('searchNoResult') + '</div>';
@@ -401,8 +410,7 @@ function renderSearchResults(results, query) {
 
 function exitSearchMode() {
   _searchMode = false;
-  // Trigger a refresh to restore the tree
-  postMsg({ name: 'refresh' });
+  showSearchContainer(false);
 }
 
 document.addEventListener('input', function(e) {
@@ -410,21 +418,24 @@ document.addEventListener('input', function(e) {
   var query = e.target.value.trim();
 
   if (_searchTimer) clearTimeout(_searchTimer);
+  _searchId++;
+  var currentSearchId = _searchId;
 
   if (!query) {
     if (_searchMode) exitSearchMode();
     return;
   }
 
-  // Show "searching..." immediately
-  var container = document.getElementById('tree-container');
-  if (container) {
-    container.innerHTML = '<div class="search-status">' + T('searching') + '</div>';
+  _searchMode = true;
+  var searchContainer = document.getElementById('search-results');
+  if (searchContainer) {
+    searchContainer.innerHTML = '<div class="search-status">' + T('searching') + '</div>';
   }
+  showSearchContainer(true);
 
   // Debounce: wait 400ms after typing stops
   _searchTimer = setTimeout(function() {
-    postMsg({ name: 'search', query: query });
+    postMsg({ name: 'search', query: query, searchId: currentSearchId });
   }, 400);
 });
 

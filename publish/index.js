@@ -328,6 +328,7 @@ joplin.plugins.register({
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
           + '  <div id="tree-container">' + treeHtml + '</div>'
+          + '  <div id="search-results" style="display:none;"></div>'
           + '  <div class="bottom-bar">'
           + '    <button id="btn-sync" title="' + t.sync + '">\uD83D\uDD04 ' + t.sync + '</button>'
           + '  </div>'
@@ -370,7 +371,7 @@ joplin.plugins.register({
         var query = msg.query;
         if (!query || !query.trim()) {
           // Empty query: tell webview to clear search results
-          await joplin.views.panels.postMessage(panel, { name: 'searchResults', results: null, query: '' });
+          await joplin.views.panels.postMessage(panel, { name: 'searchResults', results: null, query: '', searchId: msg.searchId });
           return;
         }
         try {
@@ -418,7 +419,7 @@ joplin.plugins.register({
               folderName: folderNameMap[note.parent_id] || '',
             });
           }
-          await joplin.views.panels.postMessage(panel, { name: 'searchResults', results: items, query: query });
+          await joplin.views.panels.postMessage(panel, { name: 'searchResults', results: items, query: query, searchId: msg.searchId });
         } catch (err) {
           console.error('Joplin Explorer: search error', err);
         }
