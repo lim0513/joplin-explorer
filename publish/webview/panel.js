@@ -46,6 +46,49 @@ function T(key) {
   return (window._i18n && window._i18n[key]) || key;
 }
 
+// Inline input dialog (replaces prompt() which may not work in webview)
+function showInlineInput(label, defaultValue, callback) {
+  var existing = document.getElementById('inline-input-overlay');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'inline-input-overlay';
+  overlay.className = 'inline-input-overlay';
+  overlay.innerHTML = '<div class="inline-input-dialog">'
+    + '<div class="inline-input-label">' + label + '</div>'
+    + '<input class="inline-input-field" type="text" value="' + (defaultValue || '').replace(/"/g, '&quot;') + '" />'
+    + '<div class="inline-input-buttons">'
+    + '<button class="inline-input-ok">OK</button>'
+    + '<button class="inline-input-cancel">' + (T('cancel') || 'Cancel') + '</button>'
+    + '</div></div>';
+
+  document.body.appendChild(overlay);
+
+  var input = overlay.querySelector('.inline-input-field');
+  input.focus();
+  input.select();
+
+  function submit() {
+    var val = input.value;
+    overlay.remove();
+    callback(val);
+  }
+  function cancel() {
+    overlay.remove();
+    callback(null);
+  }
+
+  overlay.querySelector('.inline-input-ok').addEventListener('click', submit);
+  overlay.querySelector('.inline-input-cancel').addEventListener('click', cancel);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') submit();
+    if (e.key === 'Escape') cancel();
+  });
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) cancel();
+  });
+}
+
 // Left click: open note / toggle folder
 document.addEventListener('click', function(e) {
   var existingMenu = document.getElementById('ctx-menu');
@@ -133,10 +176,11 @@ document.addEventListener('click', function(e) {
 
   if (action === 'renameFolder' || action === 'renameNote') {
     var currentTitle = ctxItem.dataset.title || '';
-    var newTitle = prompt(T('promptRename'), currentTitle);
-    if (newTitle !== null && newTitle.trim() !== '') {
-      postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType, newTitle: newTitle.trim() });
-    }
+    showInlineInput(T('promptRename'), currentTitle, function(newTitle) {
+      if (newTitle !== null && newTitle.trim() !== '') {
+        postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType, newTitle: newTitle.trim() });
+      }
+    });
   } else if (action === 'deleteFolder') {
     if (confirm(T('confirmDeleteFolder'))) {
       postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType });
@@ -146,10 +190,11 @@ document.addEventListener('click', function(e) {
       postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType });
     }
   } else if (action === 'moveNote') {
-    var folderName = prompt(T('promptMoveNote'));
-    if (folderName !== null && folderName.trim() !== '') {
-      postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType, targetFolderName: folderName.trim() });
-    }
+    showInlineInput(T('promptMoveNote'), '', function(folderName) {
+      if (folderName !== null && folderName.trim() !== '') {
+        postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType, targetFolderName: folderName.trim() });
+      }
+    });
   } else {
     postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType });
   }
@@ -218,6 +263,18 @@ webviewApi.onMessage(function(msg) {
       if (_searchMode) exitSearchMode();
     } else {
       renderSearchResults(m.results, m.query);
+    }
+  } else if (m.name === 'copyText') {
+    // Fallback clipboard copy via webview
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(m.text);
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = m.text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
     }
   } else if (m.name === 'selectNote') {
     // Update selection without full re-render

@@ -25,6 +25,7 @@ var i18nData = {
     confirmDeleteNote: '确定删除此笔记吗？',
     promptRename: '请输入新名称：',
     promptMoveNote: '请输入目标笔记本名称：',
+    cancel: '取消',
   },
   'zh_TW': {
     newNotebook: '新建筆記本', newNote: '新建筆記', newTodo: '新建待辦',
@@ -45,6 +46,7 @@ var i18nData = {
     confirmDeleteFolder: '確定刪除此筆記本及其所有內容嗎？',
     confirmDeleteNote: '確定刪除此筆記嗎？',
     promptRename: '請輸入新名稱：', promptMoveNote: '請輸入目標筆記本名稱：',
+    cancel: '取消',
   },
   'en_US': {
     newNotebook: 'New Notebook', newNote: 'New Note', newTodo: 'New To-do',
@@ -65,6 +67,7 @@ var i18nData = {
     confirmDeleteFolder: 'Delete this notebook and all its contents?',
     confirmDeleteNote: 'Delete this note?',
     promptRename: 'Enter new name:', promptMoveNote: 'Enter target notebook name:',
+    cancel: 'Cancel',
   },
   'ja_JP': {
     newNotebook: '\u65B0\u898F\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF', newNote: '\u65B0\u898F\u30CE\u30FC\u30C8', newTodo: '\u65B0\u898F\u30BF\u30B9\u30AF',
@@ -85,6 +88,7 @@ var i18nData = {
     confirmDeleteFolder: '\u3053\u306E\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF\u3068\u305D\u306E\u5185\u5BB9\u3092\u3059\u3079\u3066\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F',
     confirmDeleteNote: '\u3053\u306E\u30CE\u30FC\u30C8\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F',
     promptRename: '\u65B0\u3057\u3044\u540D\u524D\u3092\u5165\u529B\uFF1A', promptMoveNote: '\u79FB\u52D5\u5148\u306E\u30CE\u30FC\u30C8\u30D6\u30C3\u30AF\u540D\uFF1A',
+    cancel: '\u30AD\u30E3\u30F3\u30BB\u30EB',
   },
 };
 
@@ -447,10 +451,14 @@ joplin.plugins.register({
           if (itemType === 'folder') {
             switch (action) {
               case 'newNote':
-                await joplin.data.post(['folders', id, 'notes'], null, { title: '' });
+                var newNote = await joplin.data.post(['notes'], null, { title: t.newNote, parent_id: id });
+                await joplin.commands.execute('openNote', newNote.id);
+                selectedNoteId = newNote.id;
                 break;
               case 'newTodo':
-                await joplin.data.post(['folders', id, 'notes'], null, { title: '', is_todo: 1 });
+                var newTodo = await joplin.data.post(['notes'], null, { title: t.newTodo, parent_id: id, is_todo: 1 });
+                await joplin.commands.execute('openNote', newTodo.id);
+                selectedNoteId = newTodo.id;
                 break;
               case 'newSubNotebook':
                 await joplin.data.post(['folders'], null, { title: t.newNotebook, parent_id: id });
@@ -462,28 +470,39 @@ joplin.plugins.register({
                 if (msg.newTitle) await joplin.data.put(['folders', id], null, { title: msg.newTitle });
                 break;
               case 'exportFolder':
-                await joplin.commands.execute('exportFolders', [id]);
+                try { await joplin.commands.execute('exportFolders', [id]); } catch(e) {}
                 break;
             }
           } else if (itemType === 'note') {
             switch (action) {
               case 'openNote':
                 await joplin.commands.execute('openNote', id);
+                selectedNoteId = id;
                 break;
               case 'openInNewWindow':
-                await joplin.commands.execute('openNoteInNewWindow', id);
+                try { await joplin.commands.execute('openNoteInNewWindow', id); } catch(e) {
+                  // Fallback: just open in main window
+                  await joplin.commands.execute('openNote', id);
+                }
                 break;
               case 'copyLink':
                 var linkNote = await joplin.data.get(['notes', id], { fields: ['id', 'title'] });
                 var mdLink = '[' + linkNote.title + '](:/' + linkNote.id + ')';
-                await joplin.clipboard.writeText(mdLink);
+                try {
+                  await joplin.clipboard.writeText(mdLink);
+                } catch(e) {
+                  // Fallback: send link text to webview for copying
+                  await joplin.views.panels.postMessage(panel, { name: 'copyText', text: mdLink });
+                }
                 break;
               case 'duplicateNote':
                 var srcNote = await joplin.data.get(['notes', id], { fields: ['title', 'body', 'parent_id', 'is_todo'] });
-                await joplin.data.post(['notes'], null, {
+                var dupNote = await joplin.data.post(['notes'], null, {
                   title: srcNote.title + ' (copy)', body: srcNote.body,
                   parent_id: srcNote.parent_id, is_todo: srcNote.is_todo,
                 });
+                await joplin.commands.execute('openNote', dupNote.id);
+                selectedNoteId = dupNote.id;
                 break;
               case 'switchNoteType':
                 var sn = await joplin.data.get(['notes', id], { fields: ['is_todo'] });
