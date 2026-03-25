@@ -254,6 +254,59 @@ joplin.plugins.register({
     await joplin.views.panels.setHtml(panel, '<div id="notes-in-list-root"><p style="padding:12px;">' + t.loading + '</p></div>');
     await joplin.views.panels.show(panel, true);
 
+    // Native dialogs
+    var inputDialog = await joplin.views.dialogs.create('explorerInputDialog');
+    var confirmDialog = await joplin.views.dialogs.create('explorerConfirmDialog');
+    var infoDialog = await joplin.views.dialogs.create('explorerInfoDialog');
+
+    async function showNativeConfirm(message) {
+      await joplin.views.dialogs.setHtml(confirmDialog,
+        '<div style="padding:10px;min-width:280px;">'
+        + '<div style="font-size:13px;">' + escapeHtml(message) + '</div>'
+        + '</div>'
+      );
+      await joplin.views.dialogs.setButtons(confirmDialog, [
+        { id: 'ok', title: 'OK' },
+        { id: 'cancel', title: t.cancel || 'Cancel' },
+      ]);
+      var result = await joplin.views.dialogs.open(confirmDialog);
+      return result.id === 'ok';
+    }
+
+    async function showNativeInfo(title, body) {
+      await joplin.views.dialogs.setHtml(infoDialog,
+        '<div style="padding:10px;min-width:320px;">'
+        + '<div style="font-size:14px;font-weight:bold;margin-bottom:10px;">' + escapeHtml(title) + '</div>'
+        + '<div style="font-size:12px;line-height:1.8;white-space:pre-wrap;">' + escapeHtml(body) + '</div>'
+        + '</div>'
+      );
+      await joplin.views.dialogs.setButtons(infoDialog, [
+        { id: 'ok', title: 'OK' },
+      ]);
+      await joplin.views.dialogs.open(infoDialog);
+    }
+
+    async function showNativeInput(label, defaultValue) {
+      await joplin.views.dialogs.setHtml(inputDialog,
+        '<div style="padding:10px;min-width:300px;">'
+        + '<div style="margin-bottom:8px;font-size:13px;">' + escapeHtml(label) + '</div>'
+        + '<form name="inputForm">'
+        + '<input name="value" type="text" value="' + escapeHtml(defaultValue || '') + '" '
+        + 'style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:13px;" />'
+        + '</form>'
+        + '</div>'
+      );
+      await joplin.views.dialogs.setButtons(inputDialog, [
+        { id: 'ok', title: 'OK' },
+        { id: 'cancel', title: t.cancel || 'Cancel' },
+      ]);
+      var result = await joplin.views.dialogs.open(inputDialog);
+      if (result.id === 'ok' && result.formData && result.formData.inputForm) {
+        return result.formData.inputForm.value || null;
+      }
+      return null;
+    }
+
     var selectedNoteId = '';
     var collapsedFolders = {};
     var currentSort = 'updated_desc';
@@ -479,13 +532,23 @@ joplin.plugins.register({
                 expandToFolder(id);
                 break;
               case 'newSubNotebook':
-                await joplin.data.post(['folders'], null, { title: t.newNotebook, parent_id: id });
+                var subName = await showNativeInput(t.newNotebook, '');
+                if (subName && subName.trim()) {
+                  await joplin.data.post(['folders'], null, { title: subName.trim(), parent_id: id });
+                }
                 break;
               case 'deleteFolder':
-                await joplin.data.delete(['folders', id]);
+                var folderInfo = await joplin.data.get(['folders', id], { fields: ['title'] });
+                if (await showNativeConfirm(t.confirmDeleteFolder + '\n\n' + folderInfo.title)) {
+                  await joplin.data.delete(['folders', id]);
+                }
                 break;
               case 'renameFolder':
-                if (msg.newTitle) await joplin.data.put(['folders', id], null, { title: msg.newTitle });
+                var folderData = await joplin.data.get(['folders', id], { fields: ['title'] });
+                var newFolderName = await showNativeInput(t.promptRename, folderData.title);
+                if (newFolderName && newFolderName.trim()) {
+                  await joplin.data.put(['folders', id], null, { title: newFolderName.trim() });
+                }
                 break;
               case 'exportFolder':
                 try { await joplin.commands.execute('exportFolders', [id]); } catch(e) {}
@@ -533,7 +596,11 @@ joplin.plugins.register({
                 }
                 break;
               case 'renameNote':
-                if (msg.newTitle) await joplin.data.put(['notes', id], null, { title: msg.newTitle });
+                var noteData = await joplin.data.get(['notes', id], { fields: ['title'] });
+                var newNoteName = await showNativeInput(t.promptRename, noteData.title);
+                if (newNoteName && newNoteName.trim()) {
+                  await joplin.data.put(['notes', id], null, { title: newNoteName.trim() });
+                }
                 break;
               case 'moveNote':
                 if (msg.targetFolderName) {
@@ -549,21 +616,26 @@ joplin.plugins.register({
                 }
                 break;
               case 'noteInfo':
-                var info = await joplin.data.get(['notes', id], { fields: ['id', 'title', 'created_time', 'updated_time', 'is_todo', 'parent_id'] });
-                var parentTitle = '';
+                var info = await joplin.data.get(['notes', id], { fields: ['id', 'title', 'created_time', 'updated_time', 'is_todo', 'parent_id', 'body'] });
+                var pTitle = '';
                 for (var i = 0; i < allFoldersCache.length; i++) {
-                  if (allFoldersCache[i].id === info.parent_id) { parentTitle = allFoldersCache[i].title; break; }
+                  if (allFoldersCache[i].id === info.parent_id) { pTitle = allFoldersCache[i].title; break; }
                 }
-                var infoText = 'ID: ' + info.id
-                  + '\nTitle: ' + info.title
-                  + '\nNotebook: ' + parentTitle
-                  + '\nCreated: ' + new Date(info.created_time).toLocaleString()
-                  + '\nUpdated: ' + new Date(info.updated_time).toLocaleString()
-                  + '\nType: ' + (info.is_todo ? 'To-do' : 'Note');
-                // Send info back to webview to display
-                return { name: 'showInfo', text: infoText };
+                var bodyLen = (info.body || '').length;
+                var infoBody = 'ID: ' + info.id
+                  + '\n' + (t.ctxRenameNote || 'Title') + ': ' + info.title
+                  + '\n' + (t.newNotebook || 'Notebook') + ': ' + pTitle
+                  + '\n' + (t.sortUpdatedDesc ? t.sortUpdatedDesc.replace(/[↓↑\u2193\u2191]\s*/, '') : 'Created') + ': ' + new Date(info.created_time).toLocaleString()
+                  + '\n' + (t.sortUpdatedAsc ? t.sortUpdatedAsc.replace(/[↓↑\u2193\u2191]\s*/, '') : 'Updated') + ': ' + new Date(info.updated_time).toLocaleString()
+                  + '\nType: ' + (info.is_todo ? 'To-do' : 'Note')
+                  + '\n' + 'Size: ' + bodyLen + ' chars';
+                await showNativeInfo(info.title, infoBody);
+                break;
               case 'deleteNote':
-                await joplin.data.delete(['notes', id]);
+                var noteForDel = await joplin.data.get(['notes', id], { fields: ['title'] });
+                if (await showNativeConfirm(t.confirmDeleteNote + '\n\n' + noteForDel.title)) {
+                  await joplin.data.delete(['notes', id]);
+                }
                 break;
             }
           }

@@ -173,30 +173,8 @@ document.addEventListener('click', function(e) {
   var id = ctxItem.dataset.id;
   var itemType = ctxItem.dataset.type;
 
-  if (action === 'renameFolder' || action === 'renameNote') {
-    var currentTitle = ctxItem.dataset.title || '';
-    showInlineInput(T('promptRename'), currentTitle, function(newTitle) {
-      if (newTitle !== null && newTitle.trim() !== '') {
-        postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType, newTitle: newTitle.trim() });
-      }
-    });
-  } else if (action === 'deleteFolder') {
-    if (confirm(T('confirmDeleteFolder'))) {
-      postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType });
-    }
-  } else if (action === 'deleteNote') {
-    if (confirm(T('confirmDeleteNote'))) {
-      postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType });
-    }
-  } else if (action === 'moveNote') {
-    showInlineInput(T('promptMoveNote'), '', function(folderName) {
-      if (folderName !== null && folderName.trim() !== '') {
-        postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType, targetFolderName: folderName.trim() });
-      }
-    });
-  } else {
-    postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType });
-  }
+  // All dialogs handled by backend using native Joplin dialogs
+  postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType });
 
   var menu = document.getElementById('ctx-menu');
   if (menu) menu.remove();
