@@ -260,6 +260,18 @@ joplin.plugins.register({
     var allFoldersCache = [];
     var isFirstLoad = true;
 
+    function expandToFolder(folderId) {
+      var parentId = folderId;
+      while (parentId) {
+        delete collapsedFolders[parentId];
+        var found = null;
+        for (var i = 0; i < allFoldersCache.length; i++) {
+          if (allFoldersCache[i].id === parentId) { found = allFoldersCache[i]; break; }
+        }
+        parentId = found ? found.parent_id : null;
+      }
+    }
+
     function sortNotes(notes, sortMode) {
       var sorted = notes.slice();
       switch (sortMode) {
@@ -367,9 +379,13 @@ joplin.plugins.register({
         await refreshPanel();
       } else if (msg.name === 'newNote') {
         await joplin.commands.execute('newNote');
+        var nn = await joplin.workspace.selectedNote();
+        if (nn) { selectedNoteId = nn.id; expandToFolder(nn.parent_id); }
         await refreshPanel();
       } else if (msg.name === 'newTodo') {
         await joplin.commands.execute('newTodo');
+        var nt = await joplin.workspace.selectedNote();
+        if (nt) { selectedNoteId = nt.id; expandToFolder(nt.parent_id); }
         await refreshPanel();
       } else if (msg.name === 'search') {
         var query = msg.query;
@@ -454,11 +470,13 @@ joplin.plugins.register({
                 var newNote = await joplin.data.post(['notes'], null, { title: t.newNote, parent_id: id });
                 await joplin.commands.execute('openNote', newNote.id);
                 selectedNoteId = newNote.id;
+                expandToFolder(id);
                 break;
               case 'newTodo':
                 var newTodo = await joplin.data.post(['notes'], null, { title: t.newTodo, parent_id: id, is_todo: 1 });
                 await joplin.commands.execute('openNote', newTodo.id);
                 selectedNoteId = newTodo.id;
+                expandToFolder(id);
                 break;
               case 'newSubNotebook':
                 await joplin.data.post(['folders'], null, { title: t.newNotebook, parent_id: id });

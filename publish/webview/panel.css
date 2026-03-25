@@ -408,9 +408,9 @@ html, body {
 }
 
 .inline-input-ok {
-  background: var(--joplin-color2, #4a9cf5) !important;
+  background: #1a73e8 !important;
   color: #fff !important;
-  border-color: var(--joplin-color2, #4a9cf5) !important;
+  border-color: #1a73e8 !important;
 }
 
 .inline-input-buttons button:hover {

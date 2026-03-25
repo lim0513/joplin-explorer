@@ -150,7 +150,6 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="toggleTodo" data-id="' + id + '" data-type="note">' + T('ctxToggleTodo') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameNote" data-id="' + id + '" data-type="note" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameNote') + '</div>';
-    menuHtml += '<div class="ctx-item" data-action="moveNote" data-id="' + id + '" data-type="note">' + T('ctxMoveNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="noteInfo" data-id="' + id + '" data-type="note">' + T('ctxNoteInfo') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteNote" data-id="' + id + '" data-type="note">' + T('ctxDeleteNote') + '</div>';
