@@ -1,4 +1,8 @@
 node_modules/
 dist/
 /*.jpl
+
+# Only track the packaged .jpl in publish/, not the build outputs
+publish/*
+publish/webview/
 !publish/plugin.jpl
