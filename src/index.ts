@@ -61,6 +61,10 @@ const i18nData: { [locale: string]: I18nStrings } = {
     promptMoveNote: '请输入目标笔记本名称：',
     promptNewNotebookName: '请输入新笔记本名称：',
     dropCreateNotebook: '释放以创建新笔记本',
+    searchSectionNotes: '笔记',
+    searchSectionTags: '标签',
+    searchSectionFolders: '笔记本',
+    searchTagNoteCount: '{count} 条笔记',
     cancel: '取消',
   },
   'zh_TW': {
@@ -84,6 +88,10 @@ const i18nData: { [locale: string]: I18nStrings } = {
     promptRename: '請輸入新名稱：', promptMoveNote: '請輸入目標筆記本名稱：',
     promptNewNotebookName: '請輸入新筆記本名稱：',
     dropCreateNotebook: '釋放以建立新筆記本',
+    searchSectionNotes: '筆記',
+    searchSectionTags: '標籤',
+    searchSectionFolders: '筆記本',
+    searchTagNoteCount: '{count} 條筆記',
     cancel: '取消',
   },
   'en_US': {
@@ -107,6 +115,10 @@ const i18nData: { [locale: string]: I18nStrings } = {
     promptRename: 'Enter new name:', promptMoveNote: 'Enter target notebook name:',
     promptNewNotebookName: 'Enter new notebook name:',
     dropCreateNotebook: 'Release to create a new notebook',
+    searchSectionNotes: 'Notes',
+    searchSectionTags: 'Tags',
+    searchSectionFolders: 'Notebooks',
+    searchTagNoteCount: '{count} notes',
     cancel: 'Cancel',
   },
   'ja_JP': {
@@ -130,6 +142,10 @@ const i18nData: { [locale: string]: I18nStrings } = {
     promptRename: '新しい名前を入力：', promptMoveNote: '移動先のノートブック名：',
     promptNewNotebookName: '新しいノートブック名を入力：',
     dropCreateNotebook: 'ドロップして新規ノートブックを作成',
+    searchSectionNotes: 'ノート',
+    searchSectionTags: 'タグ',
+    searchSectionFolders: 'ノートブック',
+    searchTagNoteCount: '{count} 件のノート',
     cancel: 'キャンセル',
   },
 };
@@ -351,6 +367,7 @@ joplin.plugins.register({
     let collapsedFolders: { [id: string]: boolean } = {};
     let currentSort = 'updated_desc';
     let allFoldersCache: FolderItem[] = [];
+    let allNotesCache: NoteItem[] = [];
     let isFirstLoad = true;
 
     function expandToFolder(folderId: string): void {
@@ -397,6 +414,13 @@ joplin.plugins.register({
             notesByFolder[batch[j].id] = sortNotes(results[j], currentSort);
           }
         }
+
+        // Flatten all notes into a cache for local substring search
+        const allNotes: NoteItem[] = [];
+        for (const fid of Object.keys(notesByFolder)) {
+          for (const n of notesByFolder[fid]) allNotes.push(n);
+        }
+        allNotesCache = allNotes;
 
         const tree = buildTree(folders, notesByFolder);
         const treeHtml = renderTreeHtml(tree, selectedNoteId, collapsedFolders);
@@ -471,6 +495,11 @@ joplin.plugins.register({
           return;
         }
         try {
+          const lowerQuery = query.toLowerCase();
+          const folderNameMap: { [id: string]: string } = {};
+          for (const f of allFoldersCache) folderNameMap[f.id] = f.title;
+
+          // ---- Notes: Joplin FTS + local title substring fallback ----
           let searchResults: any[] = [];
           let page = 1;
           let hasMore = true;
@@ -484,14 +513,28 @@ joplin.plugins.register({
             hasMore = result.has_more;
             page++;
           }
-          const folderNameMap: { [id: string]: string } = {};
-          for (const f of allFoldersCache) folderNameMap[f.id] = f.title;
-          const items = [] as any[];
+          // Local title substring (catches partial matches FTS misses)
+          const ftsIds = new Set(searchResults.map((n: any) => n.id));
+          const titleMatches: any[] = [];
+          for (const n of allNotesCache) {
+            if (!ftsIds.has(n.id) && (n.title || '').toLowerCase().indexOf(lowerQuery) >= 0) {
+              titleMatches.push(n);
+            }
+          }
+          for (let i = 0; i < titleMatches.length && i < 50; i++) {
+            try {
+              const full = await joplin.data.get(['notes', titleMatches[i].id], {
+                fields: ['id', 'title', 'body', 'parent_id', 'is_todo', 'todo_completed'],
+              });
+              searchResults.push(full);
+            } catch (_) { /* note may have been deleted */ }
+          }
+
+          const noteItems = [] as any[];
           for (const note of searchResults) {
             let snippet = '';
             const body = note.body || '';
             const lowerBody = body.toLowerCase();
-            const lowerQuery = query.toLowerCase();
             const matchIdx = lowerBody.indexOf(lowerQuery);
             if (matchIdx >= 0) {
               const start = Math.max(0, matchIdx - 40);
@@ -500,7 +543,7 @@ joplin.plugins.register({
             } else {
               snippet = body.substring(0, 120).replace(/\n/g, ' ') + (body.length > 120 ? '...' : '');
             }
-            items.push({
+            noteItems.push({
               id: note.id,
               title: note.title || '(untitled)',
               is_todo: note.is_todo,
@@ -509,9 +552,107 @@ joplin.plugins.register({
               folderName: folderNameMap[note.parent_id] || '',
             });
           }
-          await joplin.views.panels.postMessage(panel, { name: 'searchResults', results: items, query, searchId: msg.searchId });
+
+          // ---- Tags: search by title substring ----
+          let allTags: any[] = [];
+          let tagPage = 1;
+          let tagHasMore = true;
+          while (tagHasMore) {
+            const tagResult = await joplin.data.get(['tags'], {
+              fields: ['id', 'title'],
+              page: tagPage, limit: 100,
+            });
+            allTags = allTags.concat(tagResult.items);
+            tagHasMore = tagResult.has_more;
+            tagPage++;
+          }
+          const tagItems = [] as any[];
+          for (const tag of allTags) {
+            if ((tag.title || '').toLowerCase().indexOf(lowerQuery) >= 0) {
+              // Count notes for this tag
+              let noteCount = 0;
+              try {
+                const r = await joplin.data.get(['tags', tag.id, 'notes'], { fields: ['id'], limit: 1 });
+                noteCount = r.items.length + (r.has_more ? '+' as any : 0);
+                // Get accurate count
+                if (r.has_more) {
+                  let cnt = r.items.length;
+                  let p = 2;
+                  let more = true;
+                  while (more) {
+                    const r2 = await joplin.data.get(['tags', tag.id, 'notes'], { fields: ['id'], page: p, limit: 100 });
+                    cnt += r2.items.length;
+                    more = r2.has_more;
+                    p++;
+                  }
+                  noteCount = cnt;
+                }
+              } catch (_) {}
+              tagItems.push({ id: tag.id, title: tag.title, noteCount });
+            }
+          }
+
+          // ---- Folders: local substring search ----
+          const folderItems = [] as any[];
+          for (const f of allFoldersCache) {
+            if ((f.title || '').toLowerCase().indexOf(lowerQuery) >= 0) {
+              folderItems.push({ id: f.id, title: f.title, parent_id: f.parent_id, icon: f.icon });
+            }
+          }
+
+          await joplin.views.panels.postMessage(panel, {
+            name: 'searchResults',
+            notes: noteItems,
+            tags: tagItems,
+            folders: folderItems,
+            query,
+            searchId: msg.searchId,
+          });
         } catch (err) {
           console.error('Joplin Explorer: search error', err);
+        }
+      } else if (msg.name === 'loadTagNotes') {
+        // User clicked a tag in search results -> load its notes
+        try {
+          const tagId = msg.tagId;
+          let notes: any[] = [];
+          let p = 1;
+          let more = true;
+          while (more && notes.length < 100) {
+            const r = await joplin.data.get(['tags', tagId, 'notes'], {
+              fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed'],
+              page: p, limit: 50,
+            });
+            notes = notes.concat(r.items);
+            more = r.has_more;
+            p++;
+          }
+          const folderNameMap: { [id: string]: string } = {};
+          for (const f of allFoldersCache) folderNameMap[f.id] = f.title;
+          const items = notes.map((n: any) => ({
+            id: n.id,
+            title: n.title || '(untitled)',
+            is_todo: n.is_todo,
+            todo_completed: n.todo_completed,
+            snippet: '',
+            folderName: folderNameMap[n.parent_id] || '',
+          }));
+          await joplin.views.panels.postMessage(panel, { name: 'tagNotes', tagId, notes: items });
+        } catch (err) {
+          console.error('Joplin Explorer: loadTagNotes error', err);
+        }
+      } else if (msg.name === 'locateFolder') {
+        // User clicked a folder in search results -> expand to it in tree
+        try {
+          expandToFolder(msg.folderId);
+          await refreshPanel();
+          // Exit search mode and scroll to the target folder
+          await joplin.views.panels.postMessage(panel, {
+            name: 'exitSearchAndLocate',
+            folderId: msg.folderId,
+          });
+        } catch (err) {
+          console.error('Joplin Explorer: locateFolder error', err);
         }
       } else if (msg.name === 'cycleSort') {
         const sortModes = ['updated_desc', 'updated_asc', 'title_asc', 'title_desc'];

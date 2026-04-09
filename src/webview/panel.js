@@ -89,10 +89,26 @@ function showInlineInput(label, defaultValue, callback) {
   });
 }
 
-// Left click: open note / toggle folder
+// Left click: open note / toggle folder / search result actions
 document.addEventListener('click', function(e) {
   var existingMenu = document.getElementById('ctx-menu');
   if (existingMenu) existingMenu.remove();
+
+  // Click on a tag in search results -> load its notes
+  var tagItem = e.target.closest('.search-tag-item');
+  if (tagItem) {
+    var tagId = tagItem.dataset.tagId;
+    if (tagId) postMsg({ name: 'loadTagNotes', tagId: tagId });
+    return;
+  }
+
+  // Click on a folder in search results -> locate in tree
+  var folderItem = e.target.closest('.search-folder-item');
+  if (folderItem) {
+    var folderId = folderItem.dataset.folderId;
+    if (folderId) postMsg({ name: 'locateFolder', folderId: folderId });
+    return;
+  }
 
   var item = e.target.closest('.tree-item');
   if (!item) return;
@@ -188,6 +204,23 @@ document.addEventListener('mousedown', function(e) {
   }
 });
 
+// Search section collapse/expand
+document.addEventListener('click', function(e) {
+  var header = e.target.closest('.search-section-header');
+  if (!header) return;
+  var sectionId = header.dataset.section;
+  var body = document.getElementById('search-section-' + sectionId);
+  if (!body) return;
+  var toggle = header.querySelector('.section-toggle');
+  if (body.classList.contains('collapsed')) {
+    body.classList.remove('collapsed');
+    if (toggle) toggle.textContent = '\u25BC';
+  } else {
+    body.classList.add('collapsed');
+    if (toggle) toggle.textContent = '\u25B6';
+  }
+});
+
 // Toolbar buttons
 document.addEventListener('click', function(e) {
   var btn = e.target.closest('button');
@@ -236,11 +269,32 @@ webviewApi.onMessage(function(msg) {
   } else if (m.name === 'searchResults') {
     // Ignore stale search results
     if (m.searchId !== undefined && m.searchId !== _searchId) return;
-    if (m.results === null) {
+    if (!m.notes && !m.tags && !m.folders) {
       if (_searchMode) exitSearchMode();
     } else {
-      renderSearchResults(m.results, m.query);
+      renderSearchResults(m.notes || [], m.tags || [], m.folders || [], m.query);
     }
+  } else if (m.name === 'tagNotes') {
+    // Expand tag inline with its notes
+    expandTagNotes(m.tagId, m.notes);
+  } else if (m.name === 'exitSearch') {
+    var input = document.getElementById('search-input');
+    if (input) input.value = '';
+    if (_searchMode) exitSearchMode();
+  } else if (m.name === 'exitSearchAndLocate') {
+    var input2 = document.getElementById('search-input');
+    if (input2) input2.value = '';
+    _searchMode = false;
+    showSearchContainer(false);
+    // Scroll to the folder and flash-highlight it
+    setTimeout(function() {
+      var el = document.querySelector('.tree-item.folder[data-id="' + m.folderId + '"]');
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.add('locate-flash');
+        setTimeout(function() { el.classList.remove('locate-flash'); }, 1500);
+      }
+    }, 80);
   } else if (m.name === 'copyText') {
     // Fallback clipboard copy via webview
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -431,41 +485,119 @@ function showSearchContainer(show) {
   if (search) search.style.display = show ? '' : 'none';
 }
 
-function renderSearchResults(results, query) {
+function renderNoteItem(item, query) {
+  var icon = '\uD83D\uDCDD';
+  if (item.is_todo) {
+    icon = item.todo_completed ? '\u2611' : '\u2610';
+  }
+  var html = '<div class="search-result-item tree-item note" data-id="' + item.id + '" data-type="note">';
+  html += '<span class="icon note-icon">' + icon + '</span>';
+  html += '<div class="search-result-content">';
+  html += '<div class="search-result-title">' + highlightText(item.title, query) + '</div>';
+  if (item.folderName) {
+    html += '<div class="search-result-folder">\uD83D\uDCC2 ' + item.folderName + '</div>';
+  }
+  if (item.snippet) {
+    html += '<div class="search-result-snippet">' + highlightText(item.snippet, query) + '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderSearchResults(notes, tags, folders, query) {
   var container = document.getElementById('search-results');
   if (!container) return;
 
   showSearchContainer(true);
 
-  if (!results || results.length === 0) {
+  var totalCount = notes.length + tags.length + folders.length;
+  if (totalCount === 0) {
     container.innerHTML = '<div class="search-status">' + T('searchNoResult') + '</div>';
     return;
   }
 
-  var countText = T('searchResultCount').replace('{count}', results.length);
+  var countText = T('searchResultCount').replace('{count}', totalCount);
   var html = '<div class="search-status">' + countText + '</div>';
 
-  for (var i = 0; i < results.length; i++) {
-    var item = results[i];
-    var icon = '\uD83D\uDCDD';
-    if (item.is_todo) {
-      icon = item.todo_completed ? '\u2611' : '\u2610';
+  function sectionHeader(icon, label, count, sectionId) {
+    return '<div class="search-section-header" data-section="' + sectionId + '">'
+      + '<span class="section-toggle">\u25BC</span> '
+      + icon + ' ' + label + ' (' + count + ')'
+      + '</div>';
+  }
+
+  // --- Folders section ---
+  if (folders.length > 0) {
+    html += sectionHeader('\uD83D\uDCC1', T('searchSectionFolders'), folders.length, 'folders');
+    html += '<div class="search-section-body" id="search-section-folders">';
+    for (var f = 0; f < folders.length; f++) {
+      var folder = folders[f];
+      var folderIcon = (folder.icon && folder.icon.emoji) ? folder.icon.emoji : '\uD83D\uDCC1';
+      html += '<div class="search-result-item search-folder-item" data-folder-id="' + folder.id + '">';
+      html += '<span class="icon">' + folderIcon + '</span>';
+      html += '<div class="search-result-content">';
+      html += '<div class="search-result-title">' + highlightText(folder.title, query) + '</div>';
+      html += '</div></div>';
     }
-    html += '<div class="search-result-item tree-item note" data-id="' + item.id + '" data-type="note">';
-    html += '<span class="icon note-icon">' + icon + '</span>';
-    html += '<div class="search-result-content">';
-    html += '<div class="search-result-title">' + highlightText(item.title, query) + '</div>';
-    if (item.folderName) {
-      html += '<div class="search-result-folder">\uD83D\uDCC2 ' + item.folderName + '</div>';
+    html += '</div>';
+  }
+
+  // --- Notes section ---
+  if (notes.length > 0) {
+    html += sectionHeader('\uD83D\uDCDD', T('searchSectionNotes'), notes.length, 'notes');
+    html += '<div class="search-section-body" id="search-section-notes">';
+    for (var i = 0; i < notes.length; i++) {
+      html += renderNoteItem(notes[i], query);
     }
-    if (item.snippet) {
-      html += '<div class="search-result-snippet">' + highlightText(item.snippet, query) + '</div>';
+    html += '</div>';
+  }
+
+  // --- Tags section ---
+  if (tags.length > 0) {
+    html += sectionHeader('\uD83C\uDFF7\uFE0F', T('searchSectionTags'), tags.length, 'tags');
+    html += '<div class="search-section-body" id="search-section-tags">';
+    for (var t = 0; t < tags.length; t++) {
+      var tag = tags[t];
+      var countLabel = T('searchTagNoteCount').replace('{count}', tag.noteCount);
+      html += '<div class="search-result-item search-tag-item" data-tag-id="' + tag.id + '">';
+      html += '<span class="icon">\uD83C\uDFF7\uFE0F</span>';
+      html += '<div class="search-result-content">';
+      html += '<div class="search-result-title">' + highlightText(tag.title, query) + '</div>';
+      html += '<div class="search-result-folder">' + countLabel + '</div>';
+      html += '</div>';
+      html += '<span class="tag-expand-arrow">\u25B6</span>';
+      html += '</div>';
+      html += '<div class="tag-notes-container" id="tag-notes-' + tag.id + '"></div>';
     }
-    html += '</div></div>';
+    html += '</div>';
   }
 
   container.innerHTML = html;
   _searchMode = true;
+}
+
+// Expand a tag in search results to show its notes
+function expandTagNotes(tagId, notes) {
+  var container = document.getElementById('tag-notes-' + tagId);
+  if (!container) return;
+  // Toggle: if already has children, collapse
+  if (container.children.length > 0) {
+    container.innerHTML = '';
+    // Rotate arrow back
+    var arrow = document.querySelector('.search-tag-item[data-tag-id="' + tagId + '"] .tag-expand-arrow');
+    if (arrow) arrow.classList.remove('expanded');
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < notes.length; i++) {
+    html += renderNoteItem(notes[i], '');
+  }
+  if (notes.length === 0) {
+    html = '<div class="search-status" style="padding-left:30px;">' + T('searchNoResult') + '</div>';
+  }
+  container.innerHTML = html;
+  var arrow = document.querySelector('.search-tag-item[data-tag-id="' + tagId + '"] .tag-expand-arrow');
+  if (arrow) arrow.classList.add('expanded');
 }
 
 function exitSearchMode() {

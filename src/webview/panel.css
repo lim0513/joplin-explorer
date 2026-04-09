@@ -361,11 +361,16 @@ html, body {
   padding: 8px 10px;
   gap: 8px;
   min-height: auto;
+  margin: 0; /* override .tree-item margin for note items in search results */
+  border-radius: 0;
 }
 
 .search-result-item .icon {
-  margin-top: 2px;
   flex-shrink: 0;
+  font-size: 12px;
+  width: 18px;
+  text-align: center;
+  line-height: 16.8px; /* match .search-result-title 12px * 1.4 */
 }
 
 .search-result-content {
@@ -399,6 +404,83 @@ html, body {
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-all;
+}
+
+/* Search section headers */
+.search-section-header {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--joplin-color-faded, #888);
+  background: var(--joplin-background-color3, rgba(100, 100, 100, 0.06));
+  border-bottom: 1px solid var(--joplin-divider-color, #eee);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.search-section-header:hover {
+  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
+}
+
+.section-toggle {
+  display: inline-block;
+  font-size: 9px;
+  width: 12px;
+  text-align: center;
+  transition: transform 0.15s;
+}
+
+.search-section-body.collapsed {
+  display: none;
+}
+
+/* Tag items in search results */
+.search-tag-item {
+  cursor: pointer;
+}
+
+.search-tag-item:hover {
+  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.1));
+}
+
+.tag-expand-arrow {
+  flex-shrink: 0;
+  font-size: 9px;
+  color: var(--joplin-color-faded, #888);
+  transition: transform 0.15s;
+  margin-right: 4px;
+}
+
+.tag-expand-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.tag-notes-container {
+  padding-left: 16px;
+  border-left: 2px solid var(--joplin-divider-color, #eee);
+  margin-left: 18px;
+}
+
+/* Folder items in search results */
+.search-folder-item {
+  cursor: pointer;
+}
+
+.search-folder-item:hover {
+  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.1));
+}
+
+/* Flash highlight when locating a folder from search */
+@keyframes locate-pulse {
+  0%   { background: rgba(74, 156, 245, 0.5); }
+  100% { background: transparent; }
+}
+
+.tree-item.locate-flash {
+  animation: locate-pulse 1.5s ease-out;
+  border-radius: 4px;
 }
 
 /* Inline input dialog */

@@ -21,10 +21,10 @@ The roadmap is divided into version milestones to provide clarity for users and 
 ---
 
 ## 🚀 v1.2 — Experience Enhancements
-- [ ] **Enhanced Search**
-  - [ ] Search tags
-  - [ ] Search notebooks
-  - [ ] Highlight search results
+- [x] **Enhanced Search**
+  - [x] Search tags
+  - [x] Search notebooks
+  - [x] Highlight search results
 - [ ] **Favorites**
   - [ ] Pin notes
   - [ ] Pin notebooks
