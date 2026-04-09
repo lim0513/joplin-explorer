@@ -256,22 +256,76 @@ html, body {
 
 /* Drag & Drop */
 .tree-item.dragging {
-  opacity: 0.4;
+  opacity: 0.35;
+  filter: grayscale(30%);
 }
 
 .tree-item.drop-target {
-  background: var(--joplin-selected-color, rgba(74, 156, 245, 0.25));
+  background: var(--joplin-selected-color, rgba(74, 156, 245, 0.28));
   outline: 2px solid var(--joplin-color2, #4a9cf5);
   outline-offset: -2px;
-  border-radius: 3px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(74, 156, 245, 0.15);
 }
 
-.tree-item.drop-above {
-  box-shadow: 0 -2px 0 0 var(--joplin-color2, #4a9cf5);
-}
-
+/* Horizontal insertion bar (above/below) — position:relative only when active */
+.tree-item.drop-above,
 .tree-item.drop-below {
-  box-shadow: 0 2px 0 0 var(--joplin-color2, #4a9cf5);
+  position: relative;
+}
+
+.tree-item.drop-above::before,
+.tree-item.drop-below::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: var(--joplin-color2, #4a9cf5);
+  border-radius: 2px;
+  box-shadow: 0 0 4px rgba(74, 156, 245, 0.6);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.tree-item.drop-above::before {
+  top: -2px;
+}
+
+.tree-item.drop-below::before {
+  bottom: -2px;
+}
+
+/* Dropping into empty area -> create new notebook */
+#tree-container.drop-empty {
+  box-shadow: inset 0 0 0 2px var(--joplin-color2, #4a9cf5);
+  background: rgba(74, 156, 245, 0.06);
+}
+
+/* Floating hint: position:fixed keeps it out of layout flow so the tree
+   never shifts while dragging (which would otherwise cause oscillation). */
+#empty-drop-hint {
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 20px;
+  border: 2px dashed var(--joplin-color2, #4a9cf5);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--joplin-color2, #4a9cf5);
+  background: var(--joplin-background-color, #fff);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  z-index: 10000;
+  white-space: nowrap;
+}
+
+#tree-container.drop-empty ~ #empty-drop-hint {
+  display: block;
 }
 
 #search-results {

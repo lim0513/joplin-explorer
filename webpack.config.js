@@ -18,9 +18,6 @@ module.exports = (env) => {
       ],
     },
     resolve: {
-      alias: {
-        api: path.resolve(__dirname, 'api'),
-      },
       extensions: ['.tsx', '.ts', '.js'],
     },
     output: {
@@ -35,9 +32,6 @@ module.exports = (env) => {
         ],
       }),
     ],
-    externals: {
-      api: 'commonjs api',
-    },
     devtool: isProduction ? false : 'source-map',
   };
 };

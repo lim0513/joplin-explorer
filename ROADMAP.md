@@ -28,9 +28,9 @@ The roadmap is divided into version milestones to provide clarity for users and 
 - [ ] **Favorites**
   - [ ] Pin notes
   - [ ] Pin notebooks
-- [ ] **Improved Drag & Drop**
-  - [ ] Clearer drop indicators
-  - [ ] Drag to empty area to create a new notebook
+- [x] **Improved Drag & Drop**
+  - [x] Clearer drop indicators
+  - [x] Drag to empty area to create a new notebook
 
 ---
 

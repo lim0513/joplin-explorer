@@ -285,29 +285,43 @@ document.addEventListener('dragstart', function(e) {
   item.classList.add('dragging');
 });
 
+function clearDropIndicators() {
+  document.querySelectorAll('.drop-target').forEach(function(el) { el.classList.remove('drop-target'); });
+  document.querySelectorAll('.drop-above').forEach(function(el) { el.classList.remove('drop-above'); });
+  document.querySelectorAll('.drop-below').forEach(function(el) { el.classList.remove('drop-below'); });
+  var tc = document.getElementById('tree-container');
+  if (tc) tc.classList.remove('drop-empty');
+}
+
 document.addEventListener('dragend', function(e) {
   var item = e.target.closest('.tree-item');
   if (item) {
     item.classList.remove('dragging');
     item.removeAttribute('draggable');
   }
-  // Clean up all drop indicators
-  document.querySelectorAll('.drop-target').forEach(function(el) { el.classList.remove('drop-target'); });
-  document.querySelectorAll('.drop-above').forEach(function(el) { el.classList.remove('drop-above'); });
-  document.querySelectorAll('.drop-below').forEach(function(el) { el.classList.remove('drop-below'); });
+  clearDropIndicators();
 });
 
 document.addEventListener('dragover', function(e) {
   var target = e.target.closest('.tree-item');
-  if (!target) return;
+  var treeContainer = document.getElementById('tree-container');
+
+  // Empty-area drop: inside tree-container but not on any tree-item
+  if (!target) {
+    if (treeContainer && treeContainer.contains(e.target)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      clearDropIndicators();
+      treeContainer.classList.add('drop-empty');
+    }
+    return;
+  }
 
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
 
   // Clean previous indicators
-  document.querySelectorAll('.drop-target').forEach(function(el) { el.classList.remove('drop-target'); });
-  document.querySelectorAll('.drop-above').forEach(function(el) { el.classList.remove('drop-above'); });
-  document.querySelectorAll('.drop-below').forEach(function(el) { el.classList.remove('drop-below'); });
+  clearDropIndicators();
 
   var targetType = target.dataset.type;
   var rect = target.getBoundingClientRect();
@@ -340,22 +354,37 @@ document.addEventListener('dragleave', function(e) {
     target.classList.remove('drop-above');
     target.classList.remove('drop-below');
   }
+  // If leaving the tree-container entirely, clear empty-drop hint
+  var treeContainer = document.getElementById('tree-container');
+  if (treeContainer && e.target === treeContainer) {
+    treeContainer.classList.remove('drop-empty');
+  }
 });
 
 document.addEventListener('drop', function(e) {
   e.preventDefault();
   var target = e.target.closest('.tree-item');
-  if (!target) return;
+  var treeContainer = document.getElementById('tree-container');
 
   var data;
-  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch(err) { return; }
+  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch(err) { clearDropIndicators(); return; }
 
-  var targetId = target.dataset.id;
-  var targetType = target.dataset.type;
   var dragId = data.id;
   var dragType = data.type;
 
-  if (dragId === targetId) return; // Can't drop on self
+  // Empty-area drop -> ask host to create a new notebook and move the item in
+  if (!target) {
+    if (treeContainer && treeContainer.contains(e.target)) {
+      postMsg({ name: 'dragToEmpty', dragId: dragId, dragType: dragType });
+    }
+    clearDropIndicators();
+    return;
+  }
+
+  var targetId = target.dataset.id;
+  var targetType = target.dataset.type;
+
+  if (dragId === targetId) { clearDropIndicators(); return; } // Can't drop on self
 
   var rect = target.getBoundingClientRect();
   var y = e.clientY - rect.top;
@@ -375,10 +404,7 @@ document.addEventListener('drop', function(e) {
     postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: 'into' });
   }
 
-  // Clean up
-  document.querySelectorAll('.drop-target, .drop-above, .drop-below').forEach(function(el) {
-    el.classList.remove('drop-target', 'drop-above', 'drop-below');
-  });
+  clearDropIndicators();
 });
 
 // ======================== Content Search ========================

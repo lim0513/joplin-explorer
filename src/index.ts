@@ -1,4 +1,8 @@
-import joplin from 'api';
+// Joplin plugin runtime provides `joplin` as a global variable at runtime.
+// We intentionally do NOT `import joplin from 'api'` because webpack would
+// emit `require("api")`, which the Joplin plugin loader does not resolve
+// (see plugin_index.html "Cannot find module 'api'" error).
+declare const joplin: any;
 
 /* ======================== Types ======================== */
 interface FolderItem {
@@ -55,6 +59,8 @@ const i18nData: { [locale: string]: I18nStrings } = {
     confirmDeleteNote: '确定删除此笔记吗？',
     promptRename: '请输入新名称：',
     promptMoveNote: '请输入目标笔记本名称：',
+    promptNewNotebookName: '请输入新笔记本名称：',
+    dropCreateNotebook: '释放以创建新笔记本',
     cancel: '取消',
   },
   'zh_TW': {
@@ -76,6 +82,8 @@ const i18nData: { [locale: string]: I18nStrings } = {
     confirmDeleteFolder: '確定刪除此筆記本及其所有內容嗎？',
     confirmDeleteNote: '確定刪除此筆記嗎？',
     promptRename: '請輸入新名稱：', promptMoveNote: '請輸入目標筆記本名稱：',
+    promptNewNotebookName: '請輸入新筆記本名稱：',
+    dropCreateNotebook: '釋放以建立新筆記本',
     cancel: '取消',
   },
   'en_US': {
@@ -97,6 +105,8 @@ const i18nData: { [locale: string]: I18nStrings } = {
     confirmDeleteFolder: 'Delete this notebook and all its contents?',
     confirmDeleteNote: 'Delete this note?',
     promptRename: 'Enter new name:', promptMoveNote: 'Enter target notebook name:',
+    promptNewNotebookName: 'Enter new notebook name:',
+    dropCreateNotebook: 'Release to create a new notebook',
     cancel: 'Cancel',
   },
   'ja_JP': {
@@ -118,6 +128,8 @@ const i18nData: { [locale: string]: I18nStrings } = {
     confirmDeleteFolder: 'このノートブックとその内容をすべて削除しますか？',
     confirmDeleteNote: 'このノートを削除しますか？',
     promptRename: '新しい名前を入力：', promptMoveNote: '移動先のノートブック名：',
+    promptNewNotebookName: '新しいノートブック名を入力：',
+    dropCreateNotebook: 'ドロップして新規ノートブックを作成',
     cancel: 'キャンセル',
   },
 };
@@ -408,6 +420,7 @@ joplin.plugins.register({
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
           + '  <div id="tree-container">' + treeHtml + '</div>'
+          + '  <div id="empty-drop-hint">' + t.dropCreateNotebook + '</div>'
           + '  <div id="search-results" style="display:none;"></div>'
           + '  <div class="bottom-bar">'
           + '    <button id="btn-sync" title="' + t.sync + '">\uD83D\uDD04 ' + t.sync + '</button>'
@@ -692,6 +705,24 @@ joplin.plugins.register({
           await refreshPanel();
         } catch (err) {
           console.error('Notes In List: drag drop error', err);
+        }
+      } else if (msg.name === 'dragToEmpty') {
+        try {
+          const dragId = msg.dragId;
+          const dragType = msg.dragType;
+          const name = await showNativeInput(t.promptNewNotebookName, '');
+          if (!name || !name.trim()) return;
+          const newFolder = await joplin.data.post(['folders'], null, { title: name.trim() });
+          if (dragType === 'note') {
+            await joplin.data.put(['notes', dragId], null, { parent_id: newFolder.id });
+          } else if (dragType === 'folder') {
+            if (dragId !== newFolder.id) {
+              await joplin.data.put(['folders', dragId], null, { parent_id: newFolder.id });
+            }
+          }
+          await refreshPanel();
+        } catch (err) {
+          console.error('Notes In List: drag to empty error', err);
         }
       }
     });
