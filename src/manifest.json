@@ -9,10 +9,5 @@
   "homepage_url": "https://github.com/lim0513/joplin-explorer",
   "repository_url": "https://github.com/lim0513/joplin-explorer",
   "keywords": ["sidebar", "explorer", "tree-view", "notebooks", "notes"],
-  "categories": ["appearance", "productivity"],
-  "screenshots": [
-    {"src": "screenshots/tree-view.png", "label": "Unified tree view of notebooks and notes"},
-    {"src": "screenshots/search.png", "label": "Full-text search with keyword highlighting"},
-    {"src": "screenshots/context-menu.png", "label": "Right-click context menu"}
-  ]
+  "categories": ["appearance", "productivity"]
 }
