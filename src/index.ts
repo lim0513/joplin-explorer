@@ -65,6 +65,9 @@ const i18nData: { [locale: string]: I18nStrings } = {
     searchSectionTags: '标签',
     searchSectionFolders: '笔记本',
     searchTagNoteCount: '{count} 条笔记',
+    pinned: '收藏夹',
+    ctxPin: '📌 收藏',
+    ctxUnpin: '取消收藏',
     cancel: '取消',
   },
   'zh_TW': {
@@ -92,6 +95,9 @@ const i18nData: { [locale: string]: I18nStrings } = {
     searchSectionTags: '標籤',
     searchSectionFolders: '筆記本',
     searchTagNoteCount: '{count} 條筆記',
+    pinned: '收藏夾',
+    ctxPin: '📌 收藏',
+    ctxUnpin: '取消收藏',
     cancel: '取消',
   },
   'en_US': {
@@ -119,6 +125,9 @@ const i18nData: { [locale: string]: I18nStrings } = {
     searchSectionTags: 'Tags',
     searchSectionFolders: 'Notebooks',
     searchTagNoteCount: '{count} notes',
+    pinned: 'Pinned',
+    ctxPin: '\uD83D\uDCCC Pin',
+    ctxUnpin: 'Unpin',
     cancel: 'Cancel',
   },
   'ja_JP': {
@@ -146,6 +155,9 @@ const i18nData: { [locale: string]: I18nStrings } = {
     searchSectionTags: 'タグ',
     searchSectionFolders: 'ノートブック',
     searchTagNoteCount: '{count} 件のノート',
+    pinned: 'ピン留め',
+    ctxPin: '\uD83D\uDCCC ピン留め',
+    ctxUnpin: 'ピン解除',
     cancel: 'キャンセル',
   },
 };
@@ -310,6 +322,22 @@ joplin.plugins.register({
     await joplin.views.panels.setHtml(panel, '<div id="notes-in-list-root"><p style="padding:12px;">' + t.loading + '</p></div>');
     await joplin.views.panels.show(panel, true);
 
+    // Register settings for pinned items persistence
+    try {
+      await joplin.settings.registerSection('joplinExplorer', { label: 'Joplin Explorer', iconName: 'fas fa-columns' });
+      await joplin.settings.registerSettings({
+        'pinnedItems': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '{"notes":[],"folders":[]}',
+          public: false,
+          label: 'Pinned Items (JSON)',
+        },
+      });
+    } catch (err) {
+      console.error('Joplin Explorer: failed to register settings', err);
+    }
+
     // Native dialogs
     const inputDialog = await joplin.views.dialogs.create('explorerInputDialog');
     const confirmDialog = await joplin.views.dialogs.create('explorerConfirmDialog');
@@ -368,7 +396,26 @@ joplin.plugins.register({
     let currentSort = 'updated_desc';
     let allFoldersCache: FolderItem[] = [];
     let allNotesCache: NoteItem[] = [];
+    let pinnedItems: { notes: string[], folders: string[] } = { notes: [], folders: [] };
+    let pinnedCollapsed = false;
     let isFirstLoad = true;
+
+    async function loadPinned(): Promise<void> {
+      try {
+        const raw = await joplin.settings.value('pinnedItems');
+        if (raw) pinnedItems = JSON.parse(raw);
+      } catch (_) {
+        pinnedItems = { notes: [], folders: [] };
+      }
+    }
+
+    async function savePinned(): Promise<void> {
+      try {
+        await joplin.settings.setValue('pinnedItems', JSON.stringify(pinnedItems));
+      } catch (err) {
+        console.error('Joplin Explorer: failed to save pinned items', err);
+      }
+    }
 
     function expandToFolder(folderId: string): void {
       let parentId: string | null = folderId;
@@ -425,6 +472,57 @@ joplin.plugins.register({
         const tree = buildTree(folders, notesByFolder);
         const treeHtml = renderTreeHtml(tree, selectedNoteId, collapsedFolders);
 
+        // Build pinned section
+        await loadPinned();
+        const folderIdSet = new Set(folders.map(f => f.id));
+        const noteIdSet = new Set(allNotes.map(n => n.id));
+        // Auto-clean deleted items
+        const cleanedFolders = pinnedItems.folders.filter(id => folderIdSet.has(id));
+        const cleanedNotes = pinnedItems.notes.filter(id => noteIdSet.has(id));
+        if (cleanedFolders.length !== pinnedItems.folders.length || cleanedNotes.length !== pinnedItems.notes.length) {
+          pinnedItems.folders = cleanedFolders;
+          pinnedItems.notes = cleanedNotes;
+          await savePinned();
+        }
+
+        let pinnedHtml = '';
+        const pinnedCount = pinnedItems.folders.length + pinnedItems.notes.length;
+        if (pinnedCount > 0) {
+          const pinnedArrow = pinnedCollapsed ? '\u25B6' : '\u25BC';
+          pinnedHtml += '<div class="pinned-section-header" id="pinned-header">'
+            + '<span class="toggle">' + pinnedArrow + '</span>'
+            + '<span class="icon">\uD83D\uDCCC</span>'
+            + '<span class="label">' + t.pinned + ' (' + pinnedCount + ')</span>'
+            + '</div>';
+          pinnedHtml += '<div class="pinned-section-body' + (pinnedCollapsed ? ' collapsed' : '') + '" id="pinned-body">';
+          for (const fid of pinnedItems.folders) {
+            let folder: FolderItem | null = null;
+            for (const f of folders) { if (f.id === fid) { folder = f; break; } }
+            if (folder) {
+              const fi = getFolderIcon(folder as any);
+              pinnedHtml += '<div class="tree-item folder pinned-item" data-id="' + folder.id + '" data-type="folder">';
+              pinnedHtml += '<span class="icon folder-icon">' + fi + '</span>';
+              pinnedHtml += '<span class="label">' + escapeHtml(folder.title) + '</span>';
+              pinnedHtml += '</div>';
+            }
+          }
+          for (const nid of pinnedItems.notes) {
+            let note: NoteItem | null = null;
+            for (const n of allNotes) { if (n.id === nid) { note = n; break; } }
+            if (note) {
+              const selected = note.id === selectedNoteId ? ' selected' : '';
+              let icon = '\uD83D\uDCDD';
+              if (note.is_todo) { icon = note.todo_completed ? '\u2611' : '\u2610'; }
+              pinnedHtml += '<div class="tree-item note pinned-item' + selected + '" data-id="' + note.id + '" data-type="note">';
+              pinnedHtml += '<span class="icon note-icon">' + icon + '</span>';
+              pinnedHtml += '<span class="label">' + escapeHtml(note.title) + '</span>';
+              pinnedHtml += '</div>';
+            }
+          }
+          pinnedHtml += '</div>';
+        }
+
+        const pinnedJson = escapeHtml(JSON.stringify(pinnedItems));
         const sortLabels: { [k: string]: string } = {
           'updated_desc': t.sortUpdatedDesc, 'updated_asc': t.sortUpdatedAsc,
           'title_asc': t.sortTitleAsc, 'title_desc': t.sortTitleDesc,
@@ -432,7 +530,7 @@ joplin.plugins.register({
 
         const i18nJson = escapeHtml(JSON.stringify(t));
 
-        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '">'
+        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new-notebook" title="' + t.newNotebook + '">\uD83D\uDCC1+</button>'
           + '    <button id="btn-new-note" title="' + t.newNote + '">\uD83D\uDCDD+</button>'
@@ -443,7 +541,7 @@ joplin.plugins.register({
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
-          + '  <div id="tree-container">' + treeHtml + '</div>'
+          + '  <div id="tree-container">' + pinnedHtml + treeHtml + '</div>'
           + '  <div id="empty-drop-hint">' + t.dropCreateNotebook + '</div>'
           + '  <div id="search-results" style="display:none;"></div>'
           + '  <div class="bottom-bar">'
@@ -654,6 +752,20 @@ joplin.plugins.register({
         } catch (err) {
           console.error('Joplin Explorer: locateFolder error', err);
         }
+      } else if (msg.name === 'locatePinnedFolder') {
+        try {
+          expandToFolder(msg.folderId);
+          await refreshPanel();
+          await joplin.views.panels.postMessage(panel, {
+            name: 'scrollToFolder',
+            folderId: msg.folderId,
+          });
+        } catch (err) {
+          console.error('Joplin Explorer: locatePinnedFolder error', err);
+        }
+      } else if (msg.name === 'togglePinnedCollapse') {
+        pinnedCollapsed = !pinnedCollapsed;
+        await refreshPanel();
       } else if (msg.name === 'cycleSort') {
         const sortModes = ['updated_desc', 'updated_asc', 'title_asc', 'title_desc'];
         const idx = sortModes.indexOf(currentSort);
@@ -715,6 +827,18 @@ joplin.plugins.register({
               case 'exportFolder':
                 try { await joplin.commands.execute('exportFolders', [id]); } catch (e) {}
                 break;
+              case 'pinFolder': {
+                if (!pinnedItems.folders.includes(id)) {
+                  pinnedItems.folders.push(id);
+                  await savePinned();
+                }
+                break;
+              }
+              case 'unpinFolder': {
+                pinnedItems.folders = pinnedItems.folders.filter(fid => fid !== id);
+                await savePinned();
+                break;
+              }
             }
           } else if (itemType === 'note') {
             switch (action) {
@@ -800,6 +924,18 @@ joplin.plugins.register({
                 if (await showNativeConfirm(t.confirmDeleteNote + '\n\n' + noteForDel.title)) {
                   await joplin.data.delete(['notes', id]);
                 }
+                break;
+              }
+              case 'pinNote': {
+                if (!pinnedItems.notes.includes(id)) {
+                  pinnedItems.notes.push(id);
+                  await savePinned();
+                }
+                break;
+              }
+              case 'unpinNote': {
+                pinnedItems.notes = pinnedItems.notes.filter(nid => nid !== id);
+                await savePinned();
                 break;
               }
             }

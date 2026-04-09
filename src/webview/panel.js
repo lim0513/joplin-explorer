@@ -46,6 +46,14 @@ function T(key) {
   return (window._i18n && window._i18n[key]) || key;
 }
 
+function getPinnedData() {
+  var root = document.getElementById('notes-in-list-root');
+  if (root && root.dataset.pinned) {
+    try { return JSON.parse(root.dataset.pinned); } catch(e) {}
+  }
+  return { notes: [], folders: [] };
+}
+
 // Inline input dialog (replaces prompt() which may not work in webview)
 function showInlineInput(label, defaultValue, callback) {
   var existing = document.getElementById('inline-input-overlay');
@@ -115,6 +123,7 @@ document.addEventListener('click', function(e) {
 
   var type = item.dataset.type;
   var id = item.dataset.id;
+  var isPinnedItem = item.classList.contains('pinned-item');
 
   if (type === 'note') {
     document.querySelectorAll('.tree-item.note.selected').forEach(function(el) {
@@ -125,7 +134,12 @@ document.addEventListener('click', function(e) {
   }
 
   if (type === 'folder') {
-    postMsg({ name: 'toggleFolder', id: id });
+    if (isPinnedItem) {
+      // Pinned folder: expand to it in tree and scroll
+      postMsg({ name: 'locatePinnedFolder', folderId: id });
+    } else {
+      postMsg({ name: 'toggleFolder', id: id });
+    }
   }
 });
 
@@ -147,7 +161,12 @@ document.addEventListener('contextmenu', function(e) {
 
   var menuHtml = '<div id="ctx-menu" class="context-menu" style="left:' + e.pageX + 'px;top:' + e.pageY + 'px;">';
 
+  var pinData = getPinnedData();
+
   if (type === 'folder') {
+    var isFolderPinned = pinData.folders.indexOf(id) >= 0;
+    menuHtml += '<div class="ctx-item" data-action="' + (isFolderPinned ? 'unpinFolder' : 'pinFolder') + '" data-id="' + id + '" data-type="folder">' + (isFolderPinned ? T('ctxUnpin') : T('ctxPin')) + '</div>';
+    menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="newNote" data-id="' + id + '" data-type="folder">' + T('ctxNewNoteHere') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="newTodo" data-id="' + id + '" data-type="folder">' + T('ctxNewTodoHere') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="newSubNotebook" data-id="' + id + '" data-type="folder">' + T('ctxNewSubNotebook') + '</div>';
@@ -157,6 +176,9 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteFolder" data-id="' + id + '" data-type="folder">' + T('ctxDeleteFolder') + '</div>';
   } else if (type === 'note') {
+    var isNotePinned = pinData.notes.indexOf(id) >= 0;
+    menuHtml += '<div class="ctx-item" data-action="' + (isNotePinned ? 'unpinNote' : 'pinNote') + '" data-id="' + id + '" data-type="note">' + (isNotePinned ? T('ctxUnpin') : T('ctxPin')) + '</div>';
+    menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="openNote" data-id="' + id + '" data-type="note">' + T('ctxOpenNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="openInNewWindow" data-id="' + id + '" data-type="note">' + T('ctxOpenInNewWindow') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
@@ -201,6 +223,15 @@ document.addEventListener('mousedown', function(e) {
   if (!e.target.closest('#ctx-menu')) {
     var menu = document.getElementById('ctx-menu');
     if (menu) menu.remove();
+  }
+});
+
+// Pinned section collapse/expand
+document.addEventListener('click', function(e) {
+  var pinnedHeader = e.target.closest('.pinned-section-header');
+  if (pinnedHeader) {
+    postMsg({ name: 'togglePinnedCollapse' });
+    return;
   }
 });
 
@@ -277,6 +308,15 @@ webviewApi.onMessage(function(msg) {
   } else if (m.name === 'tagNotes') {
     // Expand tag inline with its notes
     expandTagNotes(m.tagId, m.notes);
+  } else if (m.name === 'scrollToFolder') {
+    setTimeout(function() {
+      var el = document.querySelector('.tree-item.folder:not(.pinned-item)[data-id="' + m.folderId + '"]');
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.add('locate-flash');
+        setTimeout(function() { el.classList.remove('locate-flash'); }, 1500);
+      }
+    }, 80);
   } else if (m.name === 'exitSearch') {
     var input = document.getElementById('search-input');
     if (input) input.value = '';

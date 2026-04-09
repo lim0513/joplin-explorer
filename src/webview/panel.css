@@ -254,6 +254,38 @@ html, body {
   margin: 4px 0;
 }
 
+/* Pinned section */
+.pinned-section-header {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px 3px 0;
+  gap: 5px;
+  margin: 1px 4px;
+  min-height: 24px;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--joplin-color-faded, #888);
+  font-weight: 700;
+}
+
+.pinned-section-header:hover {
+  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
+}
+
+.pinned-section-body {
+  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
+  margin-bottom: 2px;
+}
+
+.pinned-section-body.collapsed {
+  display: none;
+}
+
+.pinned-item {
+  padding-left: 18px !important;
+}
+
 /* Drag & Drop */
 .tree-item.dragging {
   opacity: 0.35;
