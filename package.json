@@ -15,7 +15,6 @@
   "keywords": ["joplin-plugin", "joplin", "sidebar", "explorer", "tree-view", "notebooks"],
   "license": "MIT",
   "devDependencies": {
-    "api": "file:api",
     "copy-webpack-plugin": "^11.0.0",
     "ts-loader": "^9.5.1",
     "typescript": "^5.3.3",

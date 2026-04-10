@@ -286,6 +286,37 @@ html, body {
   padding-left: 18px !important;
 }
 
+/* Empty drop zone — sticky at bottom of scroll viewport */
+.drop-zone-empty {
+  position: sticky;
+  bottom: 0;
+  height: 32px;
+  flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+/* Only show during drag (activated by JS class on tree-container) */
+#tree-container.dragging-active .drop-zone-empty {
+  opacity: 1;
+  pointer-events: auto;
+  border: 2px dashed var(--joplin-color2, #4a9cf5);
+  border-radius: 6px;
+  margin: 4px 8px;
+  text-align: center;
+  line-height: 28px;
+  font-size: 11px;
+  color: var(--joplin-color2, #4a9cf5);
+  background: rgba(74, 156, 245, 0.08);
+}
+
+/* Pinned section accepts drops during drag */
+#tree-container.dragging-active .pinned-section-header {
+  border: 2px dashed var(--joplin-color2, #4a9cf5);
+  border-radius: 4px;
+}
+
 /* Drag & Drop */
 .tree-item.dragging {
   opacity: 0.35;
@@ -334,31 +365,6 @@ html, body {
   background: rgba(74, 156, 245, 0.06);
 }
 
-/* Floating hint: position:fixed keeps it out of layout flow so the tree
-   never shifts while dragging (which would otherwise cause oscillation). */
-#empty-drop-hint {
-  display: none;
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  padding: 12px 20px;
-  border: 2px dashed var(--joplin-color2, #4a9cf5);
-  border-radius: 8px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--joplin-color2, #4a9cf5);
-  background: var(--joplin-background-color, #fff);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
-  z-index: 10000;
-  white-space: nowrap;
-}
-
-#tree-container.drop-empty ~ #empty-drop-hint {
-  display: block;
-}
 
 #search-results {
   flex: 1;

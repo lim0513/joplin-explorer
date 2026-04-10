@@ -541,8 +541,9 @@ joplin.plugins.register({
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
-          + '  <div id="tree-container">' + pinnedHtml + treeHtml + '</div>'
-          + '  <div id="empty-drop-hint">' + t.dropCreateNotebook + '</div>'
+          + '  <div id="tree-container">' + pinnedHtml + treeHtml
+          + '    <div id="drop-zone-empty" class="drop-zone-empty">+ ' + t.dropCreateNotebook + '</div>'
+          + '  </div>'
           + '  <div id="search-results" style="display:none;"></div>'
           + '  <div class="bottom-bar">'
           + '    <button id="btn-sync" title="' + t.sync + '">\uD83D\uDD04 ' + t.sync + '</button>'

@@ -377,14 +377,21 @@ document.addEventListener('dragstart', function(e) {
   }));
   e.dataTransfer.effectAllowed = 'move';
   item.classList.add('dragging');
+  // Show drop zones during drag
+  var tc = document.getElementById('tree-container');
+  if (tc) tc.classList.add('dragging-active');
 });
 
 function clearDropIndicators() {
   document.querySelectorAll('.drop-target').forEach(function(el) { el.classList.remove('drop-target'); });
   document.querySelectorAll('.drop-above').forEach(function(el) { el.classList.remove('drop-above'); });
   document.querySelectorAll('.drop-below').forEach(function(el) { el.classList.remove('drop-below'); });
+}
+
+function endDrag() {
+  clearDropIndicators();
   var tc = document.getElementById('tree-container');
-  if (tc) tc.classList.remove('drop-empty');
+  if (tc) tc.classList.remove('dragging-active');
 }
 
 document.addEventListener('dragend', function(e) {
@@ -393,23 +400,35 @@ document.addEventListener('dragend', function(e) {
     item.classList.remove('dragging');
     item.removeAttribute('draggable');
   }
-  clearDropIndicators();
+  endDrag();
 });
 
 document.addEventListener('dragover', function(e) {
-  var target = e.target.closest('.tree-item');
+  var el = e.target;
+  if (el && el.nodeType === 3) el = el.parentElement; // text node -> parent element
+  if (!el) return;
+  var target = el.closest('.tree-item');
   var treeContainer = document.getElementById('tree-container');
 
-  // Empty-area drop: inside tree-container but not on any tree-item
-  if (!target) {
-    if (treeContainer && treeContainer.contains(e.target)) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-      clearDropIndicators();
-      treeContainer.classList.add('drop-empty');
-    }
+  // Drop zone (sticky bottom) — always accept
+  var onDropZone = el.closest('#drop-zone-empty');
+  if (onDropZone) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
     return;
   }
+
+  // Pinned section — accept drops to pin items
+  var inPinnedArea = el.closest('.pinned-section-header') || el.closest('.pinned-section-body');
+  if (inPinnedArea) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    clearDropIndicators();
+    return;
+  }
+
+  // Normal tree-item not found — ignore
+  if (!target) return;
 
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
@@ -457,28 +476,47 @@ document.addEventListener('dragleave', function(e) {
 
 document.addEventListener('drop', function(e) {
   e.preventDefault();
-  var target = e.target.closest('.tree-item');
+  var el0 = e.target;
+  if (el0 && el0.nodeType === 3) el0 = el0.parentElement;
+  var target = el0 ? el0.closest('.tree-item') : null;
   var treeContainer = document.getElementById('tree-container');
 
   var data;
-  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch(err) { clearDropIndicators(); return; }
+  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch(err) { endDrag(); return; }
 
   var dragId = data.id;
   var dragType = data.type;
 
-  // Empty-area drop -> ask host to create a new notebook and move the item in
-  if (!target) {
-    if (treeContainer && treeContainer.contains(e.target)) {
-      postMsg({ name: 'dragToEmpty', dragId: dragId, dragType: dragType });
+  // Drop on drop zone -> create new notebook
+  var onDZ = el0 ? el0.closest('#drop-zone-empty') : null;
+  if (onDZ) {
+    postMsg({ name: 'dragToEmpty', dragId: dragId, dragType: dragType });
+    endDrag();
+    return;
+  }
+
+  // Drop on pinned section -> pin the item
+  var onPinnedArea2 = el0 ? (el0.closest('.pinned-section-header') || el0.closest('.pinned-section-body')) : null;
+  if (onPinnedArea2) {
+    if (dragType === 'note') {
+      postMsg({ name: 'contextMenu', action: 'pinNote', id: dragId, itemType: 'note' });
+    } else if (dragType === 'folder') {
+      postMsg({ name: 'contextMenu', action: 'pinFolder', id: dragId, itemType: 'folder' });
     }
-    clearDropIndicators();
+    endDrag();
+    return;
+  }
+
+  // No target tree-item outside special zones -> ignore
+  if (!target) {
+    endDrag();
     return;
   }
 
   var targetId = target.dataset.id;
   var targetType = target.dataset.type;
 
-  if (dragId === targetId) { clearDropIndicators(); return; } // Can't drop on self
+  if (dragId === targetId) { endDrag(); return; } // Can't drop on self
 
   var rect = target.getBoundingClientRect();
   var y = e.clientY - rect.top;
@@ -486,19 +524,16 @@ document.addEventListener('drop', function(e) {
 
   if (targetType === 'folder') {
     if (y >= height * 0.25 && y <= height * 0.75) {
-      // Drop INTO folder
       postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: 'into' });
     } else {
-      // Drop above/below folder (reorder)
       var pos = y < height * 0.25 ? 'above' : 'below';
       postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: pos });
     }
   } else {
-    // Drop on note -> move to same folder as note
     postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: 'into' });
   }
 
-  clearDropIndicators();
+  endDrag();
 });
 
 // ======================== Content Search ========================
