@@ -396,16 +396,26 @@ joplin.plugins.register({
     let currentSort = 'updated_desc';
     let allFoldersCache: FolderItem[] = [];
     let allNotesCache: NoteItem[] = [];
-    let pinnedItems: { notes: string[], folders: string[] } = { notes: [], folders: [] };
+    let pinnedItems: { id: string, type: string }[] = [];
     let pinnedCollapsed = false;
     let isFirstLoad = true;
 
     async function loadPinned(): Promise<void> {
       try {
         const raw = await joplin.settings.value('pinnedItems');
-        if (raw) pinnedItems = JSON.parse(raw);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        // Migrate old format {notes:[], folders:[]} to new [{id, type}]
+        if (parsed && !Array.isArray(parsed) && parsed.notes && parsed.folders) {
+          pinnedItems = [];
+          for (const fid of parsed.folders) pinnedItems.push({ id: fid, type: 'folder' });
+          for (const nid of parsed.notes) pinnedItems.push({ id: nid, type: 'note' });
+          await savePinned();
+        } else if (Array.isArray(parsed)) {
+          pinnedItems = parsed;
+        }
       } catch (_) {
-        pinnedItems = { notes: [], folders: [] };
+        pinnedItems = [];
       }
     }
 
@@ -477,16 +487,14 @@ joplin.plugins.register({
         const folderIdSet = new Set(folders.map(f => f.id));
         const noteIdSet = new Set(allNotes.map(n => n.id));
         // Auto-clean deleted items
-        const cleanedFolders = pinnedItems.folders.filter(id => folderIdSet.has(id));
-        const cleanedNotes = pinnedItems.notes.filter(id => noteIdSet.has(id));
-        if (cleanedFolders.length !== pinnedItems.folders.length || cleanedNotes.length !== pinnedItems.notes.length) {
-          pinnedItems.folders = cleanedFolders;
-          pinnedItems.notes = cleanedNotes;
-          await savePinned();
-        }
+        const before = pinnedItems.length;
+        pinnedItems = pinnedItems.filter(p =>
+          p.type === 'folder' ? folderIdSet.has(p.id) : noteIdSet.has(p.id)
+        );
+        if (pinnedItems.length !== before) await savePinned();
 
         let pinnedHtml = '';
-        const pinnedCount = pinnedItems.folders.length + pinnedItems.notes.length;
+        const pinnedCount = pinnedItems.length;
         if (pinnedCount > 0) {
           const pinnedArrow = pinnedCollapsed ? '\u25B6' : '\u25BC';
           pinnedHtml += '<div class="pinned-section-header" id="pinned-header">'
@@ -495,28 +503,29 @@ joplin.plugins.register({
             + '<span class="label">' + t.pinned + ' (' + pinnedCount + ')</span>'
             + '</div>';
           pinnedHtml += '<div class="pinned-section-body' + (pinnedCollapsed ? ' collapsed' : '') + '" id="pinned-body">';
-          for (const fid of pinnedItems.folders) {
-            let folder: FolderItem | null = null;
-            for (const f of folders) { if (f.id === fid) { folder = f; break; } }
-            if (folder) {
-              const fi = getFolderIcon(folder as any);
-              pinnedHtml += '<div class="tree-item folder pinned-item" data-id="' + folder.id + '" data-type="folder">';
-              pinnedHtml += '<span class="icon folder-icon">' + fi + '</span>';
-              pinnedHtml += '<span class="label">' + escapeHtml(folder.title) + '</span>';
-              pinnedHtml += '</div>';
-            }
-          }
-          for (const nid of pinnedItems.notes) {
-            let note: NoteItem | null = null;
-            for (const n of allNotes) { if (n.id === nid) { note = n; break; } }
-            if (note) {
-              const selected = note.id === selectedNoteId ? ' selected' : '';
-              let icon = '\uD83D\uDCDD';
-              if (note.is_todo) { icon = note.todo_completed ? '\u2611' : '\u2610'; }
-              pinnedHtml += '<div class="tree-item note pinned-item' + selected + '" data-id="' + note.id + '" data-type="note">';
-              pinnedHtml += '<span class="icon note-icon">' + icon + '</span>';
-              pinnedHtml += '<span class="label">' + escapeHtml(note.title) + '</span>';
-              pinnedHtml += '</div>';
+          for (const p of pinnedItems) {
+            if (p.type === 'folder') {
+              let folder: FolderItem | null = null;
+              for (const f of folders) { if (f.id === p.id) { folder = f; break; } }
+              if (folder) {
+                const fi = getFolderIcon(folder as any);
+                pinnedHtml += '<div class="tree-item folder pinned-item" data-id="' + folder.id + '" data-type="folder">';
+                pinnedHtml += '<span class="icon folder-icon">' + fi + '</span>';
+                pinnedHtml += '<span class="label">' + escapeHtml(folder.title) + '</span>';
+                pinnedHtml += '</div>';
+              }
+            } else {
+              let note: NoteItem | null = null;
+              for (const n of allNotes) { if (n.id === p.id) { note = n; break; } }
+              if (note) {
+                const selected = note.id === selectedNoteId ? ' selected' : '';
+                let icon = '\uD83D\uDCDD';
+                if (note.is_todo) { icon = note.todo_completed ? '\u2611' : '\u2610'; }
+                pinnedHtml += '<div class="tree-item note pinned-item' + selected + '" data-id="' + note.id + '" data-type="note">';
+                pinnedHtml += '<span class="icon note-icon">' + icon + '</span>';
+                pinnedHtml += '<span class="label">' + escapeHtml(note.title) + '</span>';
+                pinnedHtml += '</div>';
+              }
             }
           }
           pinnedHtml += '</div>';
@@ -764,6 +773,25 @@ joplin.plugins.register({
         } catch (err) {
           console.error('Joplin Explorer: locatePinnedFolder error', err);
         }
+      } else if (msg.name === 'reorderPinned') {
+        try {
+          const dragId = msg.dragId;
+          const targetId = msg.targetId;
+          const position = msg.position; // 'before' or 'after'
+          const dragIdx = pinnedItems.findIndex(p => p.id === dragId);
+          if (dragIdx < 0) return;
+          const item = pinnedItems[dragIdx];
+          pinnedItems.splice(dragIdx, 1);
+          let targetIdx = pinnedItems.findIndex(p => p.id === targetId);
+          if (targetIdx < 0) { pinnedItems.push(item); } else {
+            if (position === 'after') targetIdx++;
+            pinnedItems.splice(targetIdx, 0, item);
+          }
+          await savePinned();
+          await refreshPanel();
+        } catch (err) {
+          console.error('Joplin Explorer: reorderPinned error', err);
+        }
       } else if (msg.name === 'togglePinnedCollapse') {
         pinnedCollapsed = !pinnedCollapsed;
         await refreshPanel();
@@ -829,14 +857,14 @@ joplin.plugins.register({
                 try { await joplin.commands.execute('exportFolders', [id]); } catch (e) {}
                 break;
               case 'pinFolder': {
-                if (!pinnedItems.folders.includes(id)) {
-                  pinnedItems.folders.push(id);
+                if (!pinnedItems.some(p => p.id === id)) {
+                  pinnedItems.push({ id, type: 'folder' });
                   await savePinned();
                 }
                 break;
               }
               case 'unpinFolder': {
-                pinnedItems.folders = pinnedItems.folders.filter(fid => fid !== id);
+                pinnedItems = pinnedItems.filter(p => p.id !== id);
                 await savePinned();
                 break;
               }
@@ -928,14 +956,14 @@ joplin.plugins.register({
                 break;
               }
               case 'pinNote': {
-                if (!pinnedItems.notes.includes(id)) {
-                  pinnedItems.notes.push(id);
+                if (!pinnedItems.some(p => p.id === id)) {
+                  pinnedItems.push({ id, type: 'note' });
                   await savePinned();
                 }
                 break;
               }
               case 'unpinNote': {
-                pinnedItems.notes = pinnedItems.notes.filter(nid => nid !== id);
+                pinnedItems = pinnedItems.filter(p => p.id !== id);
                 await savePinned();
                 break;
               }

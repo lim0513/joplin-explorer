@@ -51,7 +51,15 @@ function getPinnedData() {
   if (root && root.dataset.pinned) {
     try { return JSON.parse(root.dataset.pinned); } catch(e) {}
   }
-  return { notes: [], folders: [] };
+  return [];
+}
+
+function isPinned(id) {
+  var data = getPinnedData();
+  for (var i = 0; i < data.length; i++) {
+    if (data[i].id === id) return true;
+  }
+  return false;
 }
 
 // Inline input dialog (replaces prompt() which may not work in webview)
@@ -161,10 +169,8 @@ document.addEventListener('contextmenu', function(e) {
 
   var menuHtml = '<div id="ctx-menu" class="context-menu" style="left:' + e.pageX + 'px;top:' + e.pageY + 'px;">';
 
-  var pinData = getPinnedData();
-
   if (type === 'folder') {
-    var isFolderPinned = pinData.folders.indexOf(id) >= 0;
+    var isFolderPinned = isPinned(id);
     menuHtml += '<div class="ctx-item" data-action="' + (isFolderPinned ? 'unpinFolder' : 'pinFolder') + '" data-id="' + id + '" data-type="folder">' + (isFolderPinned ? T('ctxUnpin') : T('ctxPin')) + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="newNote" data-id="' + id + '" data-type="folder">' + T('ctxNewNoteHere') + '</div>';
@@ -176,7 +182,7 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteFolder" data-id="' + id + '" data-type="folder">' + T('ctxDeleteFolder') + '</div>';
   } else if (type === 'note') {
-    var isNotePinned = pinData.notes.indexOf(id) >= 0;
+    var isNotePinned = isPinned(id);
     menuHtml += '<div class="ctx-item" data-action="' + (isNotePinned ? 'unpinNote' : 'pinNote') + '" data-id="' + id + '" data-type="note">' + (isNotePinned ? T('ctxUnpin') : T('ctxPin')) + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="openNote" data-id="' + id + '" data-type="note">' + T('ctxOpenNote') + '</div>';
@@ -371,9 +377,11 @@ document.addEventListener('mousedown', function(e) {
 document.addEventListener('dragstart', function(e) {
   var item = e.target.closest('.tree-item');
   if (!item) return;
+  var isPinned = item.classList.contains('pinned-item');
   e.dataTransfer.setData('text/plain', JSON.stringify({
     id: item.dataset.id,
     type: item.dataset.type,
+    pinned: isPinned,
   }));
   e.dataTransfer.effectAllowed = 'move';
   item.classList.add('dragging');
@@ -418,17 +426,31 @@ document.addEventListener('dragover', function(e) {
     return;
   }
 
-  // Pinned section — accept drops to pin items
+  // Pinned section — accept drops (to pin or reorder)
   var inPinnedArea = el.closest('.pinned-section-header') || el.closest('.pinned-section-body');
   if (inPinnedArea) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     clearDropIndicators();
+    // Show above/below indicators on pinned items for reorder
+    if (target && target.classList.contains('pinned-item')) {
+      var rect2 = target.getBoundingClientRect();
+      var y2 = e.clientY - rect2.top;
+      if (y2 < rect2.height * 0.5) {
+        target.classList.add('drop-above');
+      } else {
+        target.classList.add('drop-below');
+      }
+    }
     return;
   }
 
   // Normal tree-item not found — ignore
   if (!target) return;
+
+  // Pinned items can ONLY be reordered within the pinned section, not dropped into the tree
+  var draggingEl = document.querySelector('.tree-item.dragging');
+  if (draggingEl && draggingEl.classList.contains('pinned-item')) return;
 
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
@@ -487,6 +509,8 @@ document.addEventListener('drop', function(e) {
   var dragId = data.id;
   var dragType = data.type;
 
+  var isDragFromPinned = data.pinned;
+
   // Drop on drop zone -> create new notebook
   var onDZ = el0 ? el0.closest('#drop-zone-empty') : null;
   if (onDZ) {
@@ -495,14 +519,32 @@ document.addEventListener('drop', function(e) {
     return;
   }
 
-  // Drop on pinned section -> pin the item
+  // Drop on pinned section
   var onPinnedArea2 = el0 ? (el0.closest('.pinned-section-header') || el0.closest('.pinned-section-body')) : null;
   if (onPinnedArea2) {
-    if (dragType === 'note') {
-      postMsg({ name: 'contextMenu', action: 'pinNote', id: dragId, itemType: 'note' });
-    } else if (dragType === 'folder') {
-      postMsg({ name: 'contextMenu', action: 'pinFolder', id: dragId, itemType: 'folder' });
+    if (isDragFromPinned) {
+      // Reorder within pinned section
+      var pinnedTarget = target && target.classList.contains('pinned-item') ? target : null;
+      if (pinnedTarget && pinnedTarget.dataset.id !== dragId) {
+        var rect2 = pinnedTarget.getBoundingClientRect();
+        var y2 = e.clientY - rect2.top;
+        var pos2 = y2 < rect2.height * 0.5 ? 'before' : 'after';
+        postMsg({ name: 'reorderPinned', dragId: dragId, dragType: dragType, targetId: pinnedTarget.dataset.id, position: pos2 });
+      }
+    } else {
+      // Pin the dragged item
+      if (dragType === 'note') {
+        postMsg({ name: 'contextMenu', action: 'pinNote', id: dragId, itemType: 'note' });
+      } else if (dragType === 'folder') {
+        postMsg({ name: 'contextMenu', action: 'pinFolder', id: dragId, itemType: 'folder' });
+      }
     }
+    endDrag();
+    return;
+  }
+
+  // Pinned items can only be reordered within pinned section
+  if (isDragFromPinned) {
     endDrag();
     return;
   }
