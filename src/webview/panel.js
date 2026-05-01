@@ -385,9 +385,11 @@ document.addEventListener('dragstart', function(e) {
   }));
   e.dataTransfer.effectAllowed = 'move';
   item.classList.add('dragging');
-  // Show drop zones during drag
-  var tc = document.getElementById('tree-container');
-  if (tc) tc.classList.add('dragging-active');
+  // Show drop zones during drag (not for pinned items)
+  if (!isPinned) {
+    var tc = document.getElementById('tree-container');
+    if (tc) tc.classList.add('dragging-active');
+  }
 });
 
 function clearDropIndicators() {
@@ -418,22 +420,34 @@ document.addEventListener('dragover', function(e) {
   var target = el.closest('.tree-item');
   var treeContainer = document.getElementById('tree-container');
 
-  // Drop zone (sticky bottom) — always accept
+  // Drop zone (sticky bottom) — accept unless dragging a pinned item
   var onDropZone = el.closest('#drop-zone-empty');
   if (onDropZone) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    var draggingPinnedForDZ = document.querySelector('.tree-item.dragging.pinned-item');
+    if (!draggingPinnedForDZ) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
     return;
   }
 
-  // Pinned section — accept drops (to pin or reorder)
-  var inPinnedArea = el.closest('.pinned-section-header') || el.closest('.pinned-section-body');
-  if (inPinnedArea) {
+  // Pinned header — accept drops to pin items
+  var onPinnedHeader = el.closest('.pinned-section-header');
+  if (onPinnedHeader) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     clearDropIndicators();
-    // Show above/below indicators on pinned items for reorder
-    if (target && target.classList.contains('pinned-item')) {
+    return;
+  }
+
+  // Pinned body — only accept reorder from other pinned items
+  var onPinnedBody = el.closest('.pinned-section-body');
+  if (onPinnedBody) {
+    var draggingPinned = document.querySelector('.tree-item.dragging.pinned-item');
+    if (draggingPinned && target && target.classList.contains('pinned-item')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      clearDropIndicators();
       var rect2 = target.getBoundingClientRect();
       var y2 = e.clientY - rect2.top;
       if (y2 < rect2.height * 0.5) {
@@ -511,33 +525,35 @@ document.addEventListener('drop', function(e) {
 
   var isDragFromPinned = data.pinned;
 
-  // Drop on drop zone -> create new notebook
+  // Drop on drop zone -> create new notebook (not for pinned items)
   var onDZ = el0 ? el0.closest('#drop-zone-empty') : null;
-  if (onDZ) {
+  if (onDZ && !isDragFromPinned) {
     postMsg({ name: 'dragToEmpty', dragId: dragId, dragType: dragType });
     endDrag();
     return;
   }
 
-  // Drop on pinned section
-  var onPinnedArea2 = el0 ? (el0.closest('.pinned-section-header') || el0.closest('.pinned-section-body')) : null;
-  if (onPinnedArea2) {
-    if (isDragFromPinned) {
-      // Reorder within pinned section
-      var pinnedTarget = target && target.classList.contains('pinned-item') ? target : null;
-      if (pinnedTarget && pinnedTarget.dataset.id !== dragId) {
-        var rect2 = pinnedTarget.getBoundingClientRect();
-        var y2 = e.clientY - rect2.top;
-        var pos2 = y2 < rect2.height * 0.5 ? 'before' : 'after';
-        postMsg({ name: 'reorderPinned', dragId: dragId, dragType: dragType, targetId: pinnedTarget.dataset.id, position: pos2 });
-      }
-    } else {
-      // Pin the dragged item
-      if (dragType === 'note') {
-        postMsg({ name: 'contextMenu', action: 'pinNote', id: dragId, itemType: 'note' });
-      } else if (dragType === 'folder') {
-        postMsg({ name: 'contextMenu', action: 'pinFolder', id: dragId, itemType: 'folder' });
-      }
+  // Drop on pinned header -> pin the item
+  var onPinnedH2 = el0 ? el0.closest('.pinned-section-header') : null;
+  if (onPinnedH2 && !isDragFromPinned) {
+    if (dragType === 'note') {
+      postMsg({ name: 'contextMenu', action: 'pinNote', id: dragId, itemType: 'note' });
+    } else if (dragType === 'folder') {
+      postMsg({ name: 'contextMenu', action: 'pinFolder', id: dragId, itemType: 'folder' });
+    }
+    endDrag();
+    return;
+  }
+
+  // Drop on pinned body -> reorder (only from pinned items)
+  var onPinnedB2 = el0 ? el0.closest('.pinned-section-body') : null;
+  if (onPinnedB2 && isDragFromPinned) {
+    var pinnedTarget = target && target.classList.contains('pinned-item') ? target : null;
+    if (pinnedTarget && pinnedTarget.dataset.id !== dragId) {
+      var rect2 = pinnedTarget.getBoundingClientRect();
+      var y2 = e.clientY - rect2.top;
+      var pos2 = y2 < rect2.height * 0.5 ? 'before' : 'after';
+      postMsg({ name: 'reorderPinned', dragId: dragId, dragType: dragType, targetId: pinnedTarget.dataset.id, position: pos2 });
     }
     endDrag();
     return;
@@ -587,10 +603,14 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function escapeHtml(text) {
+  return String(text == null ? '' : text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function highlightText(text, query) {
-  if (!query) return text;
-  // Escape HTML first
-  var escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  var escaped = escapeHtml(text);
+  if (!query) return escaped;
   var regex = new RegExp('(' + escapeRegex(query) + ')', 'gi');
   return escaped.replace(regex, '<mark class="search-highlight">$1</mark>');
 }
@@ -612,7 +632,7 @@ function renderNoteItem(item, query) {
   html += '<div class="search-result-content">';
   html += '<div class="search-result-title">' + highlightText(item.title, query) + '</div>';
   if (item.folderName) {
-    html += '<div class="search-result-folder">\uD83D\uDCC2 ' + item.folderName + '</div>';
+    html += '<div class="search-result-folder">\uD83D\uDCC2 ' + escapeHtml(item.folderName) + '</div>';
   }
   if (item.snippet) {
     html += '<div class="search-result-snippet">' + highlightText(item.snippet, query) + '</div>';

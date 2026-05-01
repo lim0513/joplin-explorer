@@ -19,7 +19,7 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 - **Auto Expand** — Automatically expands to the currently selected note on startup
 - **Collapse All** — One-click collapse all notebooks
 - **Scroll Position** — Preserved when navigating between notes
-- **i18n** — Supports Simplified Chinese, Traditional Chinese, English, and Japanese (follows Joplin's locale setting)
+- **i18n** — Supports English, Simplified Chinese, Traditional Chinese, Japanese, and Russian (follows Joplin's locale setting)
 
 ## Install
 

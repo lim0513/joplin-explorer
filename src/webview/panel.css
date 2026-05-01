@@ -311,10 +311,10 @@ html, body {
   background: rgba(74, 156, 245, 0.08);
 }
 
-/* Pinned section accepts drops during drag */
+/* Pinned section accepts drops during drag — outline doesn't affect layout */
 #tree-container.dragging-active .pinned-section-header {
-  border: 2px dashed var(--joplin-color2, #4a9cf5);
-  border-radius: 4px;
+  outline: 2px dashed var(--joplin-color2, #4a9cf5);
+  outline-offset: -2px;
 }
 
 /* Drag & Drop */
