@@ -23,6 +23,8 @@
 
 ## 安装
 
+> 兼容性：桌面版 Joplin >= 2.6.0，Android/iOS 版 Joplin >= 3.0。
+
 ### 从文件安装
 
 1. 从 [最新 Release](https://github.com/lim0513/joplin-explorer/releases/latest) 下载 `joplin-explorer.jpl`

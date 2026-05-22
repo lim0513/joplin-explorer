@@ -23,6 +23,8 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 
 ## Install
 
+> Compatibility: Desktop Joplin >= 2.6.0, Android/iOS Joplin >= 3.0.
+
 ### From File
 
 1. Download `joplin-explorer.jpl` from the [latest release](https://github.com/lim0513/joplin-explorer/releases/latest)
