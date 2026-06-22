@@ -138,6 +138,14 @@ html, body {
   text-align: center;
 }
 
+.custom-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
 /* Label */
 .label {
   flex: 1;
@@ -258,7 +266,7 @@ html, body {
 .pinned-section-header {
   display: flex;
   align-items: center;
-  padding: 3px 8px 3px 0;
+  padding: 3px 8px;
   gap: 5px;
   margin: 1px 4px;
   min-height: 24px;
@@ -283,7 +291,7 @@ html, body {
 }
 
 .pinned-item {
-  padding-left: 18px !important;
+  padding-left: 26px !important;
 }
 
 /* Empty drop zone — sticky at bottom of scroll viewport */

@@ -363,6 +363,15 @@ webviewApi.onMessage(function(msg) {
       noteEl.classList.add('selected');
       noteEl.scrollIntoView({ block: 'nearest', behavior: 'instant' });
     }
+  } else if (m.name === 'updateNote') {
+    document.querySelectorAll('.tree-item.note[data-id="' + m.id + '"]').forEach(function(el) {
+      var label = el.querySelector('.label');
+      if (label) label.textContent = m.title;
+      var resultTitle = el.querySelector('.search-result-title');
+      if (resultTitle) resultTitle.textContent = m.title;
+      var icon = el.querySelector('.note-icon');
+      if (icon) icon.textContent = m.icon;
+    });
   }
 });
 

@@ -4,6 +4,10 @@
 // (see plugin_index.html "Cannot find module 'api'" error).
 declare const joplin: any;
 
+const nodeFs = require('fs');
+const nodePath = require('path');
+const nodeCrypto = require('crypto');
+
 /* ======================== Types ======================== */
 interface FolderItem {
   id: string;
@@ -36,6 +40,11 @@ interface TreeNode {
 }
 
 interface I18nStrings { [key: string]: string; }
+
+interface IconRenderData {
+  type: 'text' | 'image';
+  value: string;
+}
 
 /* ======================== i18n ======================== */
 const i18nData: { [locale: string]: I18nStrings } = {
@@ -201,6 +210,76 @@ function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+const iconMimeTypes: { [ext: string]: string } = {
+  '.gif': 'image/gif',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+};
+
+function normalizeLocalIconPath(value: string): string | null {
+  const trimmed = value.trim();
+  if (/^file:\/\//i.test(trimmed)) {
+    return decodeURIComponent(trimmed.replace(/^file:\/\//i, ''));
+  }
+  if (trimmed.indexOf('~/') === 0 && process && process.env && process.env.HOME) {
+    return nodePath.join(process.env.HOME, trimmed.substring(2));
+  }
+  if (nodePath.isAbsolute(trimmed)) return trimmed;
+  return null;
+}
+
+function renderIconHtml(icon: IconRenderData, extraClass: string): string {
+  const className = 'icon' + (extraClass ? ' ' + extraClass : '');
+  if (icon.type === 'image') {
+    return '<span class="' + className + '"><img class="custom-icon" src="' + escapeHtml(icon.value) + '" /></span>';
+  }
+  return '<span class="' + className + '">' + escapeHtml(icon.value) + '</span>';
+}
+
+async function resolveIconSetting(value: any, fallbackText: string, settingKey: string, dataDir: string): Promise<IconRenderData> {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return { type: 'text', value: fallbackText };
+
+  if (/^data:image\//i.test(text) || /^https?:\/\//i.test(text)) {
+    return { type: 'image', value: text };
+  }
+
+  const localPath = normalizeLocalIconPath(text);
+  if (!localPath) return { type: 'text', value: text };
+
+  const ext = nodePath.extname(localPath).toLowerCase();
+  const mimeType = iconMimeTypes[ext];
+  if (!mimeType) {
+    console.warn('Joplin Explorer: unsupported icon file type', localPath);
+    return { type: 'text', value: fallbackText };
+  }
+
+  const iconsDir = nodePath.join(dataDir, 'custom-icons');
+  const pathHash = nodeCrypto.createHash('sha1').update(localPath).digest('hex');
+  const destination = nodePath.join(iconsDir, settingKey + '-' + pathHash + ext);
+
+  try {
+    await nodeFs.promises.mkdir(iconsDir, { recursive: true });
+    const stat = await nodeFs.promises.stat(localPath);
+    if (stat.isFile()) await nodeFs.promises.copyFile(localPath, destination);
+  } catch (err) {
+    // If the original file disappeared, keep using the cached copy when possible.
+    console.warn('Joplin Explorer: failed to copy icon file', localPath, err);
+  }
+
+  try {
+    const content = await nodeFs.promises.readFile(destination);
+    return { type: 'image', value: 'data:' + mimeType + ';base64,' + content.toString('base64') };
+  } catch (err) {
+    console.warn('Joplin Explorer: failed to load icon file', destination, err);
+    return { type: 'text', value: fallbackText };
+  }
+}
+
 async function getAllFolders(): Promise<FolderItem[]> {
   let folders: FolderItem[] = [];
   let page = 1;
@@ -285,41 +364,43 @@ function buildTree(folders: FolderItem[], notesByFolder: { [id: string]: NoteIte
   return roots;
 }
 
-function getFolderIcon(node: TreeNode): string {
+function getFolderIcon(node: TreeNode, isCollapsed = true, openIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC2' }, closedIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC1' }): IconRenderData {
   let iconData: any = node.icon;
   if (iconData && typeof iconData === 'string') {
     try { iconData = JSON.parse(iconData); } catch (e) { iconData = null; }
   }
-  if (iconData && iconData.emoji) return iconData.emoji;
-  return '\uD83D\uDCC2';
+  if (iconData && iconData.emoji) return { type: 'text', value: String(iconData.emoji) };
+  return isCollapsed ? closedIcon : openIcon;
 }
 
-function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet: { [id: string]: boolean }, level = 0): string {
+function getNoteIcon(note: { is_todo?: number, todo_completed?: number }): string {
+  if (note.is_todo) return note.todo_completed ? '\u2611' : '\u2610';
+  return '\uD83D\uDCDD';
+}
+
+function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet: { [id: string]: boolean }, level = 0, showFolderToggles = true, openFolderIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC2' }, closedFolderIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC1' }): string {
   let html = '';
   for (const node of nodes) {
-    const indent = level * 18;
+    const indent = 8 + level * 18;
     if (node.type === 'folder') {
       const count = node.total_count || node.note_count || 0;
-      const isCollapsed = collapsedSet[node.id];
+      const isCollapsed = collapsedSet[node.id] === true;
       const arrowChar = isCollapsed ? '\u25B6' : '\u25BC';
       const toggleClass = isCollapsed ? 'toggle' : 'toggle expanded';
       html += '<div class="tree-item folder" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="folder">';
-      html += '<span class="' + toggleClass + '">' + arrowChar + '</span>';
-      html += '<span class="icon folder-icon">' + getFolderIcon(node) + '</span>';
+      if (showFolderToggles) html += '<span class="' + toggleClass + '">' + arrowChar + '</span>';
+      html += renderIconHtml(getFolderIcon(node, isCollapsed, openFolderIcon, closedFolderIcon), 'folder-icon');
       html += '<span class="label">' + escapeHtml(node.title) + '</span>';
       html += '<span class="count">' + count + '</span>';
       html += '</div>';
       html += '<div class="children' + (isCollapsed ? ' collapsed' : '') + '" data-folder-id="' + node.id + '">';
       if (node.children) {
-        html += renderTreeHtml(node.children, selectedNoteId, collapsedSet, level + 1);
+        html += renderTreeHtml(node.children, selectedNoteId, collapsedSet, level + 1, showFolderToggles, openFolderIcon, closedFolderIcon);
       }
       html += '</div>';
     } else {
       const selected = node.id === selectedNoteId ? ' selected' : '';
-      let icon = '\uD83D\uDCDD';
-      if (node.is_todo) {
-        icon = node.todo_completed ? '\u2611' : '\u2610';
-      }
+      const icon = getNoteIcon(node);
       html += '<div class="tree-item note' + selected + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="note">';
       html += '<span class="icon note-icon">' + icon + '</span>';
       html += '<span class="label">' + escapeHtml(node.title) + '</span>';
@@ -362,6 +443,46 @@ joplin.plugins.register({
           value: '{"notes":[],"folders":[]}',
           public: false,
           label: 'Pinned Items (JSON)',
+        },
+        'showFolderToggles': {
+          section: 'joplinExplorer',
+          type: 3, // SettingItemType.Bool = 3
+          value: true,
+          public: true,
+          label: 'Show toggle arrows',
+          description: 'Show expand/collapse arrows before folders and the pinned section.',
+        },
+        'openFolderIcon': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '\uD83D\uDCC2',
+          public: true,
+          label: 'Open folder icon',
+          description: 'Emoji, image URL, data URI, or local image path for expanded folders without a custom notebook icon.',
+        },
+        'closedFolderIcon': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '\uD83D\uDCC1',
+          public: true,
+          label: 'Closed folder icon',
+          description: 'Emoji, image URL, data URI, or local image path for collapsed folders without a custom notebook icon.',
+        },
+        'openPinnedIcon': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '\uD83D\uDCCC',
+          public: true,
+          label: 'Open pinned icon',
+          description: 'Emoji, image URL, data URI, or local image path for the expanded pinned section.',
+        },
+        'closedPinnedIcon': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '\uD83D\uDCCC',
+          public: true,
+          label: 'Closed pinned icon',
+          description: 'Emoji, image URL, data URI, or local image path for the collapsed pinned section.',
         },
       });
     } catch (err) {
@@ -429,6 +550,30 @@ joplin.plugins.register({
     let pinnedItems: { id: string, type: string }[] = [];
     let pinnedCollapsed = false;
     let isFirstLoad = true;
+    const pluginDataDir = await joplin.plugins.dataDir();
+    let refreshTimer: any = null;
+
+    function scheduleRefreshPanel(delay = 600): void {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(async () => {
+        refreshTimer = null;
+        await refreshPanel();
+      }, delay);
+    }
+
+    let noteChangeTimer: any = null;
+    let pendingNoteChangeIds: { [id: string]: boolean } = {};
+
+    function scheduleNoteUpdate(noteId: string): void {
+      pendingNoteChangeIds[noteId] = true;
+      if (noteChangeTimer) clearTimeout(noteChangeTimer);
+      noteChangeTimer = setTimeout(async () => {
+        noteChangeTimer = null;
+        const ids = Object.keys(pendingNoteChangeIds);
+        pendingNoteChangeIds = {};
+        for (const id of ids) await updateNoteInPanel(id);
+      }, 600);
+    }
 
     async function loadPinned(): Promise<void> {
       try {
@@ -509,8 +654,18 @@ joplin.plugins.register({
         }
         allNotesCache = allNotes;
 
+        const showFolderToggles = await joplin.settings.value('showFolderToggles');
+        const openFolderIconSetting = await joplin.settings.value('openFolderIcon');
+        const closedFolderIconSetting = await joplin.settings.value('closedFolderIcon');
+        const openPinnedIconSetting = await joplin.settings.value('openPinnedIcon');
+        const closedPinnedIconSetting = await joplin.settings.value('closedPinnedIcon');
+        const openFolderIcon = await resolveIconSetting(openFolderIconSetting, '\uD83D\uDCC2', 'openFolderIcon', pluginDataDir);
+        const closedFolderIcon = await resolveIconSetting(closedFolderIconSetting, '\uD83D\uDCC1', 'closedFolderIcon', pluginDataDir);
+        const openPinnedIcon = await resolveIconSetting(openPinnedIconSetting, '\uD83D\uDCCC', 'openPinnedIcon', pluginDataDir);
+        const closedPinnedIcon = await resolveIconSetting(closedPinnedIconSetting, '\uD83D\uDCCC', 'closedPinnedIcon', pluginDataDir);
+        const showToggleArrows = showFolderToggles !== false;
         const tree = buildTree(folders, notesByFolder);
-        const treeHtml = renderTreeHtml(tree, selectedNoteId, collapsedFolders);
+        const treeHtml = renderTreeHtml(tree, selectedNoteId, collapsedFolders, 0, showToggleArrows, openFolderIcon, closedFolderIcon);
 
         // Build pinned section
         await loadPinned();
@@ -527,9 +682,10 @@ joplin.plugins.register({
         const pinnedCount = pinnedItems.length;
         if (pinnedCount > 0) {
           const pinnedArrow = pinnedCollapsed ? '\u25B6' : '\u25BC';
-          pinnedHtml += '<div class="pinned-section-header" id="pinned-header">'
-            + '<span class="toggle">' + pinnedArrow + '</span>'
-            + '<span class="icon">\uD83D\uDCCC</span>'
+          const pinnedIcon = pinnedCollapsed ? closedPinnedIcon : openPinnedIcon;
+          pinnedHtml += '<div class="pinned-section-header" id="pinned-header">';
+          if (showToggleArrows) pinnedHtml += '<span class="toggle">' + pinnedArrow + '</span>';
+          pinnedHtml += renderIconHtml(pinnedIcon, '')
             + '<span class="label">' + t.pinned + ' (' + pinnedCount + ')</span>'
             + '</div>';
           pinnedHtml += '<div class="pinned-section-body' + (pinnedCollapsed ? ' collapsed' : '') + '" id="pinned-body">';
@@ -538,9 +694,9 @@ joplin.plugins.register({
               let folder: FolderItem | null = null;
               for (const f of folders) { if (f.id === p.id) { folder = f; break; } }
               if (folder) {
-                const fi = getFolderIcon(folder as any);
+                const fi = getFolderIcon(folder as any, true, openFolderIcon, closedFolderIcon);
                 pinnedHtml += '<div class="tree-item folder pinned-item" data-id="' + folder.id + '" data-type="folder">';
-                pinnedHtml += '<span class="icon folder-icon">' + fi + '</span>';
+                pinnedHtml += renderIconHtml(fi, 'folder-icon');
                 pinnedHtml += '<span class="label">' + escapeHtml(folder.title) + '</span>';
                 pinnedHtml += '</div>';
               }
@@ -549,8 +705,7 @@ joplin.plugins.register({
               for (const n of allNotes) { if (n.id === p.id) { note = n; break; } }
               if (note) {
                 const selected = note.id === selectedNoteId ? ' selected' : '';
-                let icon = '\uD83D\uDCDD';
-                if (note.is_todo) { icon = note.todo_completed ? '\u2611' : '\u2610'; }
+                const icon = getNoteIcon(note);
                 pinnedHtml += '<div class="tree-item note pinned-item' + selected + '" data-id="' + note.id + '" data-type="note">';
                 pinnedHtml += '<span class="icon note-icon">' + icon + '</span>';
                 pinnedHtml += '<span class="label">' + escapeHtml(note.title) + '</span>';
@@ -596,6 +751,51 @@ joplin.plugins.register({
       }
     }
 
+    async function updateNoteInPanel(noteId: string): Promise<void> {
+      try {
+        const cachedIndex = allNotesCache.findIndex((note) => note.id === noteId);
+        const note = await joplin.data.get(['notes', noteId], {
+          fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time'],
+        });
+
+        if (cachedIndex < 0 || allNotesCache[cachedIndex].parent_id !== note.parent_id) {
+          await refreshPanel();
+          return;
+        }
+
+        const oldNote = allNotesCache[cachedIndex];
+        const titleSortChanged = currentSort.indexOf('title_') === 0 && (oldNote.title || '') !== (note.title || '');
+        const updatedSortChanged = currentSort.indexOf('updated_') === 0 && oldNote.user_updated_time !== note.user_updated_time;
+        allNotesCache[cachedIndex] = note;
+
+        if (titleSortChanged || updatedSortChanged) {
+          await refreshPanel();
+          return;
+        }
+
+        await joplin.views.panels.postMessage(panel, {
+          name: 'updateNote',
+          id: note.id,
+          title: note.title || '(untitled)',
+          icon: getNoteIcon(note),
+        });
+      } catch (_) {
+        await refreshPanel();
+      }
+    }
+
+    await joplin.settings.onChange(async (event: any) => {
+      if (event.keys && (
+        event.keys.indexOf('showFolderToggles') >= 0
+        || event.keys.indexOf('openFolderIcon') >= 0
+        || event.keys.indexOf('closedFolderIcon') >= 0
+        || event.keys.indexOf('openPinnedIcon') >= 0
+        || event.keys.indexOf('closedPinnedIcon') >= 0
+      )) {
+        await refreshPanel();
+      }
+    });
+
     await joplin.views.panels.onMessage(panel, async (msg: any) => {
       if (msg.name === 'openNote') {
         selectedNoteId = msg.id;
@@ -614,8 +814,12 @@ joplin.plugins.register({
         collapsedFolders = {};
         await refreshPanel();
       } else if (msg.name === 'newNotebook') {
-        await joplin.commands.execute('newFolder');
+        const folderName = await showNativeInput(t.promptNewNotebookName, '');
+        if (!folderName || !folderName.trim()) return;
+        const newFolder = await joplin.data.post(['folders'], null, { title: folderName.trim() });
+        delete collapsedFolders[newFolder.id];
         await refreshPanel();
+        await joplin.views.panels.postMessage(panel, { name: 'scrollToFolder', folderId: newFolder.id });
       } else if (msg.name === 'newNote') {
         await joplin.commands.execute('newNote');
         const nn = await joplin.workspace.selectedNote();
@@ -864,7 +1068,9 @@ joplin.plugins.register({
               case 'newSubNotebook': {
                 const subName = await showNativeInput(t.newNotebook, '');
                 if (subName && subName.trim()) {
-                  await joplin.data.post(['folders'], null, { title: subName.trim(), parent_id: id });
+                  const newFolder = await joplin.data.post(['folders'], null, { title: subName.trim(), parent_id: id });
+                  delete collapsedFolders[id];
+                  delete collapsedFolders[newFolder.id];
                 }
                 break;
               }
@@ -1069,6 +1275,11 @@ joplin.plugins.register({
         selectedNoteId = note.id;
         await joplin.views.panels.postMessage(panel, { name: 'selectNote', id: note.id });
       }
+    });
+
+    await joplin.workspace.onNoteChange(async (event: any) => {
+      if (event && event.id) scheduleNoteUpdate(event.id);
+      else scheduleRefreshPanel();
     });
 
     await refreshPanel();
