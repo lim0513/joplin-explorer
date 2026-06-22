@@ -1,6 +1,6 @@
 {
   "name": "joplin-plugin-explorer",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "A unified sidebar that displays notebooks and notes together in a single tree view",
   "author": "lim0513",
   "homepage": "https://github.com/lim0513/joplin-explorer",
@@ -9,7 +9,7 @@
     "url": "https://github.com/lim0513/joplin-explorer.git"
   },
   "scripts": {
-    "dist": "webpack --env production",
+    "dist": "webpack --env production && node scripts/pack-jpl.js",
     "dev": "webpack --watch"
   },
   "keywords": ["joplin-plugin", "joplin", "sidebar", "explorer", "tree-view", "notebooks"],
