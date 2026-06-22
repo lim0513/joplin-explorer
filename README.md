@@ -7,7 +7,9 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 ## Features
 
 - **Unified Tree View** — Notebooks and notes displayed in one collapsible panel
-- **Custom Icons** — Shows emoji icons set in notebook settings
+- **Custom Icons** — Shows emoji icons set in notebook settings; customize folder and pinned section icons via settings (emoji / image URL / data URI / local file path)
+- **Toggle Arrow Visibility** — Hide expand/collapse arrows for a cleaner look
+- **Live Updates** — Notes refresh in-place when their title or todo state changes
 - **Favorites (Pin)** — Pin notes and notebooks to a collapsible section at the top of the tree; drag items to the pinned section to pin, drag within to reorder; persists across restarts
 - **Enhanced Search** — Search notes, notebooks, and tags simultaneously with keyword highlighting; results grouped in collapsible sections; local title substring matching for partial queries (e.g. "8121R" finds "KY8121R")
 - **Sort** — Toggle between sorting by update time or title (ascending/descending)
