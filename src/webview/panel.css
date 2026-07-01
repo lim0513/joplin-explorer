@@ -225,6 +225,12 @@ html, body {
   cursor: default;
 }
 
+.bottom-bar button.sync-error {
+  color: #e74c3c;
+  opacity: 1;
+  cursor: default;
+}
+
 /* Context menu */
 .context-menu {
   position: fixed;

@@ -53,7 +53,7 @@ const i18nData: { [locale: string]: I18nStrings } = {
     sort: '排序', collapseAll: '全部折叠', expandAll: '全部展开',
     search: '搜索笔记内容...', searchResultCount: '找到 {count} 条结果',
     searchNoResult: '没有找到匹配的笔记', searching: '搜索中...',
-    sync: '同步', syncing: '同步中...', syncDone: '\u2714 同步完成', loading: '加载中...',
+    sync: '同步', syncing: '同步中...', syncDone: '\u2714 同步完成', syncFailed: '\u26a0 同步失败', loading: '加载中...',
     sortUpdatedDesc: '\u2193 修改时间', sortUpdatedAsc: '\u2191 修改时间',
     sortTitleAsc: '\u2191 标题', sortTitleDesc: '\u2193 标题',
     ctxNewNoteHere: '在此新建笔记', ctxNewTodoHere: '在此新建待办',
@@ -84,7 +84,7 @@ const i18nData: { [locale: string]: I18nStrings } = {
     sort: '排序', collapseAll: '全部摺疊', expandAll: '全部展開',
     search: '搜尋筆記內容...', searchResultCount: '找到 {count} 條結果',
     searchNoResult: '沒有找到匹配的筆記', searching: '搜尋中...',
-    sync: '同步', syncing: '同步中...', syncDone: '\u2714 同步完成', loading: '載入中...',
+    sync: '同步', syncing: '同步中...', syncDone: '\u2714 同步完成', syncFailed: '\u26a0 同步失敗', loading: '載入中...',
     sortUpdatedDesc: '\u2193 修改時間', sortUpdatedAsc: '\u2191 修改時間',
     sortTitleAsc: '\u2191 標題', sortTitleDesc: '\u2193 標題',
     ctxNewNoteHere: '在此新建筆記', ctxNewTodoHere: '在此新建待辦',
@@ -114,7 +114,7 @@ const i18nData: { [locale: string]: I18nStrings } = {
     sort: 'Sort', collapseAll: 'Collapse All', expandAll: 'Expand All',
     search: 'Search note contents...', searchResultCount: '{count} results found',
     searchNoResult: 'No matching notes found', searching: 'Searching...',
-    sync: 'Synchronise', syncing: 'Syncing...', syncDone: '\u2714 Sync Done', loading: 'Loading...',
+    sync: 'Synchronise', syncing: 'Syncing...', syncDone: '\u2714 Sync Done', syncFailed: '\u26a0 Sync Failed', loading: 'Loading...',
     sortUpdatedDesc: '\u2193 Updated', sortUpdatedAsc: '\u2191 Updated',
     sortTitleAsc: '\u2191 Title', sortTitleDesc: '\u2193 Title',
     ctxNewNoteHere: 'New Note Here', ctxNewTodoHere: 'New To-do Here',
@@ -144,7 +144,7 @@ const i18nData: { [locale: string]: I18nStrings } = {
     sort: 'Сортировка', collapseAll: 'Свернуть все', expandAll: 'Развернуть все',
     search: 'Искать в содержимом заметок...', searchResultCount: 'Найдено результатов: {count}',
     searchNoResult: 'Заметки не найдены', searching: 'Поиск...',
-    sync: 'Синхронизировать', syncing: 'Синхронизация...', syncDone: '\u2714 Синхронизация завершена', loading: 'Загрузка...',
+    sync: 'Синхронизировать', syncing: 'Синхронизация...', syncDone: '\u2714 Синхронизация завершена', syncFailed: '\u26a0 Ошибка синхронизации', loading: 'Загрузка...',
     sortUpdatedDesc: '\u2193 Обновлено', sortUpdatedAsc: '\u2191 Обновлено',
     sortTitleAsc: '\u2191 Название', sortTitleDesc: '\u2193 Название',
     ctxNewNoteHere: 'Создать заметку здесь', ctxNewTodoHere: 'Создать задачу здесь',
@@ -174,7 +174,7 @@ const i18nData: { [locale: string]: I18nStrings } = {
     sort: '並べ替え', collapseAll: 'すべて折りたたむ', expandAll: 'すべて展開',
     search: 'ノート内容を検索...', searchResultCount: '{count} 件の結果',
     searchNoResult: '一致するノートが見つかりません', searching: '検索中...',
-    sync: '同期', syncing: '同期中...', syncDone: '✔ 同期完了', loading: '読み込み中...',
+    sync: '同期', syncing: '同期中...', syncDone: '✔ 同期完了', syncFailed: '⚠ 同期に失敗しました', loading: '読み込み中...',
     sortUpdatedDesc: '↓ 更新日時', sortUpdatedAsc: '↑ 更新日時',
     sortTitleAsc: '↑ タイトル', sortTitleDesc: '↓ タイトル',
     ctxNewNoteHere: 'ここに新規ノート', ctxNewTodoHere: 'ここに新規タスク',
@@ -1035,15 +1035,14 @@ joplin.plugins.register({
         currentSort = sortModes[(idx + 1) % sortModes.length];
         await refreshPanel();
       } else if (msg.name === 'sync') {
-        await joplin.views.panels.postMessage(panel, { name: 'syncState', state: 'syncing' });
         try {
           await joplin.commands.execute('synchronize');
-        } catch (e) {
-          console.error('Joplin Explorer: sync error', e);
+        } catch (e: any) {
+          console.error('Joplin Explorer: sync command failed', e);
+          await joplin.views.panels.postMessage(panel, { name: 'syncState', state: 'error' });
+          const msgBody = (e && e.message) ? String(e.message) : String(e);
+          await showNativeInfo(t.syncFailed, msgBody);
         }
-        await new Promise((r) => setTimeout(r, 3000));
-        await joplin.views.panels.postMessage(panel, { name: 'syncState', state: 'done' });
-        await refreshPanel();
       } else if (msg.name === 'contextMenu') {
         const action = msg.action;
         const id = msg.id;
@@ -1281,6 +1280,45 @@ joplin.plugins.register({
       if (event && event.id) scheduleNoteUpdate(event.id);
       else scheduleRefreshPanel();
     });
+
+    async function fetchLastSyncError(): Promise<string> {
+      const keys = ['sync.errorMessage', 'sync.lastError', 'sync.error'];
+      for (const k of keys) {
+        try {
+          const v = await joplin.settings.globalValue(k);
+          if (v && typeof v === 'string' && v.trim()) return v;
+        } catch (_) {}
+      }
+      return '';
+    }
+
+    try {
+      await joplin.workspace.onSyncStart(async () => {
+        await joplin.views.panels.postMessage(panel, { name: 'syncState', state: 'syncing' });
+      });
+    } catch (err) {
+      console.warn('Joplin Explorer: onSyncStart not available', err);
+    }
+
+    try {
+      await joplin.workspace.onSyncComplete(async (event: any) => {
+        const withErrors = !!(event && event.withErrors);
+        await refreshPanel();
+        await joplin.views.panels.postMessage(panel, {
+          name: 'syncState',
+          state: withErrors ? 'error' : 'done',
+        });
+        if (withErrors) {
+          const detail = await fetchLastSyncError();
+          const body = detail
+            ? detail
+            : 'Joplin reported errors during synchronisation. Open the Synchronisation Status screen (Tools → Synchronisation Status) to see the details.';
+          await showNativeInfo(t.syncFailed, body);
+        }
+      });
+    } catch (err) {
+      console.warn('Joplin Explorer: onSyncComplete not available', err);
+    }
 
     await refreshPanel();
   },

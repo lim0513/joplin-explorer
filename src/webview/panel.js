@@ -289,8 +289,13 @@ webviewApi.onMessage(function(msg) {
   if (m.name === 'syncState') {
     var syncBtn = document.getElementById('btn-sync');
     if (!syncBtn) return;
-    if (m.state === 'done') {
-      syncBtn.classList.remove('syncing');
+    if (m.state === 'syncing') {
+      syncBtn.disabled = true;
+      syncBtn.classList.remove('sync-done', 'sync-error');
+      syncBtn.classList.add('syncing');
+      syncBtn.textContent = '\uD83D\uDD04 ' + T('syncing');
+    } else if (m.state === 'done') {
+      syncBtn.classList.remove('syncing', 'sync-error');
       syncBtn.classList.add('sync-done');
       syncBtn.textContent = T('syncDone');
       // Show "done" for 2 seconds, then restore
@@ -302,6 +307,19 @@ webviewApi.onMessage(function(msg) {
           btn.textContent = '\uD83D\uDD04 ' + T('sync');
         }
       }, 2000);
+    } else if (m.state === 'error') {
+      syncBtn.classList.remove('syncing', 'sync-done');
+      syncBtn.classList.add('sync-error');
+      syncBtn.textContent = T('syncFailed');
+      // Show "failed" for 4 seconds, then restore
+      setTimeout(function() {
+        var btn = document.getElementById('btn-sync');
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('sync-error');
+          btn.textContent = '\uD83D\uDD04 ' + T('sync');
+        }
+      }, 4000);
     }
   } else if (m.name === 'searchResults') {
     // Ignore stale search results
