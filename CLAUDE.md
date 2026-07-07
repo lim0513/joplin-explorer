@@ -68,6 +68,17 @@ Between v1.2.0 and v1.2.3 nothing refreshed `publish/plugin.jpl`. The outer mani
 - `highlightText(text, query)` must escape `text` **always**, including when `query` is empty — the early-return path bit us once. Treat `escapeHtml` as the default and `<mark>` injection as the deliberate exception.
 - For image icons sourced from user settings: the `src` attribute value still goes through `escapeHtml`. `data:image/svg+xml` is acceptable because browsers disable scripts inside SVG loaded via `<img>`.
 
+## v1.3.0 refactor notes (2026-07)
+
+- **Notes are fetched with ONE paginated `['notes']` query** (`getAllNotes`) and grouped by `parent_id` locally. Do not reintroduce per-folder `['folders', id, 'notes']` loops - that was O(folder count) API call series.
+- **Folder collapse/expand never re-renders the panel.** The webview toggles `.collapsed` on the row + children (`toggleFolderLocal`), both open/closed icon variants are always in the DOM (CSS picks one), and the backend `toggleFolder`/`togglePinnedCollapse` handlers ONLY record state. Full refresh on a toggle would refetch everything and reset scroll.
+- **Icon setting resolution is cached** (`resolveIconSettingCached`, keyed settingKey:value). The settings onChange handler calls `clearIconResolveCache()` - keep that pairing.
+- **`scripts/pack-jpl.js` asserts version consistency** across src/manifest.json, package.json and publish/manifest.json and exits non-zero on mismatch. This is the guard against the v1.2.0-1.2.3 update-loop incident; never bypass it.
+- **Big message branches live in named functions** (`handleSearch`, `handleContextMenu`, `handleDragDrop`) inside onStart; the onMessage chain stays thin. i18n tables live in `src/i18n.ts`.
+- **panel.js has a single document-level click dispatcher** (ordered: ctx-item, menu close, search tag/folder, pinned header, section header, tree item, toolbar). The old five separate listeners depended on registration order and handled clicks on already-detached menu items.
+- Folder lookups go through the `folderById` map rebuilt in `refreshPanel`; don't add linear `allFoldersCache` scans for id lookups.
+- Tag search shows counts from ONE bounded call per tag (`limit: 100`, `"100+"` when has_more). Exact counting via full pagination made searches crawl.
+
 ## Project conventions
 
 - **Not based on `generator-joplin`.** This project has its own simplified webpack config plus `scripts/pack-jpl.js`. The official template's gulp pipeline, plugin config file, and helper scripts are absent — don't assume they exist.

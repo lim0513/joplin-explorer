@@ -118,51 +118,116 @@ function toggleFolderLocal(item, id) {
   }
 }
 
-// Left click: open note / toggle folder / search result actions
+// ---- Single click dispatcher ----
+// One listener instead of five separate document-level click handlers whose
+// behaviour silently depended on registration order (the old chain removed
+// the context menu in one listener and then handled the click on the
+// already-detached menu item in another).
 document.addEventListener('click', function(e) {
+  // 1. Context menu item: act, close menu, done.
+  var ctxItem = e.target.closest('.ctx-item');
+  if (ctxItem) {
+    postMsg({
+      name: 'contextMenu',
+      action: ctxItem.dataset.action,
+      id: ctxItem.dataset.id,
+      itemType: ctxItem.dataset.type,
+    });
+    var openMenu = document.getElementById('ctx-menu');
+    if (openMenu) openMenu.remove();
+    return;
+  }
+
+  // 2. Any other click closes an open context menu.
   var existingMenu = document.getElementById('ctx-menu');
   if (existingMenu) existingMenu.remove();
 
-  // Click on a tag in search results -> load its notes
+  // 3. Tag in search results -> load its notes.
   var tagItem = e.target.closest('.search-tag-item');
   if (tagItem) {
-    var tagId = tagItem.dataset.tagId;
-    if (tagId) postMsg({ name: 'loadTagNotes', tagId: tagId });
+    if (tagItem.dataset.tagId) postMsg({ name: 'loadTagNotes', tagId: tagItem.dataset.tagId });
     return;
   }
 
-  // Click on a folder in search results -> locate in tree
-  var folderItem = e.target.closest('.search-folder-item');
-  if (folderItem) {
-    var folderId = folderItem.dataset.folderId;
-    if (folderId) postMsg({ name: 'locateFolder', folderId: folderId });
+  // 4. Folder in search results -> locate in tree.
+  var searchFolderItem = e.target.closest('.search-folder-item');
+  if (searchFolderItem) {
+    if (searchFolderItem.dataset.folderId) postMsg({ name: 'locateFolder', folderId: searchFolderItem.dataset.folderId });
     return;
   }
 
-  var item = e.target.closest('.tree-item');
-  if (!item) return;
-
-  var type = item.dataset.type;
-  var id = item.dataset.id;
-  var isPinnedItem = item.classList.contains('pinned-item');
-
-  if (type === 'note') {
-    document.querySelectorAll('.tree-item.note.selected').forEach(function(el) {
-      el.classList.remove('selected');
-    });
-    item.classList.add('selected');
-    postMsg({ name: 'openNote', id: id });
+  // 5. Pinned section header -> local collapse toggle, backend records state.
+  var pinnedHeader = e.target.closest('.pinned-section-header');
+  if (pinnedHeader) {
+    var pinnedCollapsed = pinnedHeader.classList.toggle('collapsed');
+    var pinnedBody = document.getElementById('pinned-body');
+    if (pinnedBody) pinnedBody.classList.toggle('collapsed', pinnedCollapsed);
+    var pinnedToggle = pinnedHeader.querySelector('.toggle');
+    if (pinnedToggle) pinnedToggle.textContent = pinnedCollapsed ? '\u25B6' : '\u25BC';
+    postMsg({ name: 'togglePinnedCollapse' });
+    return;
   }
 
-  if (type === 'folder') {
-    if (isPinnedItem) {
-      // Pinned folder: expand to it in tree and scroll
-      postMsg({ name: 'locatePinnedFolder', folderId: id });
-    } else {
-      // Toggle locally (no re-render, keeps scroll), backend just records state
-      toggleFolderLocal(item, id);
-      postMsg({ name: 'toggleFolder', id: id });
+  // 6. Search result section header -> collapse/expand that section.
+  var sectionHeader = e.target.closest('.search-section-header');
+  if (sectionHeader) {
+    var sectionBody = document.getElementById('search-section-' + sectionHeader.dataset.section);
+    if (sectionBody) {
+      var sectionToggle = sectionHeader.querySelector('.section-toggle');
+      if (sectionBody.classList.contains('collapsed')) {
+        sectionBody.classList.remove('collapsed');
+        if (sectionToggle) sectionToggle.textContent = '\u25BC';
+      } else {
+        sectionBody.classList.add('collapsed');
+        if (sectionToggle) sectionToggle.textContent = '\u25B6';
+      }
     }
+    return;
+  }
+
+  // 7. Tree item: open note / toggle folder.
+  var item = e.target.closest('.tree-item');
+  if (item) {
+    var type = item.dataset.type;
+    var id = item.dataset.id;
+    var isPinnedItem = item.classList.contains('pinned-item');
+
+    if (type === 'note') {
+      document.querySelectorAll('.tree-item.note.selected').forEach(function(el) {
+        el.classList.remove('selected');
+      });
+      item.classList.add('selected');
+      postMsg({ name: 'openNote', id: id });
+    } else if (type === 'folder') {
+      if (isPinnedItem) {
+        // Pinned folder: expand to it in tree and scroll
+        postMsg({ name: 'locatePinnedFolder', folderId: id });
+      } else {
+        // Toggle locally (no re-render, keeps scroll), backend just records state
+        toggleFolderLocal(item, id);
+        postMsg({ name: 'toggleFolder', id: id });
+      }
+    }
+    return;
+  }
+
+  // 8. Toolbar buttons.
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  switch (btn.id) {
+    case 'btn-new-notebook': postMsg({ name: 'newNotebook' }); break;
+    case 'btn-new-note': postMsg({ name: 'newNote' }); break;
+    case 'btn-new-todo': postMsg({ name: 'newTodo' }); break;
+    case 'btn-sort': postMsg({ name: 'cycleSort' }); break;
+    case 'btn-collapse-all': postMsg({ name: 'collapseAll' }); break;
+    case 'btn-sync':
+      if (!btn.disabled) {
+        btn.disabled = true;
+        btn.classList.add('syncing');
+        btn.textContent = '\uD83D\uDD04 ' + T('syncing');
+        postMsg({ name: 'sync' });
+      }
+      break;
   }
 });
 
@@ -223,82 +288,11 @@ document.addEventListener('contextmenu', function(e) {
   if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 4) + 'px';
 });
 
-// Context menu item click
-document.addEventListener('click', function(e) {
-  var ctxItem = e.target.closest('.ctx-item');
-  if (!ctxItem) return;
-
-  var action = ctxItem.dataset.action;
-  var id = ctxItem.dataset.id;
-  var itemType = ctxItem.dataset.type;
-
-  // All dialogs handled by backend using native Joplin dialogs
-  postMsg({ name: 'contextMenu', action: action, id: id, itemType: itemType });
-
-  var menu = document.getElementById('ctx-menu');
-  if (menu) menu.remove();
-});
-
 // Close context menu
 document.addEventListener('mousedown', function(e) {
   if (!e.target.closest('#ctx-menu')) {
     var menu = document.getElementById('ctx-menu');
     if (menu) menu.remove();
-  }
-});
-
-// Pinned section collapse/expand
-document.addEventListener('click', function(e) {
-  var pinnedHeader = e.target.closest('.pinned-section-header');
-  if (pinnedHeader) {
-    // Toggle locally, backend just records state
-    var collapsed = pinnedHeader.classList.toggle('collapsed');
-    var body = document.getElementById('pinned-body');
-    if (body) body.classList.toggle('collapsed', collapsed);
-    var tg = pinnedHeader.querySelector('.toggle');
-    if (tg) tg.textContent = collapsed ? '\u25B6' : '\u25BC';
-    postMsg({ name: 'togglePinnedCollapse' });
-    return;
-  }
-});
-
-// Search section collapse/expand
-document.addEventListener('click', function(e) {
-  var header = e.target.closest('.search-section-header');
-  if (!header) return;
-  var sectionId = header.dataset.section;
-  var body = document.getElementById('search-section-' + sectionId);
-  if (!body) return;
-  var toggle = header.querySelector('.section-toggle');
-  if (body.classList.contains('collapsed')) {
-    body.classList.remove('collapsed');
-    if (toggle) toggle.textContent = '\u25BC';
-  } else {
-    body.classList.add('collapsed');
-    if (toggle) toggle.textContent = '\u25B6';
-  }
-});
-
-// Toolbar buttons
-document.addEventListener('click', function(e) {
-  var btn = e.target.closest('button');
-  if (!btn) return;
-
-  switch (btn.id) {
-    case 'btn-new-notebook': postMsg({ name: 'newNotebook' }); break;
-    case 'btn-new-note': postMsg({ name: 'newNote' }); break;
-    case 'btn-new-todo': postMsg({ name: 'newTodo' }); break;
-    case 'btn-sort': postMsg({ name: 'cycleSort' }); break;
-    case 'btn-collapse-all': postMsg({ name: 'collapseAll' }); break;
-    case 'btn-sync':
-      var syncBtn = document.getElementById('btn-sync');
-      if (syncBtn && !syncBtn.disabled) {
-        syncBtn.disabled = true;
-        syncBtn.classList.add('syncing');
-        syncBtn.textContent = '\uD83D\uDD04 ' + T('syncing');
-        postMsg({ name: 'sync' });
-      }
-      break;
   }
 });
 
