@@ -105,6 +105,19 @@ function showInlineInput(label, defaultValue, callback) {
   });
 }
 
+// Collapse/expand a folder entirely in the DOM (icons swap via CSS on the
+// .collapsed class). The backend is only notified for state bookkeeping.
+function toggleFolderLocal(item, id) {
+  var collapsed = item.classList.toggle('collapsed');
+  var children = document.querySelector('.children[data-folder-id="' + id + '"]');
+  if (children) children.classList.toggle('collapsed', collapsed);
+  var toggle = item.querySelector('.toggle');
+  if (toggle) {
+    toggle.textContent = collapsed ? '\u25B6' : '\u25BC';
+    toggle.classList.toggle('expanded', !collapsed);
+  }
+}
+
 // Left click: open note / toggle folder / search result actions
 document.addEventListener('click', function(e) {
   var existingMenu = document.getElementById('ctx-menu');
@@ -146,6 +159,8 @@ document.addEventListener('click', function(e) {
       // Pinned folder: expand to it in tree and scroll
       postMsg({ name: 'locatePinnedFolder', folderId: id });
     } else {
+      // Toggle locally (no re-render, keeps scroll), backend just records state
+      toggleFolderLocal(item, id);
       postMsg({ name: 'toggleFolder', id: id });
     }
   }
@@ -236,6 +251,12 @@ document.addEventListener('mousedown', function(e) {
 document.addEventListener('click', function(e) {
   var pinnedHeader = e.target.closest('.pinned-section-header');
   if (pinnedHeader) {
+    // Toggle locally, backend just records state
+    var collapsed = pinnedHeader.classList.toggle('collapsed');
+    var body = document.getElementById('pinned-body');
+    if (body) body.classList.toggle('collapsed', collapsed);
+    var tg = pinnedHeader.querySelector('.toggle');
+    if (tg) tg.textContent = collapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'togglePinnedCollapse' });
     return;
   }

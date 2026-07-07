@@ -406,9 +406,13 @@ function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet:
       const isCollapsed = collapsedSet[node.id] === true;
       const arrowChar = isCollapsed ? '\u25B6' : '\u25BC';
       const toggleClass = isCollapsed ? 'toggle' : 'toggle expanded';
-      html += '<div class="tree-item folder" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="folder">';
+      html += '<div class="tree-item folder' + (isCollapsed ? ' collapsed' : '') + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="folder">';
       if (showFolderToggles) html += '<span class="' + toggleClass + '">' + arrowChar + '</span>';
-      html += renderIconHtml(getFolderIcon(node, isCollapsed, openFolderIcon, closedFolderIcon), 'folder-icon');
+      // Both icon variants are always in the DOM; CSS picks one via the
+      // .collapsed class so the webview can toggle folders without a
+      // full panel re-render (no backend roundtrip, scroll position kept).
+      html += renderIconHtml(getFolderIcon(node, false, openFolderIcon, closedFolderIcon), 'folder-icon icon-when-open');
+      html += renderIconHtml(getFolderIcon(node, true, openFolderIcon, closedFolderIcon), 'folder-icon icon-when-collapsed');
       html += '<span class="label">' + escapeHtml(node.title) + '</span>';
       html += '<span class="count">' + count + '</span>';
       html += '</div>';
@@ -701,10 +705,10 @@ joplin.plugins.register({
         const pinnedCount = pinnedItems.length;
         if (pinnedCount > 0) {
           const pinnedArrow = pinnedCollapsed ? '\u25B6' : '\u25BC';
-          const pinnedIcon = pinnedCollapsed ? closedPinnedIcon : openPinnedIcon;
-          pinnedHtml += '<div class="pinned-section-header" id="pinned-header">';
+          pinnedHtml += '<div class="pinned-section-header' + (pinnedCollapsed ? ' collapsed' : '') + '" id="pinned-header">';
           if (showToggleArrows) pinnedHtml += '<span class="toggle">' + pinnedArrow + '</span>';
-          pinnedHtml += renderIconHtml(pinnedIcon, '')
+          pinnedHtml += renderIconHtml(openPinnedIcon, 'icon-when-open')
+            + renderIconHtml(closedPinnedIcon, 'icon-when-collapsed')
             + '<span class="label">' + t.pinned + ' (' + pinnedCount + ')</span>'
             + '</div>';
           pinnedHtml += '<div class="pinned-section-body' + (pinnedCollapsed ? ' collapsed' : '') + '" id="pinned-body">';
@@ -823,9 +827,11 @@ joplin.plugins.register({
       } else if (msg.name === 'refresh') {
         await refreshPanel();
       } else if (msg.name === 'toggleFolder') {
+        // State bookkeeping only - the webview already toggled the DOM
+        // locally. Re-rendering here would refetch everything and reset
+        // the scroll position for a simple collapse click.
         if (collapsedFolders[msg.id]) { delete collapsedFolders[msg.id]; }
         else { collapsedFolders[msg.id] = true; }
-        await refreshPanel();
       } else if (msg.name === 'collapseAll') {
         const folders = await getAllFolders();
         for (const f of folders) collapsedFolders[f.id] = true;
@@ -1057,8 +1063,8 @@ joplin.plugins.register({
           console.error('Joplin Explorer: reorderPinned error', err);
         }
       } else if (msg.name === 'togglePinnedCollapse') {
+        // State bookkeeping only - the webview toggled the DOM locally.
         pinnedCollapsed = !pinnedCollapsed;
-        await refreshPanel();
       } else if (msg.name === 'cycleSort') {
         const sortModes = ['updated_desc', 'updated_asc', 'title_asc', 'title_desc'];
         const idx = sortModes.indexOf(currentSort);

@@ -172,6 +172,14 @@ html, body {
   display: none;
 }
 
+/* Open/closed icon variants: both are in the DOM, the .collapsed class on
+   the folder row / pinned header picks which one shows. This lets the
+   webview toggle folders without a backend re-render. */
+.tree-item.folder.collapsed .icon-when-open { display: none; }
+.tree-item.folder:not(.collapsed) .icon-when-collapsed { display: none; }
+.pinned-section-header.collapsed .icon-when-open { display: none; }
+.pinned-section-header:not(.collapsed) .icon-when-collapsed { display: none; }
+
 /* Folder styling */
 .folder .label {
   font-weight: 600;
