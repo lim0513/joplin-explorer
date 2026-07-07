@@ -240,6 +240,23 @@ function renderIconHtml(icon: IconRenderData, extraClass: string): string {
   return '<span class="' + className + '">' + escapeHtml(icon.value) + '</span>';
 }
 
+// resolveIconSetting does file IO + base64 for local icon paths, so results
+// are cached per (settingKey, value). The cache is cleared from the settings
+// onChange handler; a changed value also naturally misses the cache.
+const iconResolveCache: { [cacheKey: string]: IconRenderData } = {};
+
+function clearIconResolveCache(): void {
+  for (const k of Object.keys(iconResolveCache)) delete iconResolveCache[k];
+}
+
+async function resolveIconSettingCached(value: any, fallbackText: string, settingKey: string, dataDir: string): Promise<IconRenderData> {
+  const cacheKey = settingKey + ':' + String(value);
+  if (iconResolveCache[cacheKey]) return iconResolveCache[cacheKey];
+  const resolved = await resolveIconSetting(value, fallbackText, settingKey, dataDir);
+  iconResolveCache[cacheKey] = resolved;
+  return resolved;
+}
+
 async function resolveIconSetting(value: any, fallbackText: string, settingKey: string, dataDir: string): Promise<IconRenderData> {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text) return { type: 'text', value: fallbackText };
@@ -296,15 +313,17 @@ async function getAllFolders(): Promise<FolderItem[]> {
   return folders;
 }
 
-async function getNotesInFolder(folderId: string): Promise<NoteItem[]> {
+// One paginated query for ALL notes, then group by parent_id locally.
+// Replaces the old per-folder query loop: O(total notes / 100) API calls
+// instead of O(folder count) call series.
+async function getAllNotes(): Promise<NoteItem[]> {
   let notes: NoteItem[] = [];
   let page = 1;
   let hasMore = true;
   while (hasMore) {
-    const result = await joplin.data.get(['folders', folderId, 'notes'], {
+    const result = await joplin.data.get(['notes'], {
       fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time'],
       page, limit: 100,
-      order_by: 'user_updated_time', order_dir: 'DESC',
     });
     notes = notes.concat(result.items);
     hasMore = result.has_more;
@@ -637,17 +656,17 @@ joplin.plugins.register({
           isFirstLoad = false;
         }
 
+        const fetchedNotes = await getAllNotes();
         const notesByFolder: { [id: string]: NoteItem[] } = {};
-        const batchSize = 10;
-        for (let i = 0; i < folders.length; i += batchSize) {
-          const batch = folders.slice(i, i + batchSize);
-          const results = await Promise.all(batch.map((f) => getNotesInFolder(f.id)));
-          for (let j = 0; j < batch.length; j++) {
-            notesByFolder[batch[j].id] = sortNotes(results[j], currentSort);
-          }
+        for (const f of folders) notesByFolder[f.id] = [];
+        for (const n of fetchedNotes) {
+          if (notesByFolder[n.parent_id]) notesByFolder[n.parent_id].push(n);
+        }
+        for (const fid of Object.keys(notesByFolder)) {
+          notesByFolder[fid] = sortNotes(notesByFolder[fid], currentSort);
         }
 
-        // Flatten all notes into a cache for local substring search
+        // Notes cache for local substring search (only notes in known folders)
         const allNotes: NoteItem[] = [];
         for (const fid of Object.keys(notesByFolder)) {
           for (const n of notesByFolder[fid]) allNotes.push(n);
@@ -659,10 +678,10 @@ joplin.plugins.register({
         const closedFolderIconSetting = await joplin.settings.value('closedFolderIcon');
         const openPinnedIconSetting = await joplin.settings.value('openPinnedIcon');
         const closedPinnedIconSetting = await joplin.settings.value('closedPinnedIcon');
-        const openFolderIcon = await resolveIconSetting(openFolderIconSetting, '\uD83D\uDCC2', 'openFolderIcon', pluginDataDir);
-        const closedFolderIcon = await resolveIconSetting(closedFolderIconSetting, '\uD83D\uDCC1', 'closedFolderIcon', pluginDataDir);
-        const openPinnedIcon = await resolveIconSetting(openPinnedIconSetting, '\uD83D\uDCCC', 'openPinnedIcon', pluginDataDir);
-        const closedPinnedIcon = await resolveIconSetting(closedPinnedIconSetting, '\uD83D\uDCCC', 'closedPinnedIcon', pluginDataDir);
+        const openFolderIcon = await resolveIconSettingCached(openFolderIconSetting, '\uD83D\uDCC2', 'openFolderIcon', pluginDataDir);
+        const closedFolderIcon = await resolveIconSettingCached(closedFolderIconSetting, '\uD83D\uDCC1', 'closedFolderIcon', pluginDataDir);
+        const openPinnedIcon = await resolveIconSettingCached(openPinnedIconSetting, '\uD83D\uDCCC', 'openPinnedIcon', pluginDataDir);
+        const closedPinnedIcon = await resolveIconSettingCached(closedPinnedIconSetting, '\uD83D\uDCCC', 'closedPinnedIcon', pluginDataDir);
         const showToggleArrows = showFolderToggles !== false;
         const tree = buildTree(folders, notesByFolder);
         const treeHtml = renderTreeHtml(tree, selectedNoteId, collapsedFolders, 0, showToggleArrows, openFolderIcon, closedFolderIcon);
@@ -792,6 +811,7 @@ joplin.plugins.register({
         || event.keys.indexOf('openPinnedIcon') >= 0
         || event.keys.indexOf('closedPinnedIcon') >= 0
       )) {
+        clearIconResolveCache();
         await refreshPanel();
       }
     });
@@ -938,7 +958,17 @@ joplin.plugins.register({
           const folderItems = [] as any[];
           for (const f of allFoldersCache) {
             if ((f.title || '').toLowerCase().indexOf(lowerQuery) >= 0) {
-              folderItems.push({ id: f.id, title: f.title, parent_id: f.parent_id, icon: f.icon });
+              // f.icon is a JSON STRING from the data API - parse it here so the
+              // webview gets a ready-to-render emoji (it used to read .emoji off
+              // the raw string, which never worked).
+              let iconEmoji = '';
+              if (f.icon && typeof f.icon === 'string') {
+                try {
+                  const parsedIcon = JSON.parse(f.icon);
+                  if (parsedIcon && parsedIcon.emoji) iconEmoji = String(parsedIcon.emoji);
+                } catch (_) { /* not JSON - ignore */ }
+              }
+              folderItems.push({ id: f.id, title: f.title, parent_id: f.parent_id, iconEmoji });
             }
           }
 
@@ -1281,17 +1311,6 @@ joplin.plugins.register({
       else scheduleRefreshPanel();
     });
 
-    async function fetchLastSyncError(): Promise<string> {
-      const keys = ['sync.errorMessage', 'sync.lastError', 'sync.error'];
-      for (const k of keys) {
-        try {
-          const v = await joplin.settings.globalValue(k);
-          if (v && typeof v === 'string' && v.trim()) return v;
-        } catch (_) {}
-      }
-      return '';
-    }
-
     try {
       await joplin.workspace.onSyncStart(async () => {
         await joplin.views.panels.postMessage(panel, { name: 'syncState', state: 'syncing' });
@@ -1309,11 +1328,8 @@ joplin.plugins.register({
           state: withErrors ? 'error' : 'done',
         });
         if (withErrors) {
-          const detail = await fetchLastSyncError();
-          const body = detail
-            ? detail
-            : 'Joplin reported errors during synchronisation. Open the Synchronisation Status screen (Tools → Synchronisation Status) to see the details.';
-          await showNativeInfo(t.syncFailed, body);
+          await showNativeInfo(t.syncFailed,
+            'Joplin reported errors during synchronisation. Open the Synchronisation Status screen (Tools → Synchronisation Status) to see the details.');
         }
       });
     } catch (err) {

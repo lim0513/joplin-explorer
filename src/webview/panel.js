@@ -696,7 +696,7 @@ function renderSearchResults(notes, tags, folders, query) {
     html += '<div class="search-section-body" id="search-section-folders">';
     for (var f = 0; f < folders.length; f++) {
       var folder = folders[f];
-      var folderIcon = (folder.icon && folder.icon.emoji) ? folder.icon.emoji : '\uD83D\uDCC1';
+      var folderIcon = folder.iconEmoji || '\uD83D\uDCC1';
       html += '<div class="search-result-item search-folder-item" data-folder-id="' + folder.id + '">';
       html += '<span class="icon">' + folderIcon + '</span>';
       html += '<div class="search-result-content">';

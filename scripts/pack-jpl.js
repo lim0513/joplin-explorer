@@ -5,6 +5,20 @@ const zlib = require('zlib');
 const publishDir = path.resolve(__dirname, '..', 'publish');
 const outPath = path.join(publishDir, 'plugin.jpl');
 
+// GUARD: the outer manifests and the manifest packed INTO the .jpl must all
+// agree, otherwise Joplin enters an endless update loop (see CLAUDE.md,
+// "Release pipeline"). Fail the build loudly instead of shipping a mismatch.
+const srcManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'src', 'manifest.json'), 'utf8'));
+const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'));
+const publishManifest = JSON.parse(fs.readFileSync(path.join(publishDir, 'manifest.json'), 'utf8'));
+if (srcManifest.version !== pkg.version || srcManifest.version !== publishManifest.version) {
+  console.error('VERSION MISMATCH: src/manifest.json=' + srcManifest.version
+    + ' package.json=' + pkg.version
+    + ' publish/manifest.json=' + publishManifest.version);
+  console.error('Bump all versions together, rebuild, then pack. Aborting.');
+  process.exit(1);
+}
+
 function tarHeader(name, size, mtime) {
   const buf = Buffer.alloc(512);
   buf.write(name.slice(0, 100), 0, 100, 'utf8');
