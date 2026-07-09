@@ -31,6 +31,7 @@ interface NoteItem {
   todo_completed: number;
   updated_time: number;
   user_updated_time: number;
+  order?: number;
 }
 
 interface TreeNode {
@@ -163,7 +164,7 @@ async function getAllNotes(): Promise<NoteItem[]> {
   let hasMore = true;
   while (hasMore) {
     const result = await joplin.data.get(['notes'], {
-      fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time'],
+      fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time', 'order'],
       page, limit: 100,
     });
     notes = notes.concat(result.items);
@@ -280,6 +281,14 @@ function sortNotes(notes: NoteItem[], sortMode: string): NoteItem[] {
     case 'title_asc': sorted.sort((a, b) => (a.title || '').localeCompare(b.title || '')); break;
     case 'title_desc': sorted.sort((a, b) => (b.title || '').localeCompare(a.title || '')); break;
     case 'updated_asc': sorted.sort((a, b) => (a.user_updated_time || 0) - (b.user_updated_time || 0)); break;
+    case 'manual':
+      sorted.sort((a, b) => {
+        const oa = a.order || 0;
+        const ob = b.order || 0;
+        if (oa !== ob) return ob - oa;
+        return (b.user_updated_time || 0) - (a.user_updated_time || 0);
+      });
+      break;
     default: sorted.sort((a, b) => (b.user_updated_time || 0) - (a.user_updated_time || 0)); break;
   }
   return sorted;
@@ -575,11 +584,12 @@ joplin.plugins.register({
         const sortLabels: { [k: string]: string } = {
           'updated_desc': t.sortUpdatedDesc, 'updated_asc': t.sortUpdatedAsc,
           'title_asc': t.sortTitleAsc, 'title_desc': t.sortTitleDesc,
+          'manual': t.sortManual,
         };
 
         const i18nJson = escapeHtml(JSON.stringify(t));
 
-        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '">'
+        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new-notebook" title="' + t.newNotebook + '">\uD83D\uDCC1+</button>'
           + '    <button id="btn-new-note" title="' + t.newNote + '">\uD83D\uDCDD+</button>'
@@ -610,7 +620,7 @@ joplin.plugins.register({
       try {
         const cachedIndex = allNotesCache.findIndex((note) => note.id === noteId);
         const note = await joplin.data.get(['notes', noteId], {
-          fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time'],
+          fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time', 'order'],
         });
 
         if (cachedIndex < 0 || allNotesCache[cachedIndex].parent_id !== note.parent_id) {
@@ -941,6 +951,58 @@ joplin.plugins.register({
         }
     }
 
+    async function reorderNoteToPosition(dragId: string, targetNoteId: string, position: 'above' | 'below'): Promise<void> {
+      const targetInfo = await joplin.data.get(['notes', targetNoteId], { fields: ['parent_id'] });
+      const targetFolderId = targetInfo.parent_id;
+      const others: NoteItem[] = allNotesCache
+        .filter((n) => n.parent_id === targetFolderId && n.id !== dragId)
+        .sort((a, b) => {
+          const oa = a.order || 0;
+          const ob = b.order || 0;
+          if (oa !== ob) return ob - oa;
+          return (b.user_updated_time || 0) - (a.user_updated_time || 0);
+        });
+      const targetIdx = others.findIndex((n) => n.id === targetNoteId);
+      const insertIdx = targetIdx < 0 ? others.length : (position === 'above' ? targetIdx : targetIdx + 1);
+      const prev: NoteItem | null = insertIdx > 0 ? others[insertIdx - 1] : null;
+      const next: NoteItem | null = insertIdx < others.length ? others[insertIdx] : null;
+      const prevOrder = prev ? (prev.order || 0) : null;
+      const nextOrder = next ? (next.order || 0) : null;
+      const allZero = others.every((n) => (n.order || 0) === 0);
+      const tooClose = prevOrder !== null && nextOrder !== null && prevOrder - nextOrder < 2;
+      const GAP = 1000000;
+      if (allZero || tooClose) {
+        const base = Date.now();
+        const flow: (NoteItem | null)[] = others.slice();
+        flow.splice(insertIdx, 0, null);
+        let dragOrder = base;
+        const writes: Promise<any>[] = [];
+        for (let i = 0; i < flow.length; i++) {
+          const val = base - i * GAP;
+          const item = flow[i];
+          if (item === null) {
+            dragOrder = val;
+          } else {
+            writes.push(joplin.data.put(['notes', item.id], null, { order: val }));
+          }
+        }
+        await Promise.all(writes);
+        await joplin.data.put(['notes', dragId], null, { parent_id: targetFolderId, order: dragOrder });
+        return;
+      }
+      let newOrder: number;
+      if (prevOrder !== null && nextOrder !== null) {
+        newOrder = (prevOrder + nextOrder) / 2;
+      } else if (prevOrder !== null) {
+        newOrder = prevOrder - GAP;
+      } else if (nextOrder !== null) {
+        newOrder = nextOrder + GAP;
+      } else {
+        newOrder = Date.now();
+      }
+      await joplin.data.put(['notes', dragId], null, { parent_id: targetFolderId, order: newOrder });
+    }
+
     async function handleDragDrop(msg: any): Promise<void> {
 
         try {
@@ -950,14 +1012,16 @@ joplin.plugins.register({
           const position = msg.position; // 'into', 'above', 'below'
 
           if (dragType === 'note') {
+            const isFolder = !!folderById[targetId];
             if (position === 'into') {
               let targetFolderId = targetId;
-              const isFolder = !!folderById[targetId];
               if (!isFolder) {
                 const targetNote = await joplin.data.get(['notes', targetId], { fields: ['parent_id'] });
                 targetFolderId = targetNote.parent_id;
               }
               await joplin.data.put(['notes', dragId], null, { parent_id: targetFolderId });
+            } else if (!isFolder && (position === 'above' || position === 'below')) {
+              await reorderNoteToPosition(dragId, targetId, position);
             }
           } else if (dragType === 'folder') {
             if (position === 'into') {
@@ -991,7 +1055,12 @@ joplin.plugins.register({
         else { collapsedFolders[msg.id] = true; }
       } else if (msg.name === 'collapseAll') {
         const folders = await getAllFolders();
-        for (const f of folders) collapsedFolders[f.id] = true;
+        const allCollapsed = folders.length > 0 && folders.every((f) => collapsedFolders[f.id]);
+        if (allCollapsed) {
+          collapsedFolders = {};
+        } else {
+          for (const f of folders) collapsedFolders[f.id] = true;
+        }
         await refreshPanel();
       } else if (msg.name === 'expandAll') {
         collapsedFolders = {};
@@ -1092,7 +1161,7 @@ joplin.plugins.register({
         // State bookkeeping only - the webview toggled the DOM locally.
         pinnedCollapsed = !pinnedCollapsed;
       } else if (msg.name === 'cycleSort') {
-        const sortModes = ['updated_desc', 'updated_asc', 'title_asc', 'title_desc'];
+        const sortModes = ['updated_desc', 'updated_asc', 'title_asc', 'title_desc', 'manual'];
         const idx = sortModes.indexOf(currentSort);
         currentSort = sortModes[(idx + 1) % sortModes.length];
         await refreshPanel();

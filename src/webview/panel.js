@@ -8,6 +8,11 @@ function postMsg(msg) {
   webviewApi.postMessage(msg);
 }
 
+function currentSortMode() {
+  var root = document.getElementById('notes-in-list-root');
+  return root ? (root.dataset.sort || '') : '';
+}
+
 // Save scroll position continuously
 document.addEventListener('scroll', function(e) {
   if (e.target && e.target.id === 'tree-container') {
@@ -529,11 +534,17 @@ document.addEventListener('dragover', function(e) {
       target.classList.add('drop-target');
     }
   } else {
-    // Notes: just show drop-target (will move to same folder)
-    if (y < height * 0.5) {
-      target.classList.add('drop-above');
+    // Note target: split above/below only makes sense in manual sort mode.
+    // Under time/title sort, position is decided by the sort, so we just
+    // show a single drop-target highlight meaning "move to this folder".
+    if (currentSortMode() === 'manual') {
+      if (y < height * 0.5) {
+        target.classList.add('drop-above');
+      } else {
+        target.classList.add('drop-below');
+      }
     } else {
-      target.classList.add('drop-below');
+      target.classList.add('drop-target');
     }
   }
 });
@@ -629,6 +640,9 @@ document.addEventListener('drop', function(e) {
       var pos = y < height * 0.25 ? 'above' : 'below';
       postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: pos });
     }
+  } else if (dragType === 'note' && currentSortMode() === 'manual') {
+    var notePos = y < height * 0.5 ? 'above' : 'below';
+    postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: notePos });
   } else {
     postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: 'into' });
   }
