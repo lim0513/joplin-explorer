@@ -123,6 +123,25 @@ function toggleFolderLocal(item, id) {
   }
 }
 
+// Collapse EVERY main-tree folder in the DOM directly. Done locally (not via a
+// backend refresh) because Joplin's setHtml de-dupes identical HTML: after a
+// manual expand the re-rendered "all collapsed" tree matches the last one sent
+// and the update is skipped, so the button would appear dead. Pinned items
+// (.pinned-item) have no children container and are left untouched.
+function collapseAllLocal() {
+  var container = document.getElementById('tree-container');
+  if (!container) return;
+  container.querySelectorAll('.tree-item.folder').forEach(function(item) {
+    if (item.classList.contains('pinned-item')) return;
+    item.classList.add('collapsed');
+    var toggle = item.querySelector('.toggle');
+    if (toggle) { toggle.textContent = '\u25B6'; toggle.classList.remove('expanded'); }
+  });
+  container.querySelectorAll('.children').forEach(function(ch) {
+    ch.classList.add('collapsed');
+  });
+}
+
 // ---- Single click dispatcher ----
 // One listener instead of five separate document-level click handlers whose
 // behaviour silently depended on registration order (the old chain removed
@@ -224,7 +243,7 @@ document.addEventListener('click', function(e) {
     case 'btn-new-note': postMsg({ name: 'newNote' }); break;
     case 'btn-new-todo': postMsg({ name: 'newTodo' }); break;
     case 'btn-sort': postMsg({ name: 'cycleSort' }); break;
-    case 'btn-collapse-all': postMsg({ name: 'collapseAll' }); break;
+    case 'btn-collapse-all': collapseAllLocal(); postMsg({ name: 'collapseAll' }); break;
     case 'btn-sync':
       if (!btn.disabled) {
         btn.disabled = true;
@@ -640,7 +659,10 @@ document.addEventListener('drop', function(e) {
       var pos = y < height * 0.25 ? 'above' : 'below';
       postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: pos });
     }
-  } else if (dragType === 'note' && currentSortMode() === 'manual') {
+  } else if (dragType === 'note') {
+    // Note dropped on a note: always report above/below from the cursor. The
+    // backend decides whether that means an exact reorder (manual sort) or a
+    // plain move into the target's folder (time/title sort).
     var notePos = y < height * 0.5 ? 'above' : 'below';
     postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, targetId: targetId, position: notePos });
   } else {

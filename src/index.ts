@@ -21,6 +21,7 @@ interface FolderItem {
   title: string;
   parent_id: string;
   icon?: string;
+  order?: number;
 }
 
 interface NoteItem {
@@ -42,6 +43,7 @@ interface TreeNode {
   icon?: string;
   is_todo?: number;
   todo_completed?: number;
+  order?: number;
   note_count?: number;
   total_count?: number;
   children?: TreeNode[];
@@ -174,36 +176,59 @@ async function getAllNotes(): Promise<NoteItem[]> {
   return notes;
 }
 
+// Sibling folders are ordered by their `order` field DESC (matching Joplin's
+// own custom notebook order), falling back to title ASC when orders tie (e.g.
+// folders that have never been manually reordered all have order 0).
+function compareFolders(a: TreeNode, b: TreeNode): number {
+  const oa = a.order || 0;
+  const ob = b.order || 0;
+  if (oa !== ob) return ob - oa;
+  return (a.title || '').localeCompare(b.title || '');
+}
+
 function buildTree(folders: FolderItem[], notesByFolder: { [id: string]: NoteItem[] }): TreeNode[] {
   const folderMap: { [id: string]: TreeNode } = {};
+  const childFolders: { [id: string]: TreeNode[] } = {};
+  const childNotes: { [id: string]: TreeNode[] } = {};
   for (const f of folders) {
     folderMap[f.id] = {
       type: 'folder', id: f.id, title: f.title,
-      parent_id: f.parent_id, icon: f.icon, note_count: 0, children: [],
+      parent_id: f.parent_id, icon: f.icon, order: f.order || 0,
+      note_count: 0, children: [],
     };
+    childFolders[f.id] = [];
+    childNotes[f.id] = [];
   }
   for (const fid of Object.keys(notesByFolder)) {
-    const folder = folderMap[fid];
-    if (folder) {
-      const notes = notesByFolder[fid];
-      folder.note_count = notes.length;
-      for (const n of notes) {
-        folder.children!.push({
+    if (childNotes[fid]) {
+      for (const n of notesByFolder[fid]) {
+        childNotes[fid].push({
           type: 'note', id: n.id, title: n.title || '(untitled)',
           is_todo: n.is_todo, todo_completed: n.todo_completed,
         });
       }
     }
   }
-  const roots: TreeNode[] = [];
+  const rootFolders: TreeNode[] = [];
   for (const f of folders) {
     const node = folderMap[f.id];
     if (f.parent_id && folderMap[f.parent_id]) {
-      folderMap[f.parent_id].children!.unshift(node);
+      childFolders[f.parent_id].push(node);
     } else {
-      roots.push(node);
+      rootFolders.push(node);
     }
   }
+  // Assemble each folder's children: sub-folders (sorted) first, then notes
+  // (already sorted by the active note sort). Then recurse.
+  function assemble(node: TreeNode): void {
+    const subs = childFolders[node.id].sort(compareFolders);
+    for (const s of subs) assemble(s);
+    node.note_count = childNotes[node.id].length;
+    node.children = subs.concat(childNotes[node.id]);
+  }
+  rootFolders.sort(compareFolders);
+  for (const rf of rootFolders) assemble(rf);
+  const roots: TreeNode[] = rootFolders;
 
   // Recursively compute total note count including sub-folders
   function calcTotalCount(node: TreeNode): number {
@@ -317,6 +342,13 @@ joplin.plugins.register({
           public: false,
           label: 'Pinned Items (JSON)',
         },
+        'folderOrder': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '{}',
+          public: false,
+          label: 'Folder Manual Order (JSON)',
+        },
         'showFolderToggles': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -423,6 +455,10 @@ joplin.plugins.register({
     let allNotesCache: NoteItem[] = [];
     let pinnedItems: { id: string, type: string }[] = [];
     let pinnedCollapsed = false;
+    // Folder manual order lives in a plugin setting, NOT the Joplin `folders`
+    // table: older Joplin builds have no `order` column on folders (querying it
+    // throws "no such column: order"). Map is folderId -> order (higher = top).
+    let folderOrder: { [id: string]: number } = {};
     let isFirstLoad = true;
     const pluginDataDir = await joplin.plugins.dataDir();
     let refreshTimer: any = null;
@@ -476,6 +512,24 @@ joplin.plugins.register({
       }
     }
 
+    async function loadFolderOrder(): Promise<void> {
+      try {
+        const raw = await joplin.settings.value('folderOrder');
+        const parsed = raw ? JSON.parse(raw) : {};
+        folderOrder = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+      } catch (_) {
+        folderOrder = {};
+      }
+    }
+
+    async function saveFolderOrder(): Promise<void> {
+      try {
+        await joplin.settings.setValue('folderOrder', JSON.stringify(folderOrder));
+      } catch (err) {
+        console.error('Joplin Explorer: failed to save folder order', err);
+      }
+    }
+
     function expandToFolder(folderId: string): void {
       let parentId: string | null = folderId;
       while (parentId) {
@@ -488,6 +542,16 @@ joplin.plugins.register({
     async function refreshPanel(): Promise<void> {
       try {
         const folders = await getAllFolders();
+        // Attach manual order from our own setting (Joplin folders have no
+        // `order` column). Prune orders for folders that no longer exist.
+        await loadFolderOrder();
+        let orderPruned = false;
+        const liveFolderIds = new Set(folders.map((f) => f.id));
+        for (const id of Object.keys(folderOrder)) {
+          if (!liveFolderIds.has(id)) { delete folderOrder[id]; orderPruned = true; }
+        }
+        if (orderPruned) await saveFolderOrder();
+        for (const f of folders) f.order = folderOrder[f.id] || 0;
         allFoldersCache = folders;
         folderById = {};
         for (const f of folders) folderById[f.id] = f;
@@ -1003,6 +1067,75 @@ joplin.plugins.register({
       await joplin.data.put(['notes', dragId], null, { parent_id: targetFolderId, order: newOrder });
     }
 
+    // Reorder a folder to a slot above/below a sibling. Mirrors
+    // reorderNoteToPosition but operates on the folders that share the target's
+    // parent, and persists order into the folderOrder setting (folders have no
+    // `order` column). A cycle guard prevents nesting a folder in its own subtree.
+    async function reorderFolderToPosition(dragId: string, targetFolderId: string, position: 'above' | 'below'): Promise<void> {
+      const targetFolder = folderById[targetFolderId];
+      const dragFolder = folderById[dragId];
+      if (!targetFolder || !dragFolder || dragId === targetFolderId) return;
+      const parentId = targetFolder.parent_id || '';
+      // Cycle guard: walk up from the destination parent; if we reach dragId,
+      // the move would nest dragId inside its own descendant.
+      let walk: string = parentId;
+      while (walk) {
+        if (walk === dragId) return;
+        walk = (folderById[walk] && folderById[walk].parent_id) || '';
+      }
+      const siblings: FolderItem[] = allFoldersCache
+        .filter((f) => (f.parent_id || '') === parentId && f.id !== dragId)
+        .sort((a, b) => {
+          const oa = a.order || 0;
+          const ob = b.order || 0;
+          if (oa !== ob) return ob - oa;
+          return (a.title || '').localeCompare(b.title || '');
+        });
+      const targetIdx = siblings.findIndex((f) => f.id === targetFolderId);
+      const insertIdx = targetIdx < 0 ? siblings.length : (position === 'above' ? targetIdx : targetIdx + 1);
+      const prev: FolderItem | null = insertIdx > 0 ? siblings[insertIdx - 1] : null;
+      const next: FolderItem | null = insertIdx < siblings.length ? siblings[insertIdx] : null;
+      const prevOrder = prev ? (prev.order || 0) : null;
+      const nextOrder = next ? (next.order || 0) : null;
+      const allZero = siblings.every((f) => (f.order || 0) === 0);
+      const tooClose = prevOrder !== null && nextOrder !== null && prevOrder - nextOrder < 2;
+      const GAP = 1000000;
+      // Reparent through the API (parent_id is a real column); persist the
+      // order values into our own folderOrder setting.
+      const needsReparent = (dragFolder.parent_id || '') !== parentId;
+      if (needsReparent) {
+        await joplin.data.put(['folders', dragId], null, { parent_id: parentId });
+      }
+      if (allZero || tooClose) {
+        const base = Date.now();
+        const flow: (FolderItem | null)[] = siblings.slice();
+        flow.splice(insertIdx, 0, null);
+        for (let i = 0; i < flow.length; i++) {
+          const val = base - i * GAP;
+          const item = flow[i];
+          if (item === null) {
+            folderOrder[dragId] = val;
+          } else {
+            folderOrder[item.id] = val;
+          }
+        }
+        await saveFolderOrder();
+        return;
+      }
+      let newOrder: number;
+      if (prevOrder !== null && nextOrder !== null) {
+        newOrder = (prevOrder + nextOrder) / 2;
+      } else if (prevOrder !== null) {
+        newOrder = prevOrder - GAP;
+      } else if (nextOrder !== null) {
+        newOrder = nextOrder + GAP;
+      } else {
+        newOrder = Date.now();
+      }
+      folderOrder[dragId] = newOrder;
+      await saveFolderOrder();
+    }
+
     async function handleDragDrop(msg: any): Promise<void> {
 
         try {
@@ -1012,27 +1145,37 @@ joplin.plugins.register({
           const position = msg.position; // 'into', 'above', 'below'
 
           if (dragType === 'note') {
-            const isFolder = !!folderById[targetId];
-            if (position === 'into') {
-              let targetFolderId = targetId;
-              if (!isFolder) {
-                const targetNote = await joplin.data.get(['notes', targetId], { fields: ['parent_id'] });
-                targetFolderId = targetNote.parent_id;
+            const targetIsFolder = !!folderById[targetId];
+            if (targetIsFolder) {
+              // Dropping a note anywhere on a folder means "move into it"
+              // (above/below on a folder edge is treated the same, so a note
+              // dropped near a folder's border still lands inside it).
+              await joplin.data.put(['notes', dragId], null, { parent_id: targetId });
+            } else {
+              // Target is a note. Only reorder to an exact slot when the panel
+              // is actually in manual sort - otherwise the sort decides the
+              // position and we just move the note into the target's folder.
+              // The gate lives here (not in the webview) so a stale/missing
+              // data-sort attribute can't silently drop us into a plain move
+              // that bumps updated_time and makes the note jump to the top.
+              const targetNote = await joplin.data.get(['notes', targetId], { fields: ['parent_id'] });
+              if (currentSort === 'manual' && (position === 'above' || position === 'below')) {
+                await reorderNoteToPosition(dragId, targetId, position);
+              } else {
+                await joplin.data.put(['notes', dragId], null, { parent_id: targetNote.parent_id });
               }
-              await joplin.data.put(['notes', dragId], null, { parent_id: targetFolderId });
-            } else if (!isFolder && (position === 'above' || position === 'below')) {
-              await reorderNoteToPosition(dragId, targetId, position);
             }
           } else if (dragType === 'folder') {
+            const targetIsFolder = !!folderById[targetId];
             if (position === 'into') {
-              if (dragId !== targetId) {
+              if (targetIsFolder && dragId !== targetId) {
                 await joplin.data.put(['folders', dragId], null, { parent_id: targetId });
               }
-            } else {
-              const targetFolder = folderById[targetId] || null;
-              if (targetFolder) {
-                await joplin.data.put(['folders', dragId], null, { parent_id: targetFolder.parent_id || '' });
-              }
+            } else if (targetIsFolder && (position === 'above' || position === 'below')) {
+              // Reorder among the target's siblings (and reparent if the target
+              // lives under a different parent). Folder order is honoured in
+              // every sort mode since folders have no time/title sort here.
+              await reorderFolderToPosition(dragId, targetId, position);
             }
           }
           await refreshPanel();
@@ -1054,14 +1197,13 @@ joplin.plugins.register({
         if (collapsedFolders[msg.id]) { delete collapsedFolders[msg.id]; }
         else { collapsedFolders[msg.id] = true; }
       } else if (msg.name === 'collapseAll') {
-        const folders = await getAllFolders();
-        const allCollapsed = folders.length > 0 && folders.every((f) => collapsedFolders[f.id]);
-        if (allCollapsed) {
-          collapsedFolders = {};
-        } else {
-          for (const f of folders) collapsedFolders[f.id] = true;
-        }
-        await refreshPanel();
+        // The webview already collapsed every folder in the DOM locally.
+        // We must NOT refreshPanel here: Joplin's setHtml de-dupes identical
+        // content, so after a manual (DOM-only) expand the re-rendered
+        // "all collapsed" HTML equals the last one sent and the update is
+        // silently skipped - making the collapse button appear dead. So we
+        // only record state for the next real refresh (mirrors toggleFolder).
+        for (const f of allFoldersCache) collapsedFolders[f.id] = true;
       } else if (msg.name === 'expandAll') {
         collapsedFolders = {};
         await refreshPanel();
