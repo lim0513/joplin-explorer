@@ -291,7 +291,7 @@ function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet:
     } else {
       const selected = node.id === selectedNoteId ? ' selected' : '';
       const icon = getNoteIcon(node);
-      html += '<div class="tree-item note' + selected + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="note">';
+      html += '<div class="tree-item note' + selected + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="note" data-todo="' + (node.is_todo ? 1 : 0) + '">';
       html += '<span class="icon note-icon">' + icon + '</span>';
       html += '<span class="label">' + escapeHtml(node.title) + '</span>';
       html += '</div>';
@@ -646,7 +646,7 @@ joplin.plugins.register({
               if (note) {
                 const selected = note.id === selectedNoteId ? ' selected' : '';
                 const icon = getNoteIcon(note);
-                pinnedHtml += '<div class="tree-item note pinned-item' + selected + '" data-id="' + note.id + '" data-type="note">';
+                pinnedHtml += '<div class="tree-item note pinned-item' + selected + '" data-id="' + note.id + '" data-type="note" data-todo="' + (note.is_todo ? 1 : 0) + '">';
                 pinnedHtml += '<span class="icon note-icon">' + icon + '</span>';
                 pinnedHtml += '<span class="label">' + escapeHtml(note.title) + '</span>';
                 pinnedHtml += '</div>';

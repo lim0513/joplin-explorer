@@ -295,7 +295,11 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="copyLink" data-id="' + id + '" data-type="note">' + T('ctxCopyLink') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="duplicateNote" data-id="' + id + '" data-type="note">' + T('ctxDuplicateNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="switchNoteType" data-id="' + id + '" data-type="note">' + T('ctxSwitchNoteType') + '</div>';
-    menuHtml += '<div class="ctx-item" data-action="toggleTodo" data-id="' + id + '" data-type="note">' + T('ctxToggleTodo') + '</div>';
+    // "Toggle completed" only makes sense for to-do notes - the backend
+    // ignores it for plain notes anyway, so don't offer it.
+    if (item.dataset.todo === '1') {
+      menuHtml += '<div class="ctx-item" data-action="toggleTodo" data-id="' + id + '" data-type="note">' + T('ctxToggleTodo') + '</div>';
+    }
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameNote" data-id="' + id + '" data-type="note" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="noteInfo" data-id="' + id + '" data-type="note">' + T('ctxNoteInfo') + '</div>';
@@ -705,7 +709,7 @@ function renderNoteItem(item, query) {
   if (item.is_todo) {
     icon = item.todo_completed ? '\u2611' : '\u2610';
   }
-  var html = '<div class="search-result-item tree-item note" data-id="' + item.id + '" data-type="note">';
+  var html = '<div class="search-result-item tree-item note" data-id="' + item.id + '" data-type="note" data-todo="' + (item.is_todo ? 1 : 0) + '">';
   html += '<span class="icon note-icon">' + icon + '</span>';
   html += '<div class="search-result-content">';
   html += '<div class="search-result-title">' + highlightText(item.title, query) + '</div>';
