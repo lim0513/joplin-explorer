@@ -349,6 +349,13 @@ joplin.plugins.register({
           public: false,
           label: 'Folder Manual Order (JSON)',
         },
+        'noteSortMode': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: 'updated_desc',
+          public: false,
+          label: 'Note Sort Mode',
+        },
         'showFolderToggles': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -450,6 +457,11 @@ joplin.plugins.register({
     let selectedNoteId = '';
     let collapsedFolders: { [id: string]: boolean } = {};
     let currentSort = 'updated_desc';
+    // Restore the last sort mode - it used to reset to updated_desc on restart.
+    try {
+      const savedSort = String((await joplin.settings.value('noteSortMode')) || '');
+      if (['updated_desc', 'updated_asc', 'title_asc', 'title_desc', 'manual'].indexOf(savedSort) >= 0) currentSort = savedSort;
+    } catch (_) { /* keep default */ }
     let allFoldersCache: FolderItem[] = [];
     let folderById: { [id: string]: FolderItem } = {};
     let allNotesCache: NoteItem[] = [];
@@ -1306,6 +1318,7 @@ joplin.plugins.register({
         const sortModes = ['updated_desc', 'updated_asc', 'title_asc', 'title_desc', 'manual'];
         const idx = sortModes.indexOf(currentSort);
         currentSort = sortModes[(idx + 1) % sortModes.length];
+        try { await joplin.settings.setValue('noteSortMode', currentSort); } catch (_) { /* non-fatal */ }
         await refreshPanel();
       } else if (msg.name === 'sync') {
         try {

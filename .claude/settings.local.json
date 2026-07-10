@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(ls D:/repos/joplin-explorer/node_modules/.bin/webpack*)",
+      "Bash(npm install:*)",
+      "Bash(grep -o \"dragToEmpty.\\\\{0,200\\\\}\" D:/repos/joplin-explorer/publish/index.js)",
+      "Bash(grep -o \"dragToEmpty.\\\\{0,500\\\\}\" D:/repos/joplin-explorer/publish/index.js)",
+      "Bash(mkdir -p /tmp/old-jpl)",
+      "Bash(cp D:/repos/joplin-explorer/publish/plugin.jpl /tmp/old-jpl/plugin.tar.gz)",
+      "Read(//tmp/**)",
+      "Bash(tar tzf:*)",
+      "Bash(tar xzf:*)",
+      "Bash(tar czf:*)",
+      "Bash(gh release create v1.2.0 publish/plugin.jpl --title 'v1.2.0 — Experience Enhancements' --notes ':*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:discourse.joplinapp.org)",
+      "Bash(npm view:*)",
+      "Bash(npm whoami:*)",
+      "Bash(npm publish:*)",
+      "Bash(gh release create v1.2.1 publish/plugin.jpl --title 'v1.2.1 — Bug fixes & pinned reorder' --notes ':*)",
+      "Bash(gh release create v1.2.2 publish/plugin.jpl --title 'v1.2.2 — Russian locale + XSS fixes' --notes ' *)"
+    ]
+  }
+}
