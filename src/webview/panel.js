@@ -142,6 +142,25 @@ function collapseAllLocal() {
   });
 }
 
+// Expand every collapsed ancestor of a tree row directly in the DOM.
+// Needed before scrolling to a located folder: after a local collapse-all
+// the backend's re-rendered HTML can be IDENTICAL to the last HTML it sent
+// (Joplin's setHtml de-dupes), so no re-render happens, the DOM stays
+// collapsed, and scrollIntoView on the hidden target row silently no-ops.
+function expandAncestorsLocal(el) {
+  var ch = el.closest('.children');
+  while (ch) {
+    ch.classList.remove('collapsed');
+    var row = document.querySelector('.tree-item.folder:not(.pinned-item)[data-id="' + ch.dataset.folderId + '"]');
+    if (row) {
+      row.classList.remove('collapsed');
+      var tg = row.querySelector('.toggle');
+      if (tg) { tg.textContent = '\u25BC'; tg.classList.add('expanded'); }
+    }
+    ch = ch.parentElement ? ch.parentElement.closest('.children') : null;
+  }
+}
+
 // ---- Single click dispatcher ----
 // One listener instead of five separate document-level click handlers whose
 // behaviour silently depended on registration order (the old chain removed
@@ -379,6 +398,7 @@ webviewApi.onMessage(function(msg) {
     setTimeout(function() {
       var el = document.querySelector('.tree-item.folder:not(.pinned-item)[data-id="' + m.folderId + '"]');
       if (el) {
+        expandAncestorsLocal(el);
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         el.classList.add('locate-flash');
         setTimeout(function() { el.classList.remove('locate-flash'); }, 1500);
@@ -397,6 +417,7 @@ webviewApi.onMessage(function(msg) {
     setTimeout(function() {
       var el = document.querySelector('.tree-item.folder[data-id="' + m.folderId + '"]');
       if (el) {
+        expandAncestorsLocal(el);
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         el.classList.add('locate-flash');
         setTimeout(function() { el.classList.remove('locate-flash'); }, 1500);
