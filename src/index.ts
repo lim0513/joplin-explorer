@@ -704,7 +704,7 @@ joplin.plugins.register({
             if (showToggleArrows) tagsHtml += '<span class="toggle">\u25B6</span>';
             tagsHtml += '<span class="icon">\uD83C\uDFF7\uFE0F</span>';
             tagsHtml += '<span class="label">' + escapeHtml(tg.title) + '</span>';
-            if (tg.count) tagsHtml += '<span class="tag-count">' + tg.count + '</span>';
+            if (tg.count) tagsHtml += '<span class="count">' + tg.count + '</span>';
             tagsHtml += '</div>';
             tagsHtml += '<div class="tag-children collapsed" data-tag-id="' + tg.id + '"></div>';
           }
