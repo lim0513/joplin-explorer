@@ -623,6 +623,17 @@ joplin.plugins.register({
             tPage++;
           }
           tags.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+          // Joplin keeps empty tags in the database but hides them in its
+          // sidebar - do the same. One limit:1 probe per tag (in-process
+          // data API, cheap); skip filtering for very large tag sets.
+          if (tags.length <= 200) {
+            const probes = await Promise.all(tags.map((x: any) =>
+              joplin.data.get(['tags', x.id, 'notes'], { fields: ['id'], limit: 1 })
+                .then((r: any) => r.items.length > 0)
+                .catch(() => true)
+            ));
+            tags = tags.filter((_x: any, i: number) => probes[i]);
+          }
           allTagsCache = tags.map((x: any) => ({ id: x.id, title: x.title || '' }));
         } catch (_) { allTagsCache = []; }
 
