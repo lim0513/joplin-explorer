@@ -359,7 +359,12 @@ html, body {
   line-height: 28px;
   font-size: 11px;
   color: var(--joplin-color2, #4a9cf5);
-  background: rgba(74, 156, 245, 0.08);
+  /* Solid panel base under the blue tint - the zone floats (sticky) above
+   * tree rows, so a translucent-only background let them bleed through. */
+  background: linear-gradient(rgba(74, 156, 245, 0.15), rgba(74, 156, 245, 0.15)),
+    var(--joplin-background-color, #1e1e1e);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 10;
 }
 
 /* Pinned section accepts drops during drag — outline doesn't affect layout */
