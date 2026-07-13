@@ -537,6 +537,42 @@ document.addEventListener('dragstart', function(e) {
   }
 });
 
+// ---- edge auto-scroll during drag ----
+// dragover only reports positions; scrolling runs on its own rAF loop so
+// the speed is smooth and proportional to how deep into the edge zone the
+// cursor is. Direction 0 stops the loop.
+var _dragScrollDir = 0;
+var _dragScrollRaf = null;
+
+function dragScrollStep() {
+  var tc = document.getElementById('tree-container');
+  if (!tc || !_dragScrollDir) { _dragScrollRaf = null; return; }
+  tc.scrollTop += _dragScrollDir;
+  _dragScrollRaf = requestAnimationFrame(dragScrollStep);
+}
+
+function updateDragScroll(clientY) {
+  var tc = document.getElementById('tree-container');
+  if (!tc) { _dragScrollDir = 0; return; }
+  var rect = tc.getBoundingClientRect();
+  // The sticky "drop to create a notebook" zone owns the very bottom of the
+  // viewport during drags. The scroll band sits directly ABOVE it, so
+  // hovering the band scrolls while hovering the zone itself drops.
+  var bottomEdge = rect.bottom;
+  var dz = document.getElementById('drop-zone-empty');
+  if (dz && tc.classList.contains('dragging-active')) {
+    var dzRect = dz.getBoundingClientRect();
+    if (dzRect.height > 0 && dzRect.top > rect.top) bottomEdge = dzRect.top;
+  }
+  var EDGE = 40;
+  var dir = 0;
+  if (clientY < rect.top + EDGE) dir = -Math.ceil((rect.top + EDGE - clientY) / 4);
+  else if (clientY > bottomEdge) dir = 0; // over the drop zone - no scrolling
+  else if (clientY > bottomEdge - EDGE) dir = Math.ceil((clientY - (bottomEdge - EDGE)) / 4);
+  _dragScrollDir = dir;
+  if (dir && !_dragScrollRaf) _dragScrollRaf = requestAnimationFrame(dragScrollStep);
+}
+
 function clearDropIndicators() {
   document.querySelectorAll('.drop-target').forEach(function(el) { el.classList.remove('drop-target'); });
   document.querySelectorAll('.drop-above').forEach(function(el) { el.classList.remove('drop-above'); });
@@ -544,6 +580,7 @@ function clearDropIndicators() {
 }
 
 function endDrag() {
+  _dragScrollDir = 0;
   clearDropIndicators();
   var tc = document.getElementById('tree-container');
   if (tc) tc.classList.remove('dragging-active');
@@ -559,6 +596,8 @@ document.addEventListener('dragend', function(e) {
 });
 
 document.addEventListener('dragover', function(e) {
+  // Auto-scroll when the cursor nears the top/bottom edge of the tree.
+  if (document.querySelector('.tree-item.dragging')) updateDragScroll(e.clientY);
   var el = e.target;
   if (el && el.nodeType === 3) el = el.parentElement; // text node -> parent element
   if (!el) return;
