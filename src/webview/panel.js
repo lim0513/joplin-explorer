@@ -175,6 +175,7 @@ document.addEventListener('click', function(e) {
       action: ctxItem.dataset.action,
       id: ctxItem.dataset.id,
       itemType: ctxItem.dataset.type,
+      tagId: ctxItem.dataset.tagId,
     });
     var openMenu = document.getElementById('ctx-menu');
     if (openMenu) openMenu.remove();
@@ -208,6 +209,34 @@ document.addEventListener('click', function(e) {
     var pinnedToggle = pinnedHeader.querySelector('.toggle');
     if (pinnedToggle) pinnedToggle.textContent = pinnedCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'togglePinnedCollapse' });
+    return;
+  }
+
+  // 5b. Tags section header -> local collapse toggle, backend records state.
+  var tagsHeader = e.target.closest('.tags-section-header');
+  if (tagsHeader) {
+    var tagsNowCollapsed = tagsHeader.classList.toggle('collapsed');
+    var tagsBody = document.getElementById('tags-body');
+    if (tagsBody) tagsBody.classList.toggle('collapsed', tagsNowCollapsed);
+    var tagsToggle = tagsHeader.querySelector('.toggle');
+    if (tagsToggle) tagsToggle.textContent = tagsNowCollapsed ? '\u25B6' : '\u25BC';
+    postMsg({ name: 'toggleTagsSection' });
+    return;
+  }
+
+  // 5c. Tag folder -> expand/collapse locally; first expand fetches notes.
+  var tagFolder = e.target.closest('.tag-folder');
+  if (tagFolder) {
+    var tfId = tagFolder.dataset.tagId;
+    var tagKids = document.querySelector('.tag-children[data-tag-id="' + tfId + '"]');
+    if (!tagKids) return;
+    var tagNowCollapsed = tagKids.classList.toggle('collapsed');
+    tagFolder.classList.toggle('collapsed', tagNowCollapsed);
+    var tfToggle = tagFolder.querySelector('.toggle');
+    if (tfToggle) tfToggle.textContent = tagNowCollapsed ? '\u25B6' : '\u25BC';
+    if (!tagNowCollapsed && !tagKids.dataset.loaded) {
+      postMsg({ name: 'tagFolderNotes', tagId: tfId });
+    }
     return;
   }
 
@@ -324,6 +353,15 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="noteInfo" data-id="' + id + '" data-type="note">' + T('ctxNoteInfo') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteNote" data-id="' + id + '" data-type="note">' + T('ctxDeleteNote') + '</div>';
+    if (item.dataset.tagId) {
+      menuHtml += '<div class="ctx-sep"></div>';
+      menuHtml += '<div class="ctx-item" data-action="untagNote" data-id="' + id + '" data-type="note" data-tag-id="' + item.dataset.tagId + '">' + T('ctxUntagNote') + '</div>';
+    }
+  } else if (type === 'tag') {
+    var ctxTagId = item.dataset.tagId;
+    menuHtml += '<div class="ctx-item" data-action="renameTag" data-id="' + ctxTagId + '" data-type="tag">' + T('ctxRenameTag') + '</div>';
+    menuHtml += '<div class="ctx-sep"></div>';
+    menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteTag" data-id="' + ctxTagId + '" data-type="tag">' + T('ctxDeleteTag') + '</div>';
   }
 
   menuHtml += '</div>';
@@ -390,6 +428,22 @@ webviewApi.onMessage(function(msg) {
       if (_searchMode) exitSearchMode();
     } else {
       renderSearchResults(m.notes || [], m.tags || [], m.folders || [], m.query);
+    }
+  } else if (m.name === 'tagFolderNotes') {
+    var tagKidsEl = document.querySelector('.tag-children[data-tag-id="' + m.tagId + '"]');
+    if (tagKidsEl) {
+      tagKidsEl.dataset.loaded = '1';
+      var tagHtml = '';
+      for (var tni = 0; tni < m.notes.length; tni++) {
+        var tNote = m.notes[tni];
+        var tIcon = tNote.is_todo ? (tNote.todo_completed ? '\u2611' : '\u2610') : '\uD83D\uDCDD';
+        tagHtml += '<div class="tree-item note tag-note" data-id="' + tNote.id + '" data-type="note" data-tag-id="' + m.tagId + '" data-todo="' + (tNote.is_todo ? 1 : 0) + '">'
+          + '<span class="icon note-icon">' + tIcon + '</span>'
+          + '<span class="label">' + escapeHtml(tNote.title) + '</span>'
+          + '</div>';
+      }
+      if (!m.notes.length) tagHtml = '<div class="tag-empty">\u2014</div>';
+      tagKidsEl.innerHTML = tagHtml;
     }
   } else if (m.name === 'tagNotes') {
     // Expand tag inline with its notes
@@ -550,6 +604,20 @@ document.addEventListener('dragover', function(e) {
     return;
   }
 
+  // Tag folder - accepts notes from anywhere (assigns the tag)
+  var onTagFolder = el.closest('.tag-folder');
+  if (onTagFolder) {
+    if (document.querySelector('.tree-item.note.dragging')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      clearDropIndicators();
+      onTagFolder.classList.add('drop-target');
+    }
+    return;
+  }
+  // Anywhere else inside the tags section is not a drop target.
+  if (el.closest('.tags-section-body') || el.closest('.tags-section-header')) return;
+
   // Normal tree-item not found — ignore
   if (!target) return;
 
@@ -655,6 +723,17 @@ document.addEventListener('drop', function(e) {
     endDrag();
     return;
   }
+
+  // Note dropped on a tag folder -> assign that tag
+  var onTagF = el0 ? el0.closest('.tag-folder') : null;
+  if (onTagF) {
+    if (dragType === 'note') {
+      postMsg({ name: 'tagNoteAdd', tagId: onTagF.dataset.tagId, noteId: dragId });
+    }
+    endDrag();
+    return;
+  }
+  if (el0 && (el0.closest('.tags-section-body') || el0.closest('.tags-section-header'))) { endDrag(); return; }
 
   // Pinned items can only be reordered within pinned section
   if (isDragFromPinned) {

@@ -467,6 +467,8 @@ joplin.plugins.register({
     let allNotesCache: NoteItem[] = [];
     let pinnedItems: { id: string, type: string }[] = [];
     let pinnedCollapsed = false;
+    let tagsCollapsed = false;
+    let allTagsCache: { id: string, title: string }[] = [];
     // Folder manual order lives in a plugin setting, NOT the Joplin `folders`
     // table: older Joplin builds have no `order` column on folders (querying it
     // throws "no such column: order"). Map is folderId -> order (higher = top).
@@ -608,6 +610,22 @@ joplin.plugins.register({
         const tree = buildTree(folders, notesByFolder);
         const treeHtml = renderTreeHtml(tree, selectedNoteId, collapsedFolders, 0, showToggleArrows, openFolderIcon, closedFolderIcon);
 
+        // Tags section data: every tag, sorted by title. Notes load lazily
+        // on first expand, so this is one cheap paginated query.
+        try {
+          let tags: any[] = [];
+          let tPage = 1;
+          let tMore = true;
+          while (tMore) {
+            const tr = await joplin.data.get(['tags'], { fields: ['id', 'title'], page: tPage, limit: 100 });
+            tags = tags.concat(tr.items);
+            tMore = tr.has_more;
+            tPage++;
+          }
+          tags.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+          allTagsCache = tags.map((x: any) => ({ id: x.id, title: x.title || '' }));
+        } catch (_) { allTagsCache = []; }
+
         // Build pinned section
         await loadPinned();
         const folderIdSet = new Set(folders.map(f => f.id));
@@ -656,6 +674,28 @@ joplin.plugins.register({
           pinnedHtml += '</div>';
         }
 
+        // Tags section: each tag is a collapsible folder row; children are
+        // filled lazily by the webview via tagFolderNotes.
+        let tagsHtml = '';
+        if (allTagsCache.length > 0) {
+          const tagsArrow = tagsCollapsed ? '\u25B6' : '\u25BC';
+          tagsHtml += '<div class="tags-section-header' + (tagsCollapsed ? ' collapsed' : '') + '" id="tags-header">';
+          if (showToggleArrows) tagsHtml += '<span class="toggle">' + tagsArrow + '</span>';
+          tagsHtml += '<span class="icon">\uD83C\uDFF7\uFE0F</span>'
+            + '<span class="label">' + t.tags + ' (' + allTagsCache.length + ')</span>'
+            + '</div>';
+          tagsHtml += '<div class="tags-section-body' + (tagsCollapsed ? ' collapsed' : '') + '" id="tags-body">';
+          for (const tg of allTagsCache) {
+            tagsHtml += '<div class="tree-item folder tag-folder collapsed" data-tag-id="' + tg.id + '" data-type="tag">';
+            if (showToggleArrows) tagsHtml += '<span class="toggle">\u25B6</span>';
+            tagsHtml += '<span class="icon">\uD83C\uDFF7\uFE0F</span>';
+            tagsHtml += '<span class="label">' + escapeHtml(tg.title) + '</span>';
+            tagsHtml += '</div>';
+            tagsHtml += '<div class="tag-children collapsed" data-tag-id="' + tg.id + '"></div>';
+          }
+          tagsHtml += '</div>';
+        }
+
         const pinnedJson = escapeHtml(JSON.stringify(pinnedItems));
         const sortLabels: { [k: string]: string } = {
           'updated_desc': t.sortUpdatedDesc, 'updated_asc': t.sortUpdatedAsc,
@@ -676,7 +716,7 @@ joplin.plugins.register({
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
-          + '  <div id="tree-container">' + pinnedHtml + treeHtml
+          + '  <div id="tree-container">' + pinnedHtml + treeHtml + tagsHtml
           + '    <div id="drop-zone-empty" class="drop-zone-empty">+ ' + t.dropCreateNotebook + '</div>'
           + '  </div>'
           + '  <div id="search-results" style="display:none;"></div>'
@@ -862,6 +902,25 @@ joplin.plugins.register({
         }
     }
 
+    async function fetchTagNotes(tagId: string): Promise<any[]> {
+      let notes: any[] = [];
+      let p = 1;
+      let more = true;
+      while (more && notes.length < 200) {
+        const r = await joplin.data.get(['tags', tagId, 'notes'], {
+          fields: ['id', 'title', 'is_todo', 'todo_completed'],
+          page: p, limit: 50,
+        });
+        notes = notes.concat(r.items);
+        more = r.has_more;
+        p++;
+      }
+      return notes.map((n: any) => ({
+        id: n.id, title: n.title || '(untitled)',
+        is_todo: n.is_todo, todo_completed: n.todo_completed,
+      }));
+    }
+
     async function handleContextMenu(msg: any): Promise<void> {
 
         const action = msg.action;
@@ -1007,6 +1066,10 @@ joplin.plugins.register({
                 }
                 break;
               }
+              case 'untagNote': {
+                if (msg.tagId) await joplin.data.delete(['tags', msg.tagId, 'notes', id]);
+                break;
+              }
               case 'pinNote': {
                 if (!pinnedItems.some(p => p.id === id)) {
                   pinnedItems.push({ id, type: 'note' });
@@ -1017,6 +1080,24 @@ joplin.plugins.register({
               case 'unpinNote': {
                 pinnedItems = pinnedItems.filter(p => p.id !== id);
                 await savePinned();
+                break;
+              }
+            }
+          } else if (itemType === 'tag') {
+            switch (action) {
+              case 'renameTag': {
+                const tagData = await joplin.data.get(['tags', id], { fields: ['title'] });
+                const newTagName = await showNativeInput(t.ctxRenameTag, tagData.title);
+                if (newTagName && newTagName.trim()) {
+                  await joplin.data.put(['tags', id], null, { title: newTagName.trim() });
+                }
+                break;
+              }
+              case 'deleteTag': {
+                const tagDel = await joplin.data.get(['tags', id], { fields: ['title'] });
+                if (await showNativeConfirm(t.confirmDeleteTag + '\n\n' + tagDel.title)) {
+                  await joplin.data.delete(['tags', id]);
+                }
                 break;
               }
             }
@@ -1267,6 +1348,26 @@ joplin.plugins.register({
           await joplin.views.panels.postMessage(panel, { name: 'tagNotes', tagId, notes: items });
         } catch (err) {
           console.error('Joplin Explorer: loadTagNotes error', err);
+        }
+      } else if (msg.name === 'toggleTagsSection') {
+        // State bookkeeping only - the webview toggled the DOM locally.
+        tagsCollapsed = !tagsCollapsed;
+      } else if (msg.name === 'tagFolderNotes') {
+        try {
+          const notes = await fetchTagNotes(msg.tagId);
+          await joplin.views.panels.postMessage(panel, { name: 'tagFolderNotes', tagId: msg.tagId, notes });
+        } catch (err) {
+          console.error('Joplin Explorer: tagFolderNotes error', err);
+        }
+      } else if (msg.name === 'tagNoteAdd') {
+        // Note dropped onto a tag folder - assign the tag, then push the
+        // fresh note list so an expanded tag updates in place.
+        try {
+          await joplin.data.post(['tags', msg.tagId, 'notes'], null, { id: msg.noteId });
+          const notes = await fetchTagNotes(msg.tagId);
+          await joplin.views.panels.postMessage(panel, { name: 'tagFolderNotes', tagId: msg.tagId, notes });
+        } catch (err) {
+          console.error('Joplin Explorer: tagNoteAdd error', err);
         }
       } else if (msg.name === 'locateFolder') {
         // User clicked a folder in search results -> expand to it in tree

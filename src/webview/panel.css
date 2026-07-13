@@ -308,6 +308,35 @@ html, body {
   padding-left: 26px !important;
 }
 
+/* ---- tags section (tags as folders) ---- */
+.tags-section-header {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  gap: 5px;
+  margin: 6px 4px 1px;
+  min-height: 24px;
+  border-radius: 3px;
+  border-top: 1px solid var(--joplin-divider-color, #ddd);
+  cursor: pointer;
+  user-select: none;
+  color: var(--joplin-color-faded, #888);
+  font-weight: 700;
+}
+.tags-section-header:hover {
+  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
+}
+.tags-section-body.collapsed { display: none; }
+.tag-folder { padding-left: 26px !important; }
+.tag-children { }
+.tag-children.collapsed { display: none; }
+.tag-children .tree-item.note { padding-left: 44px !important; }
+.tag-empty {
+  padding: 2px 8px 2px 44px;
+  color: var(--joplin-color-faded, #888);
+  font-size: 11px;
+}
+
 /* Empty drop zone — sticky at bottom of scroll viewport */
 .drop-zone-empty {
   position: sticky;
