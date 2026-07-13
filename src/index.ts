@@ -1067,7 +1067,15 @@ joplin.plugins.register({
                 break;
               }
               case 'untagNote': {
-                if (msg.tagId) await joplin.data.delete(['tags', msg.tagId, 'notes', id]);
+                if (msg.tagId) {
+                  await joplin.data.delete(['tags', msg.tagId, 'notes', id]);
+                  // The tags section HTML is unchanged, so the follow-up
+                  // refreshPanel gets de-duped - update the open list directly.
+                  try {
+                    const notes = await fetchTagNotes(msg.tagId);
+                    await joplin.views.panels.postMessage(panel, { name: 'tagFolderNotes', tagId: msg.tagId, notes });
+                  } catch (_) { /* list refreshes on next expand */ }
+                }
                 break;
               }
               case 'pinNote': {
