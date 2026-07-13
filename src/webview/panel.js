@@ -648,7 +648,9 @@ document.addEventListener('dragover', function(e) {
   if (onTagFolder) {
     if (document.querySelector('.tree-item.note.dragging')) {
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
+      // Must stay within dragstart's effectAllowed ('move') - a mismatching
+      // dropEffect makes the browser show the not-allowed cursor.
+      e.dataTransfer.dropEffect = 'move';
       clearDropIndicators();
       onTagFolder.classList.add('drop-target');
     }
