@@ -468,7 +468,7 @@ joplin.plugins.register({
     let pinnedItems: { id: string, type: string }[] = [];
     let pinnedCollapsed = false;
     let tagsCollapsed = false;
-    let allTagsCache: { id: string, title: string }[] = [];
+    let allTagsCache: { id: string, title: string, count: string }[] = [];
     // Folder manual order lives in a plugin setting, NOT the Joplin `folders`
     // table: older Joplin builds have no `order` column on folders (querying it
     // throws "no such column: order"). Map is folderId -> order (higher = top).
@@ -624,17 +624,20 @@ joplin.plugins.register({
           }
           tags.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
           // Joplin keeps empty tags in the database but hides them in its
-          // sidebar - do the same. One limit:1 probe per tag (in-process
-          // data API, cheap); skip filtering for very large tag sets.
+          // sidebar - do the same, and grab a bounded note count while at it
+          // (up to 100, then "100+" - same policy as search tag counts).
+          // Skipped for very large tag sets to keep refresh cheap.
+          let counts: string[] = tags.map(() => '');
           if (tags.length <= 200) {
-            const probes = await Promise.all(tags.map((x: any) =>
-              joplin.data.get(['tags', x.id, 'notes'], { fields: ['id'], limit: 1 })
-                .then((r: any) => r.items.length > 0)
-                .catch(() => true)
+            counts = await Promise.all(tags.map((x: any) =>
+              joplin.data.get(['tags', x.id, 'notes'], { fields: ['id'], limit: 100 })
+                .then((r: any) => r.items.length === 0 ? '0' : (r.has_more ? '100+' : String(r.items.length)))
+                .catch(() => '')
             ));
-            tags = tags.filter((_x: any, i: number) => probes[i]);
+            tags = tags.filter((_x: any, i: number) => counts[i] !== '0');
+            counts = counts.filter((c: string) => c !== '0');
           }
-          allTagsCache = tags.map((x: any) => ({ id: x.id, title: x.title || '' }));
+          allTagsCache = tags.map((x: any, i: number) => ({ id: x.id, title: x.title || '', count: counts[i] || '' }));
         } catch (_) { allTagsCache = []; }
 
         // Build pinned section
@@ -701,6 +704,7 @@ joplin.plugins.register({
             if (showToggleArrows) tagsHtml += '<span class="toggle">\u25B6</span>';
             tagsHtml += '<span class="icon">\uD83C\uDFF7\uFE0F</span>';
             tagsHtml += '<span class="label">' + escapeHtml(tg.title) + '</span>';
+            if (tg.count) tagsHtml += '<span class="tag-count">' + tg.count + '</span>';
             tagsHtml += '</div>';
             tagsHtml += '<div class="tag-children collapsed" data-tag-id="' + tg.id + '"></div>';
           }

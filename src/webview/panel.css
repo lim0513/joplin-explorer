@@ -331,6 +331,12 @@ html, body {
 .tag-children { }
 .tag-children.collapsed { display: none; }
 .tag-children .tree-item.note { padding-left: 44px !important; }
+.tag-count {
+  margin-left: auto;
+  padding: 0 6px;
+  font-size: 10px;
+  color: var(--joplin-color-faded, #888);
+}
 .tag-empty {
   padding: 2px 8px 2px 44px;
   color: var(--joplin-color-faded, #888);
