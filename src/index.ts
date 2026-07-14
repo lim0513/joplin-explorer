@@ -2224,12 +2224,37 @@ joplin.plugins.register({
     // than re-querying: no changes means an empty round-trip every 5s.
     let eventsCursor = '';
     let eventsTimer: any = null;
+    let folderSig = '';
+
+    // The events feed only tracks NOTE changes (rest/routes/events.ts), so
+    // notebook edits - rename, icon set/clear, moves - never show up in it.
+    // A cheap signature over all folders catches those; notebooks number in
+    // the dozens, so this is one small query per poll.
+    async function foldersChanged(): Promise<boolean> {
+      const parts: string[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const r = await joplin.data.get(['folders'], {
+          fields: ['id', 'title', 'parent_id', 'icon'],
+          page, limit: 100,
+        });
+        for (const f of (r.items || [])) parts.push(f.id + '' + (f.title || '') + '' + (f.parent_id || '') + '' + (f.icon || ''));
+        hasMore = r.has_more;
+        page++;
+      }
+      const sig = parts.sort().join('\n');
+      const changed = folderSig !== '' && sig !== folderSig;
+      folderSig = sig;
+      return changed;
+    }
 
     async function pollEvents(): Promise<void> {
       try {
         if (!eventsCursor) {
           const init = await joplin.data.get(['events']);
           eventsCursor = String(init.cursor || '');
+          await foldersChanged(); // seed the folder signature
           return;
         }
         let relevant = false;
@@ -2245,6 +2270,7 @@ joplin.plugins.register({
           if (r.cursor) eventsCursor = String(r.cursor);
           if (!r.has_more) break;
         }
+        if (!relevant && await foldersChanged()) relevant = true;
         if (relevant) scheduleRefreshPanel(300);
       } catch (err) {
         // Events API unavailable (older Joplin) - disable quietly.
