@@ -392,6 +392,11 @@ html, body {
   margin-bottom: 2px;
 }
 .smart-section-body.collapsed { display: none; }
+/* Collapsed: the hidden body can't draw the divider - the header does. */
+.smart-section-header.collapsed {
+  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
+  margin-bottom: 2px;
+}
 .smart-children.collapsed { display: none; }
 .trash-children.collapsed { display: none; }
 /* Rows carry inline padding (depth-based); containers only need hide/show */
