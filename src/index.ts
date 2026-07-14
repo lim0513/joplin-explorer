@@ -811,7 +811,7 @@ joplin.plugins.register({
         try {
           const tprobe = await joplin.data.get(['notes'], {
             fields: ['id', 'deleted_time'],
-            include_deleted: 1, order_by: 'deleted_time', order_dir: 'DESC', limit: 1,
+            include_deleted: '1', order_by: 'deleted_time', order_dir: 'DESC', limit: 1,
           });
           if (tprobe.items && tprobe.items.length && tprobe.items[0].deleted_time > 0) {
             const trashArrow = trashCollapsed ? '\u25B6' : '\u25BC';
@@ -1064,7 +1064,7 @@ joplin.plugins.register({
       while (more && out.length < 200) {
         const r = await joplin.data.get(['notes'], {
           fields: ['id', 'title', 'is_todo', 'todo_completed', 'deleted_time'],
-          include_deleted: 1, order_by: 'deleted_time', order_dir: 'DESC',
+          include_deleted: '1', order_by: 'deleted_time', order_dir: 'DESC',
           page: p, limit: 50,
         });
         let hitLive = false;
@@ -1306,7 +1306,7 @@ joplin.plugins.register({
                 try { await joplin.commands.execute('restoreNote', [id]); } catch (e) {}
                 break;
               case 'permanentDeleteNote': {
-                const permaNote = await joplin.data.get(['notes', id], { fields: ['title'], include_deleted: 1 });
+                const permaNote = await joplin.data.get(['notes', id], { fields: ['title'], include_deleted: '1' });
                 if (await showNativeConfirm(t.confirmDeleteNote + '\n\n' + (permaNote ? permaNote.title : ''))) {
                   try { await joplin.data.delete(['notes', id], { permanent: '1' }); } catch (e) {
                     try { await joplin.commands.execute('permanentlyDeleteNote', [id]); } catch (_) {}
