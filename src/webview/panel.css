@@ -348,28 +348,33 @@ html, body {
   font-size: 13px;
   letter-spacing: 0.4px;
 }
-/* Chevron sits right after the section name (Claude-sidebar style); the
- * count keeps the right edge. */
-.pinned-section-header .label,
-.smart-section-header .label,
-.trash-section-header .label,
-.tags-section-header .label {
+/* Arrow position mode (toggleArrowPosition setting, root data-arrow-pos).
+ * "right": chevrons sit right after the text everywhere - section headers,
+ * section rows AND notebook tree folders - with counts on the right edge.
+ * "left": no overrides, everything keeps the classic leading arrow. */
+[data-arrow-pos="right"] .pinned-section-header .label,
+[data-arrow-pos="right"] .smart-section-header .label,
+[data-arrow-pos="right"] .trash-section-header .label,
+[data-arrow-pos="right"] .tags-section-header .label,
+[data-arrow-pos="right"] .tree-item.folder .label {
   flex: 0 1 auto;
 }
-.pinned-section-header .toggle,
-.smart-section-header .toggle,
-.trash-section-header .toggle,
-.tags-section-header .toggle {
+[data-arrow-pos="right"] .pinned-section-header .toggle,
+[data-arrow-pos="right"] .smart-section-header .toggle,
+[data-arrow-pos="right"] .trash-section-header .toggle,
+[data-arrow-pos="right"] .tags-section-header .toggle,
+[data-arrow-pos="right"] .tree-item.folder .toggle {
   order: 3;
   width: auto;
   margin-left: 2px;
   font-size: 8px;
   opacity: 0.75;
 }
-.pinned-section-header .count,
-.smart-section-header .count,
-.trash-section-header .count,
-.tags-section-header .count {
+[data-arrow-pos="right"] .pinned-section-header .count,
+[data-arrow-pos="right"] .smart-section-header .count,
+[data-arrow-pos="right"] .trash-section-header .count,
+[data-arrow-pos="right"] .tags-section-header .count,
+[data-arrow-pos="right"] .tree-item.folder .count {
   order: 4; /* after the chevron (order 3): text › ......... count */
   margin-left: auto;
 }
@@ -419,28 +424,8 @@ html, body {
   padding-left: 26px !important;
 }
 
-/* Expandable rows inside sections put their chevron AFTER the text, like
- * the section headers - icons of all first-level rows align at the same
- * left edge as pinned rows. */
-.smart-folder .label,
-.tag-folder .label,
-.trash-note.folder .label {
-  flex: 0 1 auto;
-}
-.smart-folder .toggle,
-.tag-folder .toggle,
-.trash-note.folder .toggle {
-  order: 3;
-  width: auto;
-  margin-left: 2px;
-  font-size: 8px;
-  opacity: 0.75;
-}
-.smart-folder .count,
-.tag-folder .count {
-  order: 4; /* after the chevron: text › ......... count */
-  margin-left: auto;
-}
+/* (Section rows are .tree-item.folder too - covered by the arrow-position
+ * rules above.) */
 
 /* ---- tags section (tags as folders) ---- */
 .tags-section-body.collapsed { display: none; }

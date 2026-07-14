@@ -430,6 +430,19 @@ joplin.plugins.register({
           public: true,
           label: 'Hover preview length (characters)',
         },
+        'toggleArrowPosition': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: 'right',
+          isEnum: true,
+          options: {
+            right: 'After the text',
+            left: 'Left of the text (classic tree)',
+          },
+          public: true,
+          label: 'Expand arrow position',
+          description: 'Applies to notebooks, section headers and section rows alike, so everything matches.',
+        },
         'expandAllMode': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
@@ -988,7 +1001,8 @@ joplin.plugins.register({
 
         const expandAllMode = String((await joplin.settings.value('expandAllMode')) || 'restore');
         const hoverPreviewOn = (await joplin.settings.value('hoverPreview')) !== false ? '1' : '0';
-        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-hover-preview="' + hoverPreviewOn + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        const arrowPos = String((await joplin.settings.value('toggleArrowPosition')) || 'right') === 'left' ? 'left' : 'right';
+        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
@@ -1061,7 +1075,8 @@ joplin.plugins.register({
         await applyAutoRefreshSetting();
       }
       if (event.keys && (
-        event.keys.indexOf('showSmartFolders') >= 0
+        event.keys.indexOf('toggleArrowPosition') >= 0
+        || event.keys.indexOf('showSmartFolders') >= 0
         || event.keys.indexOf('smartFolderRules') >= 0
         || event.keys.indexOf('hoverPreview') >= 0
         || event.keys.indexOf('expandAllMode') >= 0
