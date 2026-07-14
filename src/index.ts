@@ -1510,7 +1510,21 @@ joplin.plugins.register({
                 // built-in sidebar's Edit opens. Falls back to a plain rename
                 // prompt if the internal command ever goes away.
                 try {
+                  const before = (await joplin.data.get(['folders', id], { fields: ['updated_time'] })).updated_time;
                   await joplin.commands.execute('openFolderDialog', { folderId: id });
+                  // The command returns immediately (it only opens the dialog),
+                  // so watch the folder's updated_time briefly and refresh the
+                  // moment a save lands. Cancel = no change = quiet timeout;
+                  // the 5s signature poll still covers edits after the window.
+                  void (async () => {
+                    for (let i = 0; i < 240; i++) {
+                      await new Promise((res) => setTimeout(res, 500));
+                      try {
+                        const cur = await joplin.data.get(['folders', id], { fields: ['updated_time'] });
+                        if (cur.updated_time !== before) { scheduleRefreshPanel(100); return; }
+                      } catch (_) { scheduleRefreshPanel(100); return; } // folder gone
+                    }
+                  })();
                 } catch (e) {
                   const folderData = await joplin.data.get(['folders', id], { fields: ['title'] });
                   const newFolderName = await showNativeInput(t.promptRename, folderData.title);
