@@ -398,6 +398,13 @@ html, body {
   padding-top: 4px;
   border-top: 1px solid rgba(127, 127, 127, 0.22);
 }
+/* #main-tree already carries the 4px side margins; zero the rows' own so
+ * tree counts land on the same right edge as section header counts
+ * (they were 4px further left - measured, not eyeballed). */
+#main-tree .tree-item {
+  margin-left: 0;
+  margin-right: 0;
+}
 
 /* Expand animation: children fade/slide in when the USER toggles a section
  * or folder (JS adds .anim-expand only on interactive expands, so panel
