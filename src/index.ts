@@ -1511,6 +1511,7 @@ joplin.plugins.register({
                 // prompt if the internal command ever goes away.
                 try {
                   const before = (await joplin.data.get(['folders', id], { fields: ['updated_time'] })).updated_time;
+                  const prevSelected = selectedNoteId;
                   await joplin.commands.execute('openFolderDialog', { folderId: id });
                   // The command returns immediately (it only opens the dialog),
                   // so watch the folder's updated_time briefly and refresh the
@@ -1521,7 +1522,23 @@ joplin.plugins.register({
                       await new Promise((res) => setTimeout(res, 500));
                       try {
                         const cur = await joplin.data.get(['folders', id], { fields: ['updated_time'] });
-                        if (cur.updated_time !== before) { scheduleRefreshPanel(100); return; }
+                        if (cur.updated_time !== before) {
+                          scheduleRefreshPanel(100);
+                          // The native dialog dispatches FOLDER_SELECT on save,
+                          // which switches the app to the edited notebook and
+                          // moves the note selection. Jump back to where the
+                          // user actually was.
+                          if (prevSelected) {
+                            await new Promise((res) => setTimeout(res, 400));
+                            try {
+                              const selNow = await joplin.workspace.selectedNote();
+                              if (!selNow || selNow.id !== prevSelected) {
+                                await joplin.commands.execute('openNote', prevSelected);
+                              }
+                            } catch (_) {}
+                          }
+                          return;
+                        }
                       } catch (_) { scheduleRefreshPanel(100); return; } // folder gone
                     }
                   })();
