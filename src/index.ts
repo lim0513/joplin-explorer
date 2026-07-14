@@ -1056,6 +1056,18 @@ joplin.plugins.register({
               case 'exportPdf':
                 try { await joplin.commands.execute('exportPdf', [id]); } catch (e) {}
                 break;
+              case 'exportNote': {
+                // Directory-target formats (md/jex/html...): pick the folder
+                // ourselves, then run the desktop exportNotes command.
+                try {
+                  const dirs = await joplin.views.dialogs.showOpenDialog({ properties: ['openDirectory'] });
+                  const dir = Array.isArray(dirs) ? dirs[0] : dirs;
+                  if (dir) await joplin.commands.execute('exportNotes', [id], msg.format || 'md', dir);
+                } catch (e) {
+                  console.error('Joplin Explorer: exportNote error', e);
+                }
+                break;
+              }
               case 'renameNote': {
                 const noteData = await joplin.data.get(['notes', id], { fields: ['title'] });
                 const newNoteName = await showNativeInput(t.promptRename, noteData.title);
