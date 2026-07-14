@@ -1373,6 +1373,27 @@ joplin.plugins.register({
                 break;
               }
             }
+          } else if (itemType === 'trashSection') {
+            if (action === 'emptyTrash') {
+              if (await showNativeConfirm(t.confirmEmptyTrash)) {
+                try {
+                  await joplin.commands.execute('emptyTrash');
+                } catch (e) {
+                  // Older builds without the command: purge manually.
+                  const ti0 = await fetchTrashItems();
+                  for (const tf0 of ti0.folders) {
+                    try { await joplin.data.delete(['folders', tf0.id], { permanent: '1' }); } catch (_) {}
+                  }
+                  for (const tn0 of ti0.notes) {
+                    try { await joplin.data.delete(['notes', tn0.id], { permanent: '1' }); } catch (_) {}
+                  }
+                }
+                try {
+                  const tiAfter = await fetchTrashItems();
+                  await joplin.views.panels.postMessage(panel, { name: 'trashNotes', folders: tiAfter.folders, notes: tiAfter.notes });
+                } catch (_) {}
+              }
+            }
           } else if (itemType === 'trashNote' || itemType === 'trashFolder') {
             const isTrashFolder = itemType === 'trashFolder';
             switch (action) {

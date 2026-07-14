@@ -476,6 +476,17 @@ document.addEventListener('contextmenu', function(e) {
   var existingMenu = document.getElementById('ctx-menu');
   if (existingMenu) existingMenu.remove();
 
+  // Trash section header: single "empty trash" action.
+  var trashHdr = e.target.closest('.trash-section-header');
+  if (trashHdr) {
+    e.preventDefault();
+    document.body.insertAdjacentHTML('beforeend',
+      '<div id="ctx-menu" class="context-menu" style="left:' + e.pageX + 'px;top:' + e.pageY + 'px;">'
+      + '<div class="ctx-item ctx-danger" data-action="emptyTrash" data-type="trashSection" data-id="trash">' + T('ctxEmptyTrash') + '</div>'
+      + '</div>');
+    return;
+  }
+
   var item = e.target.closest('.tree-item');
   if (!item) return;
 
