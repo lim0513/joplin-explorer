@@ -38,22 +38,18 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Auto refresh** (v1.5)
 - Changes made by other plugins or sync appear automatically (data API change-events polling, off-switch in settings) — [#6](https://github.com/lim0513/joplin-explorer/issues/6)
 
+**Hover preview** (v1.5.1)
+- Hover a note to see title, type, size, created/updated times and a body snippet (length setting)
+
+**Smart folders** (v1.5.2)
+- Recently updated and Open to-dos built-ins, plus custom rules using Joplin search syntax; result limit setting, count badges
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
 - View state (folder/section collapse) persists across restarts, with restore-on-startup and tags-default options
 - Settings UI (icons, toggles, tags section)
 - i18n: EN / ZH-CN / ZH-TW / RU / JA
-
----
-
-## 🚀 v1.5.1 — Planned
-
-- [x] **Hover preview** — note summary on hover, configurable length
-
-## 🚀 v1.5.2 — Planned
-
-- [x] **Smart folders** — recently updated / uncompleted to-dos / rule-based (custom rules via Joplin search syntax)
 
 ---
 
