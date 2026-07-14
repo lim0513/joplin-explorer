@@ -1097,6 +1097,7 @@ joplin.plugins.register({
     async function fetchTrashItems(): Promise<{ folders: any[], notes: any[] }> {
       const rawFolders: any[] = [];
       const deletedFolderIds: { [id: string]: boolean } = {};
+      const folderParentOf: { [id: string]: string } = {};
       try {
         let fp = 1;
         let fMore = true;
@@ -1106,6 +1107,7 @@ joplin.plugins.register({
             include_deleted: '1', page: fp, limit: 100,
           });
           for (const f of (fr.items || [])) {
+            folderParentOf[f.id] = f.parent_id || '';
             if (f.deleted_time > 0) {
               rawFolders.push({ id: f.id, title: f.title || '(untitled)', parent_id: f.parent_id });
               deletedFolderIds[f.id] = true;
@@ -1151,7 +1153,16 @@ joplin.plugins.register({
         let hitLive = false;
         for (const n of (r.items || [])) {
           if (!n.deleted_time) { hitLive = true; break; }
-          if (deletedFolderIds[n.parent_id]) continue;
+          // Walk the whole ancestor chain: a note anywhere under a deleted
+          // notebook belongs to that notebook's entry, not the flat list.
+          let underDeletedFolder = false;
+          let cur = n.parent_id;
+          let hops = 0;
+          while (cur && hops++ < 50) {
+            if (deletedFolderIds[cur]) { underDeletedFolder = true; break; }
+            cur = folderParentOf[cur] || '';
+          }
+          if (underDeletedFolder) continue;
           notes.push({ id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed });
         }
         if (hitLive) break;
@@ -1159,6 +1170,42 @@ joplin.plugins.register({
         p++;
       }
       return { folders, notes };
+    }
+
+    // DELETE /folders/:id?permanent=1 removes just the folder row - its
+    // notes survive as orphans in the flat trash list. Cascade manually:
+    // subfolders (any deletion state) depth-first, then notes, then self.
+    async function permanentlyDeleteFolderCascade(folderId: string): Promise<void> {
+      const childrenOf: { [id: string]: string[] } = {};
+      try {
+        let cp = 1;
+        let cMore = true;
+        while (cMore) {
+          const cr = await joplin.data.get(['folders'], { fields: ['id', 'parent_id'], include_deleted: '1', page: cp, limit: 100 });
+          for (const cf of (cr.items || [])) {
+            if (cf.parent_id) (childrenOf[cf.parent_id] = childrenOf[cf.parent_id] || []).push(cf.id);
+          }
+          cMore = cr.has_more;
+          cp++;
+        }
+      } catch (_) {}
+      const deleteOne = async (fid: string): Promise<void> => {
+        for (const child of (childrenOf[fid] || [])) await deleteOne(child);
+        try {
+          let np = 1;
+          let nMore = true;
+          while (nMore) {
+            const nr = await joplin.data.get(['folders', fid, 'notes'], { fields: ['id'], include_deleted: '1', page: np, limit: 100 });
+            for (const nn of (nr.items || [])) {
+              try { await joplin.data.delete(['notes', nn.id], { permanent: '1' }); } catch (_) {}
+            }
+            // Deleting shrinks the result set - always re-query page 1.
+            nMore = (nr.items || []).length > 0 && nr.has_more;
+          }
+        } catch (_) {}
+        try { await joplin.data.delete(['folders', fid], { permanent: '1' }); } catch (_) {}
+      };
+      await deleteOne(folderId);
     }
 
     async function handleContextMenu(msg: any): Promise<void> {
@@ -1391,7 +1438,7 @@ joplin.plugins.register({
                   // Older builds without the command: purge manually.
                   const ti0 = await fetchTrashItems();
                   for (const tf0 of ti0.folders) {
-                    try { await joplin.data.delete(['folders', tf0.id], { permanent: '1' }); } catch (_) {}
+                    if (tf0.depth === 0) await permanentlyDeleteFolderCascade(tf0.id);
                   }
                   for (const tn0 of ti0.notes) {
                     try { await joplin.data.delete(['notes', tn0.id], { permanent: '1' }); } catch (_) {}
@@ -1421,8 +1468,10 @@ joplin.plugins.register({
                   permaTitle = permaInfo ? permaInfo.title : '';
                 } catch (_) {}
                 if (await showNativeConfirm(t.confirmDeleteNote + '\n\n' + permaTitle)) {
-                  try { await joplin.data.delete([kind, id], { permanent: '1' }); } catch (e) {
-                    if (!isTrashFolder) {
+                  if (isTrashFolder) {
+                    await permanentlyDeleteFolderCascade(id);
+                  } else {
+                    try { await joplin.data.delete(['notes', id], { permanent: '1' }); } catch (e) {
                       try { await joplin.commands.execute('permanentlyDeleteNote', [id]); } catch (_) {}
                     }
                   }
