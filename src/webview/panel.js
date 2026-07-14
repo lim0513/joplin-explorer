@@ -371,6 +371,17 @@ document.addEventListener('click', function(e) {
   var existingMenu = document.getElementById('ctx-menu');
   if (existingMenu) existingMenu.remove();
 
+  // 2b. Published-note link badge -> open the native publish dialog (the
+  // share URL only exists server-side, so the dialog is where the link is).
+  var sharedBadge = e.target.closest('.shared-badge');
+  if (sharedBadge) {
+    var badgeRow = sharedBadge.closest('.tree-item');
+    if (badgeRow && badgeRow.dataset.id) {
+      postMsg({ name: 'contextMenu', action: 'publishNote', id: badgeRow.dataset.id, itemType: 'note' });
+    }
+    return;
+  }
+
   // 3. Tag in search results -> load its notes.
   var tagItem = e.target.closest('.search-tag-item');
   if (tagItem) {
@@ -909,6 +920,9 @@ webviewApi.onMessage(function(msg) {
       if (resultTitle) resultTitle.textContent = m.title;
       var icon = el.querySelector('.note-icon');
       if (icon) icon.textContent = m.icon;
+      // Badges (checkbox pie + published link) are re-sent as a block.
+      el.querySelectorAll('.todo-pie, .shared-badge').forEach(function(b) { b.remove(); });
+      if (m.badges) el.insertAdjacentHTML('beforeend', m.badges);
     });
   }
 });

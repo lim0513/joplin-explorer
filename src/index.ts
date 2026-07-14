@@ -33,6 +33,9 @@ interface NoteItem {
   updated_time: number;
   user_updated_time: number;
   order?: number;
+  is_shared?: number;
+  cb_total?: number; // markdown checkboxes in the body...
+  cb_done?: number;  // ...and how many are ticked
 }
 
 interface TreeNode {
@@ -47,6 +50,61 @@ interface TreeNode {
   note_count?: number;
   total_count?: number;
   children?: TreeNode[];
+  is_shared?: number;
+  cb_total?: number;
+  cb_done?: number;
+}
+
+/* Markdown checkbox progress + published badge (native-style extras on
+ * note rows). Checkboxes are counted once per fetch and the body is
+ * dropped immediately so the cache stays small. */
+function countCheckboxes(body: string): { total: number; done: number } {
+  let total = 0;
+  let done = 0;
+  const re = /^[ \t]*(?:[-*+]|\d+[.)])\s+\[([ xX])\]/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body))) {
+    total++;
+    if (m[1] !== ' ') done++;
+  }
+  return { total, done };
+}
+
+// Tiny pie chart like Joplin's own note-list progress indicator.
+function todoPieHtml(done: number, total: number): string {
+  if (!total) return '';
+  const pct = Math.max(0, Math.min(1, done / total));
+  let inner = '';
+  if (pct >= 1) {
+    inner = '<circle cx="8" cy="8" r="7" class="pie-fill"/>'
+      + '<path d="M4.8 8.3 L7.1 10.6 L11.3 5.9" fill="none" stroke="var(--joplin-background-color, #fff)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+  } else if (pct > 0) {
+    const a = pct * 2 * Math.PI - Math.PI / 2;
+    const x = 8 + 7 * Math.cos(a);
+    const y = 8 + 7 * Math.sin(a);
+    const large = pct > 0.5 ? 1 : 0;
+    inner = '<path class="pie-fill" d="M8 8 L8 1 A7 7 0 ' + large + ' 1 ' + x.toFixed(2) + ' ' + y.toFixed(2) + ' Z"/>';
+  }
+  return '<span class="todo-pie" title="' + done + '/' + total + '">'
+    + '<svg width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" class="pie-ring"/>' + inner + '</svg></span>';
+}
+
+// Link badge on published notes; clicking it opens the native publish
+// dialog (Joplin keeps share URLs server-side, so the dialog is the only
+// surface that can show them). Tooltip text is set from i18n at startup.
+let sharedBadgeTitle = 'Published';
+function sharedBadgeHtml(): string {
+  return '<span class="shared-badge" title="' + sharedBadgeTitle + '">'
+    + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>';
+}
+
+function noteBadgesHtml(n: { is_shared?: number; cb_total?: number; cb_done?: number }): string {
+  // Link badge hugs the title; the pie sits at the row's right edge
+  // (same spot as folder note counts, via margin-left:auto).
+  let html = '';
+  if (n.is_shared) html += sharedBadgeHtml();
+  if (n.cb_total) html += todoPieHtml(n.cb_done || 0, n.cb_total);
+  return html;
 }
 
 /* ======================== Data helpers ======================== */
@@ -166,9 +224,17 @@ async function getAllNotes(): Promise<NoteItem[]> {
   let hasMore = true;
   while (hasMore) {
     const result = await joplin.data.get(['notes'], {
-      fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time', 'order'],
+      fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time', 'order', 'is_shared', 'body'],
       page, limit: 100,
     });
+    // Count checkboxes, then drop the body right away - only the two small
+    // counters are cached.
+    for (const n of result.items as any[]) {
+      const cb = countCheckboxes(n.body || '');
+      n.cb_total = cb.total;
+      n.cb_done = cb.done;
+      delete n.body;
+    }
     notes = notes.concat(result.items);
     hasMore = result.has_more;
     page++;
@@ -205,6 +271,7 @@ function buildTree(folders: FolderItem[], notesByFolder: { [id: string]: NoteIte
         childNotes[fid].push({
           type: 'note', id: n.id, title: n.title || '(untitled)',
           is_todo: n.is_todo, todo_completed: n.todo_completed,
+          is_shared: n.is_shared, cb_total: n.cb_total, cb_done: n.cb_done,
         });
       }
     }
@@ -294,6 +361,7 @@ function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet:
       html += '<div class="tree-item note' + selected + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="note" data-todo="' + (node.is_todo ? 1 : 0) + '">';
       html += '<span class="icon note-icon">' + icon + '</span>';
       html += '<span class="label">' + escapeHtml(node.title) + '</span>';
+      html += noteBadgesHtml(node);
       html += '</div>';
     }
   }
@@ -324,6 +392,7 @@ joplin.plugins.register({
   onStart: async function () {
     const locale = (await joplin.settings.globalValue('locale')) || 'en_US';
     const t = getI18n(locale);
+    sharedBadgeTitle = (t as any).sharedBadge || sharedBadgeTitle;
 
     const panel = await joplin.views.panels.create('notesInListPanel');
     await joplin.views.panels.addScript(panel, 'webview/panel.css');
@@ -848,6 +917,7 @@ joplin.plugins.register({
                 pinnedHtml += '<div class="tree-item note pinned-item' + selected + '" data-id="' + note.id + '" data-type="note" data-todo="' + (note.is_todo ? 1 : 0) + '">';
                 pinnedHtml += '<span class="icon note-icon">' + icon + '</span>';
                 pinnedHtml += '<span class="label">' + escapeHtml(note.title) + '</span>';
+                pinnedHtml += noteBadgesHtml(note);
                 pinnedHtml += '</div>';
               }
             }
@@ -1041,8 +1111,12 @@ joplin.plugins.register({
       try {
         const cachedIndex = allNotesCache.findIndex((note) => note.id === noteId);
         const note = await joplin.data.get(['notes', noteId], {
-          fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time', 'order'],
+          fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time', 'order', 'is_shared', 'body'],
         });
+        const cbInfo = countCheckboxes((note as any).body || '');
+        (note as any).cb_total = cbInfo.total;
+        (note as any).cb_done = cbInfo.done;
+        delete (note as any).body;
 
         if (cachedIndex < 0 || allNotesCache[cachedIndex].parent_id !== note.parent_id) {
           await refreshPanel();
@@ -1064,6 +1138,7 @@ joplin.plugins.register({
           id: note.id,
           title: note.title || '(untitled)',
           icon: getNoteIcon(note),
+          badges: noteBadgesHtml(note),
         });
       } catch (_) {
         await refreshPanel();

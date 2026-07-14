@@ -768,3 +768,36 @@ mark.search-highlight {
   padding: 0 1px;
   border-radius: 2px;
 }
+
+/* ---- Note-row badges: checkbox progress pie + published link ---- */
+/* Hug the badges to the title text instead of the row's right edge. */
+.tree-item.note .label { flex: 0 1 auto; }
+.todo-pie, .shared-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.todo-pie svg, .shared-badge svg { display: block; }
+/* Same box metrics as .count (min-width 16 + 5px side padding) so the
+   pie centers exactly where count digits center. */
+.todo-pie {
+  color: var(--joplin-color-faded, #888);
+  margin-left: auto;
+  min-width: 16px;
+  padding: 0 5px;
+  justify-content: center;
+}
+.todo-pie .pie-ring { fill: none; stroke: currentColor; stroke-width: 1.5; opacity: 0.55; }
+.todo-pie .pie-fill { fill: currentColor; opacity: 0.8; }
+.shared-badge {
+  color: var(--joplin-color-faded, #999);
+  opacity: 0.75;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+}
+.shared-badge:hover {
+  opacity: 1;
+  color: inherit;
+  background: rgba(127, 127, 127, 0.25);
+}
