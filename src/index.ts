@@ -916,11 +916,18 @@ joplin.plugins.register({
           smartHtml += '<div class="smart-section-body' + (smartCollapsed ? ' collapsed' : '') + '" id="smart-body">';
           for (const sd of smartDefs) {
             if (!sd.title || !sd.query) continue;
-            // limit:1 probe - empty smart folders get no expander.
+            // limit:1 probe - empty smart folders get no expander. Built-ins
+            // probe directly; custom rules go through the search engine.
             let sdHasResults = false;
             try {
-              const sprobe = await joplin.data.get(['search'], { query: sd.query, fields: ['id'], limit: 1 });
-              sdHasResults = !!(sprobe.items && sprobe.items.length);
+              if (sd.id === 'recent') {
+                sdHasResults = (await fetchRecentNotes(1)).length > 0;
+              } else if (sd.id === 'todos') {
+                sdHasResults = (await fetchOpenTodos(1)).length > 0;
+              } else {
+                const sprobe = await joplin.data.get(['search'], { query: sd.query, fields: ['id'], limit: 1 });
+                sdHasResults = !!(sprobe.items && sprobe.items.length);
+              }
             } catch (_) {}
             smartHtml += '<div class="tree-item folder smart-folder collapsed" style="padding-left:26px" data-smart-id="' + sd.id + '" data-query="' + escapeHtml(sd.query) + '" data-type="smart">'
               + '<span class="toggle">' + (sdHasResults ? '\u25B6' : '') + '</span>'
@@ -1294,6 +1301,44 @@ joplin.plugins.register({
         try { await joplin.data.delete(['folders', fid], { permanent: '1' }); } catch (_) {}
       };
       await deleteOne(folderId);
+    }
+
+    // Built-in smart folder queries, done directly against the notes table
+    // (the search endpoint is unreliable for filter-only queries).
+    async function fetchRecentNotes(limit: number): Promise<any[]> {
+      const r = await joplin.data.get(['notes'], {
+        fields: ['id', 'title', 'is_todo', 'todo_completed', 'user_updated_time'],
+        order_by: 'user_updated_time', order_dir: 'DESC', limit: Math.min(limit, 100),
+      });
+      return (r.items || []).map((n: any) => ({
+        id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed,
+      }));
+    }
+
+    async function fetchOpenTodos(limit: number): Promise<any[]> {
+      // order_by is_todo DESC puts every to-do first; stop at the first
+      // non-todo row.
+      const out: any[] = [];
+      let p = 1;
+      let more = true;
+      while (more && out.length < limit && p <= 10) {
+        const r = await joplin.data.get(['notes'], {
+          fields: ['id', 'title', 'is_todo', 'todo_completed', 'user_updated_time'],
+          order_by: 'is_todo', order_dir: 'DESC', page: p, limit: 100,
+        });
+        let hitNonTodo = false;
+        for (const n of (r.items || [])) {
+          if (!n.is_todo) { hitNonTodo = true; break; }
+          if (!n.todo_completed) {
+            out.push({ id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed, user_updated_time: n.user_updated_time || 0 });
+          }
+        }
+        if (hitNonTodo) break;
+        more = r.has_more;
+        p++;
+      }
+      out.sort((a, b) => (b.user_updated_time || 0) - (a.user_updated_time || 0));
+      return out.slice(0, limit);
     }
 
     async function handleContextMenu(msg: any): Promise<void> {
@@ -1891,6 +1936,13 @@ joplin.plugins.register({
           // The search API has no order_by: gather a batch, sort newest
           // first, then apply the configured limit.
           const smartLimit = Math.max(1, Number((await joplin.settings.value('smartFolderLimit'))) || 5);
+          if (msg.smartId === 'recent' || msg.smartId === 'todos') {
+            const direct = msg.smartId === 'recent'
+              ? await fetchRecentNotes(smartLimit)
+              : await fetchOpenTodos(smartLimit);
+            await joplin.views.panels.postMessage(panel, { name: 'smartFolderNotes', smartId: msg.smartId, notes: direct });
+            return;
+          }
           let sNotes: any[] = [];
           let sp = 1;
           let sMore = true;
