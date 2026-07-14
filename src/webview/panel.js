@@ -640,6 +640,9 @@ document.addEventListener('contextmenu', function(e) {
 
   var type = item.dataset.type;
   var id = item.dataset.id;
+  // Virtual rows (smart folders) have no real item behind them - no menu,
+  // and the browser default stays suppressed.
+  if (type === 'smart') return;
   var title = '';
   var labelEl = item.querySelector('.label');
   if (labelEl) title = labelEl.textContent;
@@ -712,6 +715,8 @@ document.addEventListener('contextmenu', function(e) {
   }
 
   menuHtml += '</div>';
+  // Safety net: never render an empty shell if no branch added items.
+  if (menuHtml.indexOf('ctx-item') < 0) return;
   document.body.insertAdjacentHTML('beforeend', menuHtml);
 
   var menu = document.getElementById('ctx-menu');
