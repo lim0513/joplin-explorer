@@ -171,6 +171,32 @@ function expandAllLocal() {
   return stillCollapsed;
 }
 
+// Apply an exact collapsed set to the main tree (Expand All modes
+// 'restore' and 'all'). Returns the ids actually left collapsed.
+function applyCollapsedSet(ids) {
+  var set = {};
+  for (var ai = 0; ai < ids.length; ai++) set[ids[ai]] = true;
+  var applied = [];
+  var container = document.getElementById('tree-container');
+  if (!container) return applied;
+  container.querySelectorAll('.tree-item.folder').forEach(function(item) {
+    if (item.classList.contains('pinned-item') || item.classList.contains('tag-folder')) return;
+    var fid = item.dataset.id;
+    var kids = document.querySelector('.children[data-folder-id="' + fid + '"]');
+    var toggle = item.querySelector('.toggle');
+    var collapse = !!set[fid];
+    item.classList.toggle('collapsed', collapse);
+    if (kids) kids.classList.toggle('collapsed', collapse);
+    if (toggle) { toggle.textContent = collapse ? '\u25B6' : '\u25BC'; toggle.classList.toggle('expanded', !collapse); }
+    if (collapse && fid) applied.push(fid);
+  });
+  return applied;
+}
+
+// Snapshot taken by the Collapse All click (webview copy; the backend keeps
+// the authoritative one across re-renders via the root dataset).
+var _collapseSnapshot = null;
+
 // Expand every collapsed ancestor of a tree row directly in the DOM.
 // Needed before scrolling to a located folder: after a local collapse-all
 // the backend's re-rendered HTML can be IDENTICAL to the last HTML it sent
@@ -342,14 +368,34 @@ document.addEventListener('click', function(e) {
     case 'btn-collapse-all': {
       var caBtn = document.getElementById('btn-collapse-all');
       if (caBtn && caBtn.dataset.mode === 'expand') {
-        var stillCollapsed = expandAllLocal();
+        var rootEl = document.getElementById('notes-in-list-root');
+        var expandMode = rootEl ? (rootEl.dataset.expandMode || 'restore') : 'restore';
+        var stillCollapsed;
+        if (expandMode === 'all') {
+          stillCollapsed = applyCollapsedSet([]);
+        } else if (expandMode === 'restore') {
+          var snap = _collapseSnapshot;
+          if (!snap && rootEl) {
+            try { snap = JSON.parse(rootEl.dataset.collapseSnapshot || 'null'); } catch (se) { snap = null; }
+          }
+          // No snapshot yet (never collapsed this session) - skeleton fallback.
+          stillCollapsed = Array.isArray(snap) ? applyCollapsedSet(snap) : expandAllLocal();
+        } else {
+          stillCollapsed = expandAllLocal(); // skeleton
+        }
         postMsg({ name: 'expandAll', collapsedIds: stillCollapsed });
         caBtn.dataset.mode = 'collapse';
         caBtn.textContent = '\u25B2';
         caBtn.title = T('collapseAll');
       } else {
+        var pre = [];
+        document.querySelectorAll('#tree-container .tree-item.folder').forEach(function(fitem) {
+          if (fitem.classList.contains('pinned-item') || fitem.classList.contains('tag-folder')) return;
+          if (fitem.classList.contains('collapsed') && fitem.dataset.id) pre.push(fitem.dataset.id);
+        });
+        _collapseSnapshot = pre;
         collapseAllLocal();
-        postMsg({ name: 'collapseAll' });
+        postMsg({ name: 'collapseAll', prevCollapsed: pre });
         if (caBtn) {
           caBtn.dataset.mode = 'expand';
           caBtn.textContent = '\u25BC';

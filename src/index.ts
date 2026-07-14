@@ -364,6 +364,20 @@ joplin.plugins.register({
           label: 'Show tags section',
           description: 'Show Joplin tags as folders below the notebook tree.',
         },
+        'expandAllMode': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: 'restore',
+          isEnum: true,
+          options: {
+            restore: 'Restore the state before Collapse All',
+            skeleton: 'Folders only (leaf notebooks stay collapsed)',
+            all: 'Everything',
+          },
+          public: true,
+          label: 'Expand All behavior',
+          description: 'What the Expand All button restores. Default: the tree as it was before the last Collapse All.',
+        },
         'showFolderToggles': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -476,6 +490,10 @@ joplin.plugins.register({
     let pinnedItems: { id: string, type: string }[] = [];
     let pinnedCollapsed = false;
     let tagsCollapsed = false;
+    // Folder-collapse state captured when the user hits Collapse All, so
+    // Expand All (mode: restore) can bring the tree back - survives webview
+    // re-renders because it lives here and rides the root dataset.
+    let collapseSnapshot: string[] | null = null;
     let allTagsCache: { id: string, title: string, count: string }[] = [];
     // Folder manual order lives in a plugin setting, NOT the Joplin `folders`
     // table: older Joplin builds have no `order` column on folders (querying it
@@ -730,7 +748,8 @@ joplin.plugins.register({
 
         const i18nJson = escapeHtml(JSON.stringify(t));
 
-        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '">'
+        const expandAllMode = String((await joplin.settings.value('expandAllMode')) || 'restore');
+        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new-notebook" title="' + t.newNotebook + '">\uD83D\uDCC1+</button>'
           + '    <button id="btn-new-note" title="' + t.newNote + '">\uD83D\uDCDD+</button>'
@@ -793,7 +812,8 @@ joplin.plugins.register({
 
     await joplin.settings.onChange(async (event: any) => {
       if (event.keys && (
-        event.keys.indexOf('showTagsSection') >= 0
+        event.keys.indexOf('expandAllMode') >= 0
+        || event.keys.indexOf('showTagsSection') >= 0
         || event.keys.indexOf('showFolderToggles') >= 0
         || event.keys.indexOf('openFolderIcon') >= 0
         || event.keys.indexOf('closedFolderIcon') >= 0
@@ -1365,6 +1385,7 @@ joplin.plugins.register({
         // silently skipped - making the collapse button appear dead. So we
         // only record state for the next real refresh (mirrors toggleFolder).
         for (const f of allFoldersCache) collapsedFolders[f.id] = true;
+        if (Array.isArray(msg.prevCollapsed)) collapseSnapshot = msg.prevCollapsed.map(String);
       } else if (msg.name === 'expandAll') {
         // Record-only, like collapseAll. Skeleton expand: the webview keeps
         // leaf folders collapsed and reports them back.
