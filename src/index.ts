@@ -1366,8 +1366,12 @@ joplin.plugins.register({
         // only record state for the next real refresh (mirrors toggleFolder).
         for (const f of allFoldersCache) collapsedFolders[f.id] = true;
       } else if (msg.name === 'expandAll') {
-        // Record-only, like collapseAll: the webview expanded the DOM.
+        // Record-only, like collapseAll. Skeleton expand: the webview keeps
+        // leaf folders collapsed and reports them back.
         collapsedFolders = {};
+        if (Array.isArray(msg.collapsedIds)) {
+          for (const cid of msg.collapsedIds) collapsedFolders[String(cid)] = true;
+        }
       } else if (msg.name === 'refreshView') {
         await refreshPanel();
       } else if (msg.name === 'newNotebook') {

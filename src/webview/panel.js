@@ -142,19 +142,33 @@ function collapseAllLocal() {
   });
 }
 
-// Expand EVERY main-tree folder in the DOM (inverse of collapseAllLocal).
+// Skeleton expand: unfold the whole FOLDER hierarchy but keep leaf folders
+// (no sub-notebooks) collapsed, so note rows mostly stay hidden and the
+// tree doesn't explode in length. Returns the ids left collapsed so the
+// backend can record matching state. (Mixed folders that hold notes AND
+// sub-notebooks do reveal their direct notes - that's inherent to the tree.)
 function expandAllLocal() {
   var container = document.getElementById('tree-container');
-  if (!container) return;
+  if (!container) return [];
+  var stillCollapsed = [];
   container.querySelectorAll('.tree-item.folder').forEach(function(item) {
     if (item.classList.contains('pinned-item') || item.classList.contains('tag-folder')) return;
-    item.classList.remove('collapsed');
+    var fid = item.dataset.id;
+    var kids = document.querySelector('.children[data-folder-id="' + fid + '"]');
+    var hasSubfolder = kids && kids.querySelector('.tree-item.folder');
     var toggle = item.querySelector('.toggle');
-    if (toggle) { toggle.textContent = '\u25BC'; toggle.classList.add('expanded'); }
+    if (hasSubfolder) {
+      item.classList.remove('collapsed');
+      if (kids) kids.classList.remove('collapsed');
+      if (toggle) { toggle.textContent = '\u25BC'; toggle.classList.add('expanded'); }
+    } else {
+      item.classList.add('collapsed');
+      if (kids) kids.classList.add('collapsed');
+      if (toggle) { toggle.textContent = '\u25B6'; toggle.classList.remove('expanded'); }
+      if (fid) stillCollapsed.push(fid);
+    }
   });
-  container.querySelectorAll('.children').forEach(function(ch) {
-    ch.classList.remove('collapsed');
-  });
+  return stillCollapsed;
 }
 
 // Expand every collapsed ancestor of a tree row directly in the DOM.
@@ -328,8 +342,8 @@ document.addEventListener('click', function(e) {
     case 'btn-collapse-all': {
       var caBtn = document.getElementById('btn-collapse-all');
       if (caBtn && caBtn.dataset.mode === 'expand') {
-        expandAllLocal();
-        postMsg({ name: 'expandAll' });
+        var stillCollapsed = expandAllLocal();
+        postMsg({ name: 'expandAll', collapsedIds: stillCollapsed });
         caBtn.dataset.mode = 'collapse';
         caBtn.textContent = '\u25B2';
         caBtn.title = T('collapseAll');
