@@ -929,8 +929,8 @@ joplin.plugins.register({
                 sdHasResults = !!(sprobe.items && sprobe.items.length);
               }
             } catch (_) {}
-            smartHtml += '<div class="tree-item folder smart-folder collapsed" style="padding-left:26px" data-smart-id="' + sd.id + '" data-query="' + escapeHtml(sd.query) + '" data-type="smart">'
-              + '<span class="toggle">' + (sdHasResults ? '\u25B6' : '') + '</span>'
+            smartHtml += '<div class="tree-item folder smart-folder collapsed' + (sdHasResults ? '' : ' smart-empty') + '" style="padding-left:26px" data-smart-id="' + sd.id + '" data-query="' + escapeHtml(sd.query) + '" data-type="smart">'
+              + '<span class="toggle">\u25B6</span>'
               + '<span class="icon">\uD83D\uDD0D</span>'
               + '<span class="label">' + escapeHtml(sd.title) + '</span>'
               + '</div>';

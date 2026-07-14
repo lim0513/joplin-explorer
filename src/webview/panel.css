@@ -397,6 +397,10 @@ html, body {
   border-bottom: 1px solid var(--joplin-divider-color, #ddd);
   margin-bottom: 2px;
 }
+/* Empty smart folder: keeps its folder shape (arrow included) but dimmed,
+ * and clicking it does nothing (no children container exists). */
+.smart-folder.smart-empty { opacity: 0.45; }
+.smart-folder.smart-empty:hover { background: none; cursor: default; }
 .smart-children.collapsed { display: none; }
 .trash-children.collapsed { display: none; }
 /* Rows carry inline padding (depth-based); containers only need hide/show */
