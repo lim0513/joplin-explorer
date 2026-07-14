@@ -371,6 +371,22 @@ joplin.plugins.register({
           label: 'Show tags section',
           description: 'Show Joplin tags as folders below the notebook tree.',
         },
+        'restoreUiState': {
+          section: 'joplinExplorer',
+          type: 3, // SettingItemType.Bool = 3
+          value: true,
+          public: true,
+          label: 'Restore last view state on startup',
+          description: 'Remember collapsed/expanded folders and sections between sessions. When off, the tree starts fully collapsed.',
+        },
+        'tagsDefaultExpanded': {
+          section: 'joplinExplorer',
+          type: 3, // SettingItemType.Bool = 3
+          value: false,
+          public: true,
+          label: 'Tags section expanded by default',
+          description: 'Only used when the last view state is not restored: start with the tags section expanded.',
+        },
         'expandAllMode': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
@@ -507,20 +523,25 @@ joplin.plugins.register({
     // throws "no such column: order"). Map is folderId -> order (higher = top).
     let folderOrder: { [id: string]: number } = {};
     let isFirstLoad = true;
-    // Collapse states used to reset on every app start - restore them.
+    // Collapse states used to reset on every app start - restore them,
+    // unless the user prefers a fully collapsed start.
     let uiStateLoaded = false;
-    try {
-      const uiRaw = String((await joplin.settings.value('uiState')) || '{}');
-      const ui = JSON.parse(uiRaw);
-      if (ui && typeof ui === 'object') {
-        if (ui.collapsedFolders && typeof ui.collapsedFolders === 'object' && !Array.isArray(ui.collapsedFolders)) {
-          collapsedFolders = ui.collapsedFolders;
-          uiStateLoaded = true;
+    // Non-restored default: tags section collapsed unless opted in.
+    tagsCollapsed = (await joplin.settings.value('tagsDefaultExpanded')) !== true;
+    if ((await joplin.settings.value('restoreUiState')) !== false) {
+      try {
+        const uiRaw = String((await joplin.settings.value('uiState')) || '{}');
+        const ui = JSON.parse(uiRaw);
+        if (ui && typeof ui === 'object') {
+          if (ui.collapsedFolders && typeof ui.collapsedFolders === 'object' && !Array.isArray(ui.collapsedFolders)) {
+            collapsedFolders = ui.collapsedFolders;
+            uiStateLoaded = true;
+          }
+          if (typeof ui.tagsCollapsed === 'boolean') tagsCollapsed = ui.tagsCollapsed;
+          if (typeof ui.pinnedCollapsed === 'boolean') pinnedCollapsed = ui.pinnedCollapsed;
         }
-        if (typeof ui.tagsCollapsed === 'boolean') tagsCollapsed = ui.tagsCollapsed;
-        if (typeof ui.pinnedCollapsed === 'boolean') pinnedCollapsed = ui.pinnedCollapsed;
-      }
-    } catch (_) { /* defaults */ }
+      } catch (_) { /* defaults */ }
+    }
     let uiStateTimer: any = null;
     function saveUiState(): void {
       if (uiStateTimer) clearTimeout(uiStateTimer);
