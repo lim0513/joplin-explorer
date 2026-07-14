@@ -238,6 +238,8 @@ function hoverPreviewEnabled() {
 
 document.addEventListener('mouseover', function(e) {
   if (!hoverPreviewEnabled()) return;
+  // No previews while a context menu is open - they'd fight for attention.
+  if (document.getElementById('ctx-menu')) { hidePreview(); return; }
   var row = e.target.closest ? e.target.closest('.tree-item.note') : null;
   if (!row) { hidePreview(); return; }
   var id = row.dataset.id;
@@ -257,6 +259,7 @@ document.addEventListener('dragstart', function() { hidePreview(); });
 
 function showPreview(m) {
   if (m.id !== _hoverNoteId) return; // hover moved on
+  if (document.getElementById('ctx-menu')) return; // menu open - stay quiet
   var row = document.querySelector('.tree-item.note[data-id="' + m.id + '"]');
   if (!row || !row.matches(':hover')) return;
   var old = document.getElementById('note-preview');
@@ -560,6 +563,7 @@ document.addEventListener('click', function(e) {
 
 // Right click: context menu
 document.addEventListener('contextmenu', function(e) {
+  hidePreview();
   var existingMenu = document.getElementById('ctx-menu');
   if (existingMenu) existingMenu.remove();
 
