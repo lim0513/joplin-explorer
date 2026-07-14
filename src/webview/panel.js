@@ -907,7 +907,11 @@ document.addEventListener('mousedown', function(e) {
 document.addEventListener('dragstart', function(e) {
   var item = e.target.closest('.tree-item');
   if (!item) return;
-  if (item.closest('.trash-children') || item.closest('.smart-children')) { e.preventDefault(); return; }
+  // Virtual rows never drag: anything in the trash, the whole smart
+  // section (rows included), and tag folder rows. Notes listed INSIDE a
+  // tag stay draggable (drag out = move / assign another tag).
+  if (item.closest('.trash-children') || item.closest('.smart-section-body')
+    || item.classList.contains('tag-folder')) { e.preventDefault(); return; }
   var isPinned = item.classList.contains('pinned-item');
   e.dataTransfer.setData('text/plain', JSON.stringify({
     id: item.dataset.id,
