@@ -721,6 +721,7 @@ joplin.plugins.register({
         }
 
         const pinnedJson = escapeHtml(JSON.stringify(pinnedItems));
+        const allFoldersCollapsed = folders.length > 0 && folders.every((f) => collapsedFolders[f.id] === true);
         const sortLabels: { [k: string]: string } = {
           'updated_desc': t.sortUpdatedDesc, 'updated_asc': t.sortUpdatedAsc,
           'title_asc': t.sortTitleAsc, 'title_desc': t.sortTitleDesc,
@@ -735,7 +736,8 @@ joplin.plugins.register({
           + '    <button id="btn-new-note" title="' + t.newNote + '">\uD83D\uDCDD+</button>'
           + '    <button id="btn-new-todo" title="' + t.newTodo + '">\u2610+</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
-          + '    <button id="btn-collapse-all" title="' + t.collapseAll + '">\u25B2</button>'
+          + '    <button id="btn-collapse-all" data-mode="' + (allFoldersCollapsed ? 'expand' : 'collapse') + '" title="' + (allFoldersCollapsed ? t.expandAll : t.collapseAll) + '">' + (allFoldersCollapsed ? '\u25BC' : '\u25B2') + '</button>'
+          + '    <button id="btn-refresh" title="' + t.refresh + '">\u21BB</button>'
           + '  </div>'
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
@@ -1364,7 +1366,9 @@ joplin.plugins.register({
         // only record state for the next real refresh (mirrors toggleFolder).
         for (const f of allFoldersCache) collapsedFolders[f.id] = true;
       } else if (msg.name === 'expandAll') {
+        // Record-only, like collapseAll: the webview expanded the DOM.
         collapsedFolders = {};
+      } else if (msg.name === 'refreshView') {
         await refreshPanel();
       } else if (msg.name === 'newNotebook') {
         const folderName = await showNativeInput(t.promptNewNotebookName, '');

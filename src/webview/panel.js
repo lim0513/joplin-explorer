@@ -142,6 +142,21 @@ function collapseAllLocal() {
   });
 }
 
+// Expand EVERY main-tree folder in the DOM (inverse of collapseAllLocal).
+function expandAllLocal() {
+  var container = document.getElementById('tree-container');
+  if (!container) return;
+  container.querySelectorAll('.tree-item.folder').forEach(function(item) {
+    if (item.classList.contains('pinned-item') || item.classList.contains('tag-folder')) return;
+    item.classList.remove('collapsed');
+    var toggle = item.querySelector('.toggle');
+    if (toggle) { toggle.textContent = '\u25BC'; toggle.classList.add('expanded'); }
+  });
+  container.querySelectorAll('.children').forEach(function(ch) {
+    ch.classList.remove('collapsed');
+  });
+}
+
 // Expand every collapsed ancestor of a tree row directly in the DOM.
 // Needed before scrolling to a located folder: after a local collapse-all
 // the backend's re-rendered HTML can be IDENTICAL to the last HTML it sent
@@ -310,7 +325,26 @@ document.addEventListener('click', function(e) {
     case 'btn-new-note': postMsg({ name: 'newNote' }); break;
     case 'btn-new-todo': postMsg({ name: 'newTodo' }); break;
     case 'btn-sort': postMsg({ name: 'cycleSort' }); break;
-    case 'btn-collapse-all': collapseAllLocal(); postMsg({ name: 'collapseAll' }); break;
+    case 'btn-collapse-all': {
+      var caBtn = document.getElementById('btn-collapse-all');
+      if (caBtn && caBtn.dataset.mode === 'expand') {
+        expandAllLocal();
+        postMsg({ name: 'expandAll' });
+        caBtn.dataset.mode = 'collapse';
+        caBtn.textContent = '\u25B2';
+        caBtn.title = T('collapseAll');
+      } else {
+        collapseAllLocal();
+        postMsg({ name: 'collapseAll' });
+        if (caBtn) {
+          caBtn.dataset.mode = 'expand';
+          caBtn.textContent = '\u25BC';
+          caBtn.title = T('expandAll');
+        }
+      }
+      break;
+    }
+    case 'btn-refresh': postMsg({ name: 'refreshView' }); break;
     case 'btn-sync':
       if (!btn.disabled) {
         btn.disabled = true;
