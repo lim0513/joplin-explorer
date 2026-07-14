@@ -678,6 +678,10 @@ joplin.plugins.register({
             seenFolders = ui.seenFolders;
             seedSeenFolders = false;
           }
+          // Expand-All "restore" snapshot survives app restarts too -
+          // without this, restarting after a Collapse All left only the
+          // skeleton-expand fallback.
+          if (Array.isArray(ui.collapseSnapshot)) collapseSnapshot = ui.collapseSnapshot.map(String);
         }
       } catch (_) { /* defaults */ }
     }
@@ -687,7 +691,7 @@ joplin.plugins.register({
       uiStateTimer = setTimeout(async () => {
         uiStateTimer = null;
         try {
-          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, smartCollapsed, seenFolders }));
+          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, smartCollapsed, seenFolders, collapseSnapshot }));
         } catch (err) {
           console.error('Joplin Explorer: failed to save UI state', err);
         }
