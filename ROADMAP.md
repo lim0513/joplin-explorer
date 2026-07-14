@@ -4,7 +4,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 ---
 
-## ✅ Current Features (v1.4.x)
+## ✅ Current Features (v1.5.x)
 
 **Tree & navigation**
 - Unified tree view (notebooks + notes), auto-expand to current note
@@ -68,11 +68,4 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 - [ ] **Explorer API** — register custom nodes, context menu items, programmatic highlighting
 - [ ] **Multi-window Explorer**
-- [ ] **Advanced sorting rules** — created time, word count, tag count
-
----
-
-## Contributions
-
-Contributions are welcome!
-Please open an issue or submit a pull request if you'd like to help shape the future of Joplin Explorer.
+- [ ] **Advanced sorting rul
