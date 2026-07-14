@@ -916,12 +916,20 @@ joplin.plugins.register({
           smartHtml += '<div class="smart-section-body' + (smartCollapsed ? ' collapsed' : '') + '" id="smart-body">';
           for (const sd of smartDefs) {
             if (!sd.title || !sd.query) continue;
+            // limit:1 probe - empty smart folders get no expander.
+            let sdHasResults = false;
+            try {
+              const sprobe = await joplin.data.get(['search'], { query: sd.query, fields: ['id'], limit: 1 });
+              sdHasResults = !!(sprobe.items && sprobe.items.length);
+            } catch (_) {}
             smartHtml += '<div class="tree-item folder smart-folder collapsed" style="padding-left:26px" data-smart-id="' + sd.id + '" data-query="' + escapeHtml(sd.query) + '" data-type="smart">'
-              + '<span class="toggle">\u25B6</span>'
+              + '<span class="toggle">' + (sdHasResults ? '\u25B6' : '') + '</span>'
               + '<span class="icon">\uD83D\uDD0D</span>'
               + '<span class="label">' + escapeHtml(sd.title) + '</span>'
               + '</div>';
-            smartHtml += '<div class="smart-children collapsed" data-smart-id="' + sd.id + '"></div>';
+            if (sdHasResults) {
+              smartHtml += '<div class="smart-children collapsed" data-smart-id="' + sd.id + '"></div>';
+            }
           }
           smartHtml += '</div>';
         }
