@@ -358,6 +358,7 @@ html, body {
 }
 
 /* ---- tags section (tags as folders) ---- */
+.smart-section-header,
 .trash-section-header,
 .tags-section-header {
   display: flex;
@@ -373,11 +374,14 @@ html, body {
   color: var(--joplin-color-faded, #888);
   font-weight: 700;
 }
+.smart-section-header:hover,
 .trash-section-header:hover,
 .tags-section-header:hover {
   background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
 }
 .tags-section-body.collapsed { display: none; }
+.smart-section-body.collapsed { display: none; }
+.smart-children.collapsed { display: none; }
 .trash-children.collapsed { display: none; }
 /* Rows carry inline padding (depth-based); containers only need hide/show */
 .trash-folder-children.collapsed { display: none; }

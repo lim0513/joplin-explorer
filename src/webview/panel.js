@@ -399,6 +399,33 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  // 5b1. Smart folders: section header + row expand (lazy search).
+  var smartHeader = e.target.closest('.smart-section-header');
+  if (smartHeader) {
+    var smartNowCollapsed = smartHeader.classList.toggle('collapsed');
+    var smartBody = document.getElementById('smart-body');
+    if (smartBody) smartBody.classList.toggle('collapsed', smartNowCollapsed);
+    var smartToggle = smartHeader.querySelector('.toggle');
+    if (smartToggle) smartToggle.textContent = smartNowCollapsed ? '\u25B6' : '\u25BC';
+    postMsg({ name: 'toggleSmartSection' });
+    return;
+  }
+  var smartFolderRow = e.target.closest('.smart-folder');
+  if (smartFolderRow) {
+    var smId = smartFolderRow.dataset.smartId;
+    var smKids = document.querySelector('.smart-children[data-smart-id="' + smId + '"]');
+    if (!smKids) return;
+    var smCollapsed = smKids.classList.toggle('collapsed');
+    smartFolderRow.classList.toggle('collapsed', smCollapsed);
+    var smArrow = smartFolderRow.querySelector('.toggle');
+    if (smArrow) smArrow.textContent = smCollapsed ? '\u25B6' : '\u25BC';
+    // Re-query on every expand - smart folder contents change constantly.
+    if (!smCollapsed) {
+      postMsg({ name: 'smartFolderNotes', smartId: smId, query: smartFolderRow.dataset.query });
+    }
+    return;
+  }
+
   // 5b2. Trash section header -> local toggle; first expand fetches notes.
   var trashHeader = e.target.closest('.trash-section-header');
   if (trashHeader) {
@@ -768,6 +795,21 @@ webviewApi.onMessage(function(msg) {
       if (!trHtml) trHtml = '<div class="tag-empty">\u2014</div>';
       trashEl.innerHTML = trHtml;
     }
+  } else if (m.name === 'smartFolderNotes') {
+    var smEl = document.querySelector('.smart-children[data-smart-id="' + m.smartId + '"]');
+    if (smEl) {
+      var smHtml = '';
+      for (var smi = 0; smi < m.notes.length; smi++) {
+        var smNote = m.notes[smi];
+        var smIcon = smNote.is_todo ? (smNote.todo_completed ? '\u2611' : '\u2610') : '\uD83D\uDCDD';
+        smHtml += '<div class="tree-item note smart-note" style="padding-left:44px" data-id="' + smNote.id + '" data-type="note" data-todo="' + (smNote.is_todo ? 1 : 0) + '">'
+          + '<span class="icon note-icon">' + smIcon + '</span>'
+          + '<span class="label">' + escapeHtml(smNote.title) + '</span>'
+          + '</div>';
+      }
+      if (!m.notes.length) smHtml = '<div class="tag-empty">\u2014</div>';
+      smEl.innerHTML = smHtml;
+    }
   } else if (m.name === 'notePreview') {
     showPreview(m);
   } else if (m.name === 'trashFolderNotes') {
@@ -865,7 +907,7 @@ document.addEventListener('mousedown', function(e) {
 document.addEventListener('dragstart', function(e) {
   var item = e.target.closest('.tree-item');
   if (!item) return;
-  if (item.closest('.trash-children')) { e.preventDefault(); return; }
+  if (item.closest('.trash-children') || item.closest('.smart-children')) { e.preventDefault(); return; }
   var isPinned = item.classList.contains('pinned-item');
   e.dataTransfer.setData('text/plain', JSON.stringify({
     id: item.dataset.id,
@@ -1000,9 +1042,10 @@ document.addEventListener('dragover', function(e) {
     }
     return;
   }
-  // Anywhere else inside the tags or trash sections is not a drop target.
+  // Anywhere else inside the tags/trash/smart sections is not a drop target.
   if (el.closest('.tags-section-body') || el.closest('.tags-section-header')
-    || el.closest('.trash-children') || el.closest('.trash-section-header')) return;
+    || el.closest('.trash-children') || el.closest('.trash-section-header')
+    || el.closest('.smart-section-body') || el.closest('.smart-section-header')) return;
 
   // Normal tree-item not found — ignore
   if (!target) return;
@@ -1120,7 +1163,8 @@ document.addEventListener('drop', function(e) {
     return;
   }
   if (el0 && (el0.closest('.tags-section-body') || el0.closest('.tags-section-header')
-    || el0.closest('.trash-children') || el0.closest('.trash-section-header'))) { endDrag(); return; }
+    || el0.closest('.trash-children') || el0.closest('.trash-section-header')
+    || el0.closest('.smart-section-body') || el0.closest('.smart-section-header'))) { endDrag(); return; }
 
   // Pinned items can only be reordered within pinned section
   if (isDragFromPinned) {

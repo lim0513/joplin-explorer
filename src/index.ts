@@ -387,6 +387,22 @@ joplin.plugins.register({
           label: 'Restore last view state on startup',
           description: 'Remember collapsed/expanded folders and sections between sessions. When off, the tree starts fully collapsed.',
         },
+        'showSmartFolders': {
+          section: 'joplinExplorer',
+          type: 3, // SettingItemType.Bool = 3
+          value: true,
+          public: true,
+          label: 'Show smart folders',
+          description: 'Saved searches rendered as folders: Recently updated, Open to-dos, and your own rules.',
+        },
+        'smartFolderRules': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '',
+          public: true,
+          label: 'Custom smart folders',
+          description: 'Name:query pairs separated by ";", using Joplin search syntax. Example: Work:notebook:Work updated:day-30;Starred:tag:star',
+        },
         'hoverPreview': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -531,6 +547,7 @@ joplin.plugins.register({
     let pinnedCollapsed = false;
     let tagsCollapsed = false;
     let trashCollapsed = true;
+    let smartCollapsed = false;
     // Folder-collapse state captured when the user hits Collapse All, so
     // Expand All (mode: restore) can bring the tree back - survives webview
     // re-renders because it lives here and rides the root dataset.
@@ -559,6 +576,7 @@ joplin.plugins.register({
           if (typeof ui.tagsCollapsed === 'boolean') tagsCollapsed = ui.tagsCollapsed;
           if (typeof ui.pinnedCollapsed === 'boolean') pinnedCollapsed = ui.pinnedCollapsed;
           if (typeof ui.trashCollapsed === 'boolean') trashCollapsed = ui.trashCollapsed;
+          if (typeof ui.smartCollapsed === 'boolean') smartCollapsed = ui.smartCollapsed;
         }
       } catch (_) { /* defaults */ }
     }
@@ -568,7 +586,7 @@ joplin.plugins.register({
       uiStateTimer = setTimeout(async () => {
         uiStateTimer = null;
         try {
-          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed }));
+          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, smartCollapsed }));
         } catch (err) {
           console.error('Joplin Explorer: failed to save UI state', err);
         }
@@ -860,6 +878,44 @@ joplin.plugins.register({
           }
         } catch (_) { /* include_deleted unsupported - no trash section */ }
 
+        // Smart folders: built-ins + user rules, results load lazily via
+        // the search API when a row is expanded.
+        let smartHtml = '';
+        if ((await joplin.settings.value('showSmartFolders')) !== false) {
+          const smartDefs: { id: string, title: string, query: string }[] = [
+            { id: 'recent', title: t.smartRecent, query: 'updated:day-7' },
+            { id: 'todos', title: t.smartTodos, query: 'type:todo iscompleted:0' },
+          ];
+          const rulesRaw = String((await joplin.settings.value('smartFolderRules')) || '').trim();
+          if (rulesRaw) {
+            const parts = rulesRaw.split(';');
+            for (let ri = 0; ri < parts.length; ri++) {
+              const seg = parts[ri].trim();
+              if (!seg) continue;
+              const ci = seg.indexOf(':');
+              if (ci <= 0) continue;
+              smartDefs.push({ id: 'rule' + ri, title: seg.slice(0, ci).trim(), query: seg.slice(ci + 1).trim() });
+            }
+          }
+          const smartArrow = smartCollapsed ? '\u25B6' : '\u25BC';
+          smartHtml += '<div class="smart-section-header' + (smartCollapsed ? ' collapsed' : '') + '" id="smart-header">';
+          if (showToggleArrows) smartHtml += '<span class="toggle">' + smartArrow + '</span>';
+          smartHtml += '<span class="icon">\uD83D\uDD0D</span>'
+            + '<span class="label">' + t.smartFolders + '</span>'
+            + '</div>';
+          smartHtml += '<div class="smart-section-body' + (smartCollapsed ? ' collapsed' : '') + '" id="smart-body">';
+          for (const sd of smartDefs) {
+            if (!sd.title || !sd.query) continue;
+            smartHtml += '<div class="tree-item folder smart-folder collapsed" style="padding-left:26px" data-smart-id="' + sd.id + '" data-query="' + escapeHtml(sd.query) + '" data-type="smart">'
+              + '<span class="toggle">\u25B6</span>'
+              + '<span class="icon">\uD83D\uDD0D</span>'
+              + '<span class="label">' + escapeHtml(sd.title) + '</span>'
+              + '</div>';
+            smartHtml += '<div class="smart-children collapsed" data-smart-id="' + sd.id + '"></div>';
+          }
+          smartHtml += '</div>';
+        }
+
         const pinnedJson = escapeHtml(JSON.stringify(pinnedItems));
         const allFoldersCollapsed = folders.length > 0 && folders.every((f) => collapsedFolders[f.id] === true);
         const sortLabels: { [k: string]: string } = {
@@ -882,7 +938,7 @@ joplin.plugins.register({
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
-          + '  <div id="tree-container">' + pinnedHtml + treeHtml + tagsHtml + trashHtml
+          + '  <div id="tree-container">' + pinnedHtml + smartHtml + treeHtml + tagsHtml + trashHtml
           + '    <div id="drop-zone-empty" class="drop-zone-empty">+ ' + t.dropCreateNotebook + '</div>'
           + '  </div>'
           + '  <div id="search-results" style="display:none;"></div>'
@@ -945,7 +1001,9 @@ joplin.plugins.register({
         await applyAutoRefreshSetting();
       }
       if (event.keys && (
-        event.keys.indexOf('hoverPreview') >= 0
+        event.keys.indexOf('showSmartFolders') >= 0
+        || event.keys.indexOf('smartFolderRules') >= 0
+        || event.keys.indexOf('hoverPreview') >= 0
         || event.keys.indexOf('expandAllMode') >= 0
         || event.keys.indexOf('showTagsSection') >= 0
         || event.keys.indexOf('showFolderToggles') >= 0
@@ -1805,6 +1863,31 @@ joplin.plugins.register({
           await joplin.views.panels.postMessage(panel, { name: 'tagFolderNotes', tagId: msg.tagId, notes });
         } catch (err) {
           console.error('Joplin Explorer: tagNoteAdd error', err);
+        }
+      } else if (msg.name === 'toggleSmartSection') {
+        // State bookkeeping only - the webview toggled the DOM locally.
+        smartCollapsed = !smartCollapsed;
+        saveUiState();
+      } else if (msg.name === 'smartFolderNotes') {
+        try {
+          let sNotes: any[] = [];
+          let sp = 1;
+          let sMore = true;
+          while (sMore && sNotes.length < 50) {
+            const sr = await joplin.data.get(['search'], {
+              query: String(msg.query || ''),
+              fields: ['id', 'title', 'is_todo', 'todo_completed'],
+              page: sp, limit: 50,
+            });
+            sNotes = sNotes.concat((sr.items || []).map((n: any) => ({
+              id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed,
+            })));
+            sMore = sr.has_more;
+            sp++;
+          }
+          await joplin.views.panels.postMessage(panel, { name: 'smartFolderNotes', smartId: msg.smartId, notes: sNotes.slice(0, 50) });
+        } catch (err) {
+          console.error('Joplin Explorer: smartFolderNotes error', err);
         }
       } else if (msg.name === 'toggleTrashSection') {
         // State bookkeeping only - the webview toggled the DOM locally.
