@@ -353,6 +353,13 @@ html, body {
   display: none;
 }
 
+/* Same divider logic as the smart section: when the body is hidden, the
+ * header draws the closing line. */
+.pinned-section-header.collapsed {
+  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
+  margin-bottom: 2px;
+}
+
 .pinned-item {
   padding-left: 26px !important;
 }
