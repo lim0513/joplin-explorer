@@ -371,6 +371,14 @@ joplin.plugins.register({
           label: 'Show tags section',
           description: 'Show Joplin tags as folders below the notebook tree.',
         },
+        'autoRefresh': {
+          section: 'joplinExplorer',
+          type: 3, // SettingItemType.Bool = 3
+          value: true,
+          public: true,
+          label: 'Auto refresh on external changes',
+          description: 'Poll Joplin\'s change feed every 5 seconds and refresh the panel when notes are created, moved or deleted by other plugins or sync. Edits to the currently open note are ignored (they already update live).',
+        },
         'restoreUiState': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -865,6 +873,9 @@ joplin.plugins.register({
     }
 
     await joplin.settings.onChange(async (event: any) => {
+      if (event.keys && event.keys.indexOf('autoRefresh') >= 0) {
+        await applyAutoRefreshSetting();
+      }
       if (event.keys && (
         event.keys.indexOf('expandAllMode') >= 0
         || event.keys.indexOf('showTagsSection') >= 0
@@ -1608,6 +1619,52 @@ joplin.plugins.register({
         }
       }
     });
+
+    /* ---------- auto refresh via the data API change-events feed ---------- */
+    // GET /events returns item changes since a cursor (verified against the
+    // Joplin source: rest/routes/events.ts). Much cheaper and more precise
+    // than re-querying: no changes means an empty round-trip every 5s.
+    let eventsCursor = '';
+    let eventsTimer: any = null;
+
+    async function pollEvents(): Promise<void> {
+      try {
+        if (!eventsCursor) {
+          const init = await joplin.data.get(['events']);
+          eventsCursor = String(init.cursor || '');
+          return;
+        }
+        let relevant = false;
+        let guard = 0;
+        while (guard++ < 20) {
+          const r = await joplin.data.get(['events'], { cursor: eventsCursor });
+          for (const ch of (r.items || [])) {
+            // Skip pure updates of the selected note - that's the editor's
+            // autosave, and the panel already tracks it via onNoteChange.
+            if (Number(ch.type) === 2 && ch.item_id === selectedNoteId) continue;
+            relevant = true;
+          }
+          if (r.cursor) eventsCursor = String(r.cursor);
+          if (!r.has_more) break;
+        }
+        if (relevant) scheduleRefreshPanel(300);
+      } catch (err) {
+        // Events API unavailable (older Joplin) - disable quietly.
+        if (eventsTimer) { clearInterval(eventsTimer); eventsTimer = null; }
+        console.warn('Joplin Explorer: change-events polling disabled', err);
+      }
+    }
+
+    async function applyAutoRefreshSetting(): Promise<void> {
+      const on = (await joplin.settings.value('autoRefresh')) !== false;
+      if (eventsTimer) { clearInterval(eventsTimer); eventsTimer = null; }
+      if (on) {
+        eventsCursor = '';
+        await pollEvents(); // grab the initial cursor right away
+        eventsTimer = setInterval(pollEvents, 5000);
+      }
+    }
+    await applyAutoRefreshSetting();
 
     await joplin.workspace.onNoteSelectionChange(async () => {
       const note = await joplin.workspace.selectedNote();
