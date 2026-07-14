@@ -143,10 +143,11 @@ function toggleFolderLocal(item, id) {
 // and the update is skipped, so the button would appear dead. Pinned items
 // (.pinned-item) have no children container and are left untouched.
 function collapseAllLocal() {
-  var container = document.getElementById('tree-container');
+  // Scoped to #main-tree: trash folders, smart folders and tag rows have
+  // their own toggle logic - flipping their arrows here desynced them.
+  var container = document.getElementById('main-tree');
   if (!container) return;
   container.querySelectorAll('.tree-item.folder').forEach(function(item) {
-    if (item.classList.contains('pinned-item')) return;
     item.classList.add('collapsed');
     var toggle = item.querySelector('.toggle');
     if (toggle) { toggle.textContent = '\u25B6'; toggle.classList.remove('expanded'); }
@@ -162,11 +163,10 @@ function collapseAllLocal() {
 // backend can record matching state. (Mixed folders that hold notes AND
 // sub-notebooks do reveal their direct notes - that's inherent to the tree.)
 function expandAllLocal() {
-  var container = document.getElementById('tree-container');
+  var container = document.getElementById('main-tree');
   if (!container) return [];
   var stillCollapsed = [];
   container.querySelectorAll('.tree-item.folder').forEach(function(item) {
-    if (item.classList.contains('pinned-item') || item.classList.contains('tag-folder')) return;
     var fid = item.dataset.id;
     var kids = document.querySelector('.children[data-folder-id="' + fid + '"]');
     var hasSubfolder = kids && kids.querySelector('.tree-item.folder');
@@ -191,10 +191,9 @@ function applyCollapsedSet(ids) {
   var set = {};
   for (var ai = 0; ai < ids.length; ai++) set[ids[ai]] = true;
   var applied = [];
-  var container = document.getElementById('tree-container');
+  var container = document.getElementById('main-tree');
   if (!container) return applied;
   container.querySelectorAll('.tree-item.folder').forEach(function(item) {
-    if (item.classList.contains('pinned-item') || item.classList.contains('tag-folder')) return;
     var fid = item.dataset.id;
     var kids = document.querySelector('.children[data-folder-id="' + fid + '"]');
     var toggle = item.querySelector('.toggle');
@@ -583,19 +582,36 @@ document.addEventListener('click', function(e) {
         } else {
           stillCollapsed = expandAllLocal(); // skeleton
         }
+        // Expand must always DO something. A degenerate snapshot ("all
+        // collapsed") or a skeleton pass over a flat tree would leave the
+        // tree untouched while the button still flips - which reads as
+        // inverted. Fall back to a full expand in that case.
+        var mainFolderCount = document.querySelectorAll('#main-tree .tree-item.folder').length;
+        if (mainFolderCount > 0 && stillCollapsed.length >= mainFolderCount) {
+          stillCollapsed = applyCollapsedSet([]);
+        }
         postMsg({ name: 'expandAll', collapsedIds: stillCollapsed });
         caBtn.dataset.mode = 'collapse';
         caBtn.textContent = '\u25B2';
         caBtn.title = T('collapseAll');
       } else {
         var pre = [];
-        document.querySelectorAll('#tree-container .tree-item.folder').forEach(function(fitem) {
-          if (fitem.classList.contains('pinned-item') || fitem.classList.contains('tag-folder')) return;
-          if (fitem.classList.contains('collapsed') && fitem.dataset.id) pre.push(fitem.dataset.id);
+        var mainTotal = 0;
+        document.querySelectorAll('#main-tree .tree-item.folder').forEach(function(fitem) {
+          if (!fitem.dataset.id) return;
+          mainTotal++;
+          if (fitem.classList.contains('collapsed')) pre.push(fitem.dataset.id);
         });
-        _collapseSnapshot = pre;
         collapseAllLocal();
-        postMsg({ name: 'collapseAll', prevCollapsed: pre });
+        if (pre.length >= mainTotal && mainTotal > 0) {
+          // Tree was already fully collapsed - keep the previous (useful)
+          // snapshot instead of overwriting it with "everything collapsed",
+          // which would turn the next Restore into a no-op.
+          postMsg({ name: 'collapseAll' });
+        } else {
+          _collapseSnapshot = pre;
+          postMsg({ name: 'collapseAll', prevCollapsed: pre });
+        }
         if (caBtn) {
           caBtn.dataset.mode = 'expand';
           caBtn.textContent = '\u25BC';
