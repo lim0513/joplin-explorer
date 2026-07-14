@@ -1123,6 +1123,13 @@ joplin.plugins.register({
         for (const c of (byParent[f.id] || [])) visitTrashFolder(c, depth + 1);
       };
       for (const r of trashRoots) visitTrashFolder(r, 0);
+      // One limit:1 probe per deleted folder: empty ones get no expander.
+      await Promise.all(folders.map(async (f: any) => {
+        try {
+          const probe = await joplin.data.get(['folders', f.id, 'notes'], { fields: ['id'], include_deleted: '1', limit: 1 });
+          f.hasNotes = !!(probe.items && probe.items.length);
+        } catch (_) { f.hasNotes = true; }
+      }));
       const notes: any[] = [];
       let p = 1;
       let more = true;

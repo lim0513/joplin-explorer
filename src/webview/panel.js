@@ -361,8 +361,8 @@ document.addEventListener('click', function(e) {
   var item = e.target.closest('.tree-item');
   if (item) {
     if (item.dataset.trash === '1') {
-      // Deleted notebooks expand to show their notes; everything else in
-      // the trash acts only via the context menu.
+      // Deleted notebooks expand to show their notes; deleted notes open
+      // read-only like in Joplin's own trash; manage via the context menu.
       if (item.dataset.type === 'folder') {
         var tfKids = document.querySelector('.trash-folder-children[data-folder-id="' + item.dataset.id + '"]');
         if (tfKids) {
@@ -373,6 +373,8 @@ document.addEventListener('click', function(e) {
             postMsg({ name: 'trashFolderNotes', folderId: item.dataset.id });
           }
         }
+      } else if (item.dataset.type === 'note') {
+        postMsg({ name: 'openNote', id: item.dataset.id });
       }
       return;
     }
@@ -644,11 +646,13 @@ webviewApi.onMessage(function(msg) {
         var trDepth = trF.depth || 0;
         var trPad = 34 + trDepth * 16;
         trHtml += '<div class="tree-item folder trash-note" style="padding-left:' + trPad + 'px" data-id="' + trF.id + '" data-type="folder" data-trash="1" data-depth="' + trDepth + '">'
-          + '<span class="toggle">\u25B6</span>'
+          + '<span class="toggle">' + (trF.hasNotes ? '\u25B6' : '') + '</span>'
           + '<span class="icon">\uD83D\uDCC1</span>'
           + '<span class="label">' + escapeHtml(trF.title) + '</span>'
           + '</div>';
-        trHtml += '<div class="trash-folder-children collapsed" data-folder-id="' + trF.id + '" data-depth="' + trDepth + '"></div>';
+        if (trF.hasNotes) {
+          trHtml += '<div class="trash-folder-children collapsed" data-folder-id="' + trF.id + '" data-depth="' + trDepth + '"></div>';
+        }
       }
       var trNotes = m.notes || [];
       for (var tri = 0; tri < trNotes.length; tri++) {
