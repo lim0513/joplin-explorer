@@ -387,6 +387,23 @@ joplin.plugins.register({
           label: 'Restore last view state on startup',
           description: 'Remember collapsed/expanded folders and sections between sessions. When off, the tree starts fully collapsed.',
         },
+        'hoverPreview': {
+          section: 'joplinExplorer',
+          type: 3, // SettingItemType.Bool = 3
+          value: true,
+          public: true,
+          label: 'Note preview on hover',
+          description: 'Show title, updated time and a body snippet when hovering a note.',
+        },
+        'hoverPreviewLength': {
+          section: 'joplinExplorer',
+          type: 1, // SettingItemType.Int = 1
+          value: 200,
+          minimum: 50,
+          maximum: 1000,
+          public: true,
+          label: 'Hover preview length (characters)',
+        },
         'expandAllMode': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
@@ -854,7 +871,8 @@ joplin.plugins.register({
         const i18nJson = escapeHtml(JSON.stringify(t));
 
         const expandAllMode = String((await joplin.settings.value('expandAllMode')) || 'restore');
-        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        const hoverPreviewOn = (await joplin.settings.value('hoverPreview')) !== false ? '1' : '0';
+        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-hover-preview="' + hoverPreviewOn + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
@@ -927,7 +945,8 @@ joplin.plugins.register({
         await applyAutoRefreshSetting();
       }
       if (event.keys && (
-        event.keys.indexOf('expandAllMode') >= 0
+        event.keys.indexOf('hoverPreview') >= 0
+        || event.keys.indexOf('expandAllMode') >= 0
         || event.keys.indexOf('showTagsSection') >= 0
         || event.keys.indexOf('showFolderToggles') >= 0
         || event.keys.indexOf('openFolderIcon') >= 0
@@ -1690,6 +1709,27 @@ joplin.plugins.register({
         // from the last SENT html, which misses DOM-local toggles recorded
         // since. Re-render from the records; identical html is de-duped.
         await refreshPanel();
+      } else if (msg.name === 'notePreview') {
+        try {
+          if ((await joplin.settings.value('hoverPreview')) === false) return;
+          const maxLen = Number((await joplin.settings.value('hoverPreviewLength'))) || 200;
+          const pv = await joplin.data.get(['notes', msg.id], { fields: ['id', 'title', 'body', 'user_updated_time'], include_deleted: '1' });
+          if (!pv) return;
+          // Crude markdown strip - enough for a plain-text snippet.
+          const snippet = String(pv.body || '')
+            .replace(/```[\s\S]*?```/g, ' ')
+            .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+            .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+            .replace(/^#{1,6}\s+/gm, '')
+            .replace(/[`*_>~]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, maxLen);
+          await joplin.views.panels.postMessage(panel, {
+            name: 'notePreview', id: msg.id, title: pv.title || '(untitled)',
+            updated: pv.user_updated_time || 0, snippet,
+          });
+        } catch (_) { /* note gone - no preview */ }
       } else if (msg.name === 'refreshView') {
         await refreshPanel();
       } else if (msg.name === 'newNotebook') {

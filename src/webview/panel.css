@@ -296,6 +296,35 @@ html, body {
   margin: 4px 0;
 }
 
+/* Hover preview tooltip */
+#note-preview {
+  position: fixed;
+  max-width: 260px;
+  z-index: 9998;
+  background: var(--joplin-background-color, #fff);
+  border: 1px solid var(--joplin-divider-color, #ccc);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  padding: 8px 10px;
+  font-size: 12px;
+  pointer-events: none;
+}
+.note-preview-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.note-preview-meta {
+  color: var(--joplin-color-faded, #888);
+  font-size: 10px;
+  margin-bottom: 5px;
+}
+.note-preview-body {
+  color: var(--joplin-color, #ddd);
+  opacity: 0.85;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
 /* Pinned section */
 .pinned-section-header {
   display: flex;

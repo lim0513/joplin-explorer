@@ -220,6 +220,72 @@ function expandAncestorsLocal(el) {
   }
 }
 
+// ---- hover preview ----
+var _hoverTimer = null;
+var _hoverNoteId = '';
+
+function hidePreview() {
+  if (_hoverTimer) { clearTimeout(_hoverTimer); _hoverTimer = null; }
+  _hoverNoteId = '';
+  var pv = document.getElementById('note-preview');
+  if (pv) pv.remove();
+}
+
+function hoverPreviewEnabled() {
+  var root = document.getElementById('notes-in-list-root');
+  return !root || root.dataset.hoverPreview !== '0';
+}
+
+document.addEventListener('mouseover', function(e) {
+  if (!hoverPreviewEnabled()) return;
+  var row = e.target.closest ? e.target.closest('.tree-item.note') : null;
+  if (!row) { hidePreview(); return; }
+  var id = row.dataset.id;
+  if (!id || id === _hoverNoteId) return;
+  hidePreview();
+  _hoverNoteId = id;
+  _hoverTimer = setTimeout(function() {
+    if (_hoverNoteId === id && !document.querySelector('.tree-item.dragging')) {
+      postMsg({ name: 'notePreview', id: id });
+    }
+  }, 450);
+});
+
+document.addEventListener('scroll', function() { hidePreview(); }, true);
+document.addEventListener('mousedown', function() { hidePreview(); });
+document.addEventListener('dragstart', function() { hidePreview(); });
+
+function showPreview(m) {
+  if (m.id !== _hoverNoteId) return; // hover moved on
+  var row = document.querySelector('.tree-item.note[data-id="' + m.id + '"]');
+  if (!row || !row.matches(':hover')) return;
+  var old = document.getElementById('note-preview');
+  if (old) old.remove();
+  var d = m.updated ? new Date(m.updated) : null;
+  var when = d ? (d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2)) : '';
+  var pv = document.createElement('div');
+  pv.id = 'note-preview';
+  var titleEl = document.createElement('div');
+  titleEl.className = 'note-preview-title';
+  titleEl.textContent = m.title;
+  var metaEl = document.createElement('div');
+  metaEl.className = 'note-preview-meta';
+  metaEl.textContent = when;
+  var bodyEl = document.createElement('div');
+  bodyEl.className = 'note-preview-body';
+  bodyEl.textContent = m.snippet || '';
+  pv.appendChild(titleEl);
+  if (when) pv.appendChild(metaEl);
+  if (m.snippet) pv.appendChild(bodyEl);
+  document.body.appendChild(pv);
+  var rect = row.getBoundingClientRect();
+  var pvRect = pv.getBoundingClientRect();
+  var top = rect.bottom + 4;
+  if (top + pvRect.height > window.innerHeight - 8) top = Math.max(8, rect.top - pvRect.height - 4);
+  pv.style.top = top + 'px';
+  pv.style.left = Math.max(8, Math.min(rect.left + 20, window.innerWidth - pvRect.width - 8)) + 'px';
+}
+
 // ---- Single click dispatcher ----
 // One listener instead of five separate document-level click handlers whose
 // behaviour silently depended on registration order (the old chain removed
@@ -677,6 +743,8 @@ webviewApi.onMessage(function(msg) {
       if (!trHtml) trHtml = '<div class="tag-empty">\u2014</div>';
       trashEl.innerHTML = trHtml;
     }
+  } else if (m.name === 'notePreview') {
+    showPreview(m);
   } else if (m.name === 'trashFolderNotes') {
     var tfcEl = document.querySelector('.trash-folder-children[data-folder-id="' + m.folderId + '"]');
     if (tfcEl) {
