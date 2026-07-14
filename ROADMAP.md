@@ -31,18 +31,24 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Notes: open / open in new window, set tags, note-todo switch, toggle completed, move to notebook, duplicate, copy Markdown / external link, publish note, Export drill-in submenu (PDF / MD / MD+Front Matter / JEX / HTML), rename, note info, delete (always last)
 - Notebooks: new note/todo/sub-notebook, rename, export, delete
 
+**Trash** (v1.5)
+- Collapsible Trash section: deleted notebooks nest hierarchically and expand to show their notes; deleted notes open read-only
+- Restore / delete permanently per item (cascading folder delete); empty trash from the header's context menu
+
+**Auto refresh** (v1.5)
+- Changes made by other plugins or sync appear automatically (data API change-events polling, off-switch in settings) — [#6](https://github.com/lim0513/joplin-explorer/issues/6)
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
+- View state (folder/section collapse) persists across restarts, with restore-on-startup and tags-default options
 - Settings UI (icons, toggles, tags section)
 - i18n: EN / ZH-CN / ZH-TW / RU / JA
 
 ---
 
-## 🚀 v1.5 — Requested & Planned
+## 🚀 v1.6 — Planned
 
-- [ ] **Trash access** — view and restore deleted notes/notebooks without the native sidebar ([#7](https://github.com/lim0513/joplin-explorer/issues/7))
-- [ ] **Auto-refresh on external changes** — pick up notes created by other plugins without manual action ([#6](https://github.com/lim0513/joplin-explorer/issues/6))
 - [ ] **Hover preview** — note summary on hover, configurable length
 - [ ] **Smart folders** — recently updated / uncompleted to-dos / rule-based
 
