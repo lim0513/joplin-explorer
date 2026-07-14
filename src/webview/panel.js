@@ -170,7 +170,23 @@ document.addEventListener('click', function(e) {
   // 1. Context menu item: act, close menu, done.
   var ctxItem = e.target.closest('.ctx-item');
   if (ctxItem) {
-    // Submenu parents carry no action - clicking them keeps the menu open.
+    // Drill-in submenu: swap the menu content to the format list; the back
+    // row restores the stashed main menu. Neither closes the menu.
+    if (ctxItem.classList.contains('ctx-drill')) {
+      var menuEl = document.getElementById('ctx-menu');
+      var tpl = menuEl ? menuEl.querySelector('.ctx-export-template') : null;
+      if (menuEl && tpl) {
+        window._ctxMainHtml = menuEl.innerHTML;
+        menuEl.innerHTML = '<div class="ctx-item ctx-back">\u25C2 ' + (tpl.dataset.title || '') + '</div>'
+          + '<div class="ctx-sep"></div>' + tpl.innerHTML;
+      }
+      return;
+    }
+    if (ctxItem.classList.contains('ctx-back')) {
+      var menuBack = document.getElementById('ctx-menu');
+      if (menuBack && window._ctxMainHtml) menuBack.innerHTML = window._ctxMainHtml;
+      return;
+    }
     if (!ctxItem.dataset.action) return;
     postMsg({
       name: 'contextMenu',
@@ -353,14 +369,14 @@ document.addEventListener('contextmenu', function(e) {
     }
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="publishNote" data-id="' + id + '" data-type="note">' + T('ctxPublishNote') + '</div>';
-    menuHtml += '<div class="ctx-item ctx-submenu-parent">' + T('ctxExport') + '<span class="ctx-sub-arrow">\u25B8</span>'
-      + '<div class="ctx-submenu">'
+    menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExport') + '<span class="ctx-sub-arrow">\u25B8</span></div>';
+    menuHtml += '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExport') + '">'
       + '<div class="ctx-item" data-action="exportPdf" data-id="' + id + '" data-type="note">PDF</div>'
       + '<div class="ctx-item" data-action="exportNote" data-format="md" data-id="' + id + '" data-type="note">Markdown</div>'
       + '<div class="ctx-item" data-action="exportNote" data-format="md_frontmatter" data-id="' + id + '" data-type="note">Markdown + Front Matter</div>'
       + '<div class="ctx-item" data-action="exportNote" data-format="jex" data-id="' + id + '" data-type="note">JEX</div>'
       + '<div class="ctx-item" data-action="exportNote" data-format="html" data-id="' + id + '" data-type="note">HTML</div>'
-      + '</div></div>';
+      + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameNote" data-id="' + id + '" data-type="note" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="noteInfo" data-id="' + id + '" data-type="note">' + T('ctxNoteInfo') + '</div>';

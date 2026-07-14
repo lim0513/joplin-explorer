@@ -270,25 +270,17 @@ html, body {
   background: rgba(231, 76, 60, 0.1);
 }
 
-/* The menu lives inside the narrow panel webview - a flyout submenu would
- * get clipped at the webview edge, so it expands INLINE under its parent. */
+/* Drill-in submenu (the narrow panel webview clips flyouts) */
 .ctx-sub-arrow {
   float: right;
   color: var(--joplin-color-faded, #888);
   font-size: 10px;
   margin-left: 12px;
-  transition: transform 0.12s;
 }
-.ctx-submenu {
-  display: none;
-  margin: 2px -14px -6px;
-  padding: 2px 0;
-  border-top: 1px solid var(--joplin-divider-color, #ddd);
-  background: rgba(127, 127, 127, 0.06);
+.ctx-back {
+  color: var(--joplin-color-faded, #888);
+  font-weight: 600;
 }
-.ctx-submenu .ctx-item { padding-left: 28px; }
-.ctx-submenu-parent:hover .ctx-submenu { display: block; }
-.ctx-submenu-parent:hover > .ctx-sub-arrow { transform: rotate(90deg); }
 
 .ctx-sep {
   height: 1px;
