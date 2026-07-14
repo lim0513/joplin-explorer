@@ -8,6 +8,10 @@ function postMsg(msg) {
   webviewApi.postMessage(msg);
 }
 
+// Announce (re)creation so the backend re-renders from its state records -
+// a recreated webview otherwise replays the stale last-sent html.
+postMsg({ name: 'panelReady' });
+
 function currentSortMode() {
   var root = document.getElementById('notes-in-list-root');
   return root ? (root.dataset.sort || '') : '';

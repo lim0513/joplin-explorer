@@ -752,7 +752,8 @@ joplin.plugins.register({
           if (showToggleArrows) pinnedHtml += '<span class="toggle">' + pinnedArrow + '</span>';
           pinnedHtml += renderIconHtml(openPinnedIcon, 'icon-when-open')
             + renderIconHtml(closedPinnedIcon, 'icon-when-collapsed')
-            + '<span class="label">' + t.pinned + ' (' + pinnedCount + ')</span>'
+            + '<span class="label">' + t.pinned + '</span>'
+            + '<span class="count">' + pinnedCount + '</span>'
             + '</div>';
           pinnedHtml += '<div class="pinned-section-body' + (pinnedCollapsed ? ' collapsed' : '') + '" id="pinned-body">';
           for (const p of pinnedItems) {
@@ -789,7 +790,8 @@ joplin.plugins.register({
           tagsHtml += '<div class="tags-section-header' + (tagsCollapsed ? ' collapsed' : '') + '" id="tags-header">';
           if (showToggleArrows) tagsHtml += '<span class="toggle">' + tagsArrow + '</span>';
           tagsHtml += '<span class="icon">\uD83C\uDFF7\uFE0F</span>'
-            + '<span class="label">' + t.tags + ' (' + allTagsCache.length + ')</span>'
+            + '<span class="label">' + t.tags + '</span>'
+            + '<span class="count">' + allTagsCache.length + '</span>'
             + '</div>';
           tagsHtml += '<div class="tags-section-body' + (tagsCollapsed ? ' collapsed' : '') + '" id="tags-body">';
           for (const tg of allTagsCache) {
@@ -809,21 +811,40 @@ joplin.plugins.register({
         // DESC + include_deleted) keeps the refresh cost negligible.
         let trashHtml = '';
         try {
-          const tprobe = await joplin.data.get(['notes'], {
-            fields: ['id', 'deleted_time'],
-            include_deleted: '1', order_by: 'deleted_time', order_dir: 'DESC', limit: 1,
-          });
-          let hasTrash = !!(tprobe.items && tprobe.items.length && tprobe.items[0].deleted_time > 0);
-          if (!hasTrash) {
-            const fprobe = await joplin.data.get(['folders'], { fields: ['id', 'deleted_time'], include_deleted: '1', page: 1, limit: 100 });
-            hasTrash = (fprobe.items || []).some((f: any) => f.deleted_time > 0);
+          // Bounded count: all deleted folders (folder list is small) plus
+          // the first 100 deleted notes not inside a deleted folder ("N+"
+          // when the page is still deleted at its end).
+          const delFolderIds: { [id: string]: boolean } = {};
+          let trashCount = 0;
+          let trashMore = false;
+          let tfp = 1;
+          let tfMore = true;
+          while (tfMore) {
+            const tfr = await joplin.data.get(['folders'], { fields: ['id', 'deleted_time'], include_deleted: '1', page: tfp, limit: 100 });
+            for (const tf of (tfr.items || [])) {
+              if (tf.deleted_time > 0) { delFolderIds[tf.id] = true; trashCount++; }
+            }
+            tfMore = tfr.has_more;
+            tfp++;
           }
-          if (hasTrash) {
+          const tnp = await joplin.data.get(['notes'], {
+            fields: ['id', 'parent_id', 'deleted_time'],
+            include_deleted: '1', order_by: 'deleted_time', order_dir: 'DESC', limit: 100,
+          });
+          const tnItems = tnp.items || [];
+          for (const tn of tnItems) {
+            if (!tn.deleted_time) break;
+            if (delFolderIds[tn.parent_id]) continue;
+            trashCount++;
+          }
+          if (tnItems.length === 100 && tnItems[99].deleted_time > 0) trashMore = true;
+          if (trashCount > 0 || trashMore) {
             const trashArrow = trashCollapsed ? '\u25B6' : '\u25BC';
             trashHtml += '<div class="trash-section-header' + (trashCollapsed ? ' collapsed' : '') + '" id="trash-header">';
             if (showToggleArrows) trashHtml += '<span class="toggle">' + trashArrow + '</span>';
             trashHtml += '<span class="icon">\uD83D\uDDD1\uFE0F</span>'
               + '<span class="label">' + t.trash + '</span>'
+              + '<span class="count">' + trashCount + (trashMore ? '+' : '') + '</span>'
               + '</div>';
             trashHtml += '<div class="trash-children' + (trashCollapsed ? ' collapsed' : '') + '" id="trash-children"></div>';
           }
@@ -1568,6 +1589,11 @@ joplin.plugins.register({
           for (const cid of msg.collapsedIds) collapsedFolders[String(cid)] = true;
         }
         saveUiState();
+      } else if (msg.name === 'panelReady') {
+        // The webview was (re)created - e.g. after a settings roundtrip -
+        // from the last SENT html, which misses DOM-local toggles recorded
+        // since. Re-render from the records; identical html is de-duped.
+        await refreshPanel();
       } else if (msg.name === 'refreshView') {
         await refreshPanel();
       } else if (msg.name === 'newNotebook') {
