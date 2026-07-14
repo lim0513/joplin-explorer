@@ -376,9 +376,9 @@ document.addEventListener('click', function(e) {
       var nbRect = newBtn.getBoundingClientRect();
       document.body.insertAdjacentHTML('beforeend',
         '<div id="ctx-menu" class="context-menu" style="left:' + nbRect.left + 'px;top:' + (nbRect.bottom + 2) + 'px;">'
-        + '<div class="ctx-item" data-msg="newNotebook">\uD83D\uDCC1 ' + T('newNotebook') + '</div>'
-        + '<div class="ctx-item" data-msg="newNote">\uD83D\uDCDD ' + T('newNote') + '</div>'
-        + '<div class="ctx-item" data-msg="newTodo">\u2610 ' + T('newTodo') + '</div>'
+        + '<div class="ctx-item" data-msg="newNotebook"><span class="ctx-icon">\uD83D\uDCC1</span>' + T('newNotebook') + '</div>'
+        + '<div class="ctx-item" data-msg="newNote"><span class="ctx-icon">\uD83D\uDCDD</span>' + T('newNote') + '</div>'
+        + '<div class="ctx-item" data-msg="newTodo"><span class="ctx-icon">\u2610</span>' + T('newTodo') + '</div>'
         + '</div>');
       break;
     }

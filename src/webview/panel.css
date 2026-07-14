@@ -258,6 +258,14 @@ html, body {
   color: var(--joplin-color);
 }
 
+/* Fixed-width icon slot so emoji of different widths don't skew the labels */
+.ctx-icon {
+  display: inline-block;
+  width: 20px;
+  text-align: center;
+  margin-right: 5px;
+}
+
 .ctx-item:hover {
   background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.1));
 }
