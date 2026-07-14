@@ -47,7 +47,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 ---
 
-## 🚀 v1.6 — Planned
+## 🚀 v1.5.1 — Planned
 
 - [ ] **Hover preview** — note summary on hover, configurable length
 - [ ] **Smart folders** — recently updated / uncompleted to-dos / rule-based
