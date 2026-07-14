@@ -356,6 +356,14 @@ joplin.plugins.register({
           public: false,
           label: 'Note Sort Mode',
         },
+        'showTagsSection': {
+          section: 'joplinExplorer',
+          type: 3, // SettingItemType.Bool = 3
+          value: true,
+          public: true,
+          label: 'Show tags section',
+          description: 'Show Joplin tags as folders below the notebook tree.',
+        },
         'showFolderToggles': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -612,7 +620,8 @@ joplin.plugins.register({
 
         // Tags section data: every tag, sorted by title. Notes load lazily
         // on first expand, so this is one cheap paginated query.
-        try {
+        const showTagsSection = (await joplin.settings.value('showTagsSection')) !== false;
+        if (!showTagsSection) { allTagsCache = []; } else try {
           let tags: any[] = [];
           let tPage = 1;
           let tMore = true;
@@ -782,7 +791,8 @@ joplin.plugins.register({
 
     await joplin.settings.onChange(async (event: any) => {
       if (event.keys && (
-        event.keys.indexOf('showFolderToggles') >= 0
+        event.keys.indexOf('showTagsSection') >= 0
+        || event.keys.indexOf('showFolderToggles') >= 0
         || event.keys.indexOf('openFolderIcon') >= 0
         || event.keys.indexOf('closedFolderIcon') >= 0
         || event.keys.indexOf('openPinnedIcon') >= 0
