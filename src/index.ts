@@ -1713,7 +1713,7 @@ joplin.plugins.register({
         try {
           if ((await joplin.settings.value('hoverPreview')) === false) return;
           const maxLen = Number((await joplin.settings.value('hoverPreviewLength'))) || 200;
-          const pv = await joplin.data.get(['notes', msg.id], { fields: ['id', 'title', 'body', 'user_updated_time'], include_deleted: '1' });
+          const pv = await joplin.data.get(['notes', msg.id], { fields: ['id', 'title', 'body', 'is_todo', 'user_created_time', 'user_updated_time'], include_deleted: '1' });
           if (!pv) return;
           // Crude markdown strip - enough for a plain-text snippet.
           const snippet = String(pv.body || '')
@@ -1727,7 +1727,11 @@ joplin.plugins.register({
             .slice(0, maxLen);
           await joplin.views.panels.postMessage(panel, {
             name: 'notePreview', id: msg.id, title: pv.title || '(untitled)',
-            updated: pv.user_updated_time || 0, snippet,
+            created: pv.user_created_time || 0,
+            updated: pv.user_updated_time || 0,
+            isTodo: !!pv.is_todo,
+            size: String(pv.body || '').length,
+            snippet,
           });
         } catch (_) { /* note gone - no preview */ }
       } else if (msg.name === 'refreshView') {

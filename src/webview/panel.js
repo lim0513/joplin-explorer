@@ -261,21 +261,34 @@ function showPreview(m) {
   if (!row || !row.matches(':hover')) return;
   var old = document.getElementById('note-preview');
   if (old) old.remove();
-  var d = m.updated ? new Date(m.updated) : null;
-  var when = d ? (d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2)) : '';
+  function fmtTime(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2)
+      + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
   var pv = document.createElement('div');
   pv.id = 'note-preview';
   var titleEl = document.createElement('div');
   titleEl.className = 'note-preview-title';
   titleEl.textContent = m.title;
+  pv.appendChild(titleEl);
   var metaEl = document.createElement('div');
   metaEl.className = 'note-preview-meta';
-  metaEl.textContent = when;
+  var lines = [
+    T('pvType') + ': ' + (m.isTodo ? T('pvTodo') : T('pvNote')) + ' \u00B7 ' + T('pvSize') + ': ' + (m.size || 0) + ' ' + T('pvChars'),
+    T('pvCreated') + ': ' + fmtTime(m.created),
+    T('pvUpdated') + ': ' + fmtTime(m.updated),
+  ];
+  for (var li = 0; li < lines.length; li++) {
+    var lineEl = document.createElement('div');
+    lineEl.textContent = lines[li];
+    metaEl.appendChild(lineEl);
+  }
+  pv.appendChild(metaEl);
   var bodyEl = document.createElement('div');
   bodyEl.className = 'note-preview-body';
   bodyEl.textContent = m.snippet || '';
-  pv.appendChild(titleEl);
-  if (when) pv.appendChild(metaEl);
   if (m.snippet) pv.appendChild(bodyEl);
   document.body.appendChild(pv);
   var rect = row.getBoundingClientRect();
@@ -285,6 +298,14 @@ function showPreview(m) {
   pv.style.top = top + 'px';
   pv.style.left = Math.max(8, Math.min(rect.left + 20, window.innerWidth - pvRect.width - 8)) + 'px';
 }
+
+// Close popups when focus leaves the panel (clicks in the editor or any
+// other part of the app never bubble into this webview).
+window.addEventListener('blur', function() {
+  var openMenu = document.getElementById('ctx-menu');
+  if (openMenu) openMenu.remove();
+  hidePreview();
+});
 
 // ---- Single click dispatcher ----
 // One listener instead of five separate document-level click handlers whose
