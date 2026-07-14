@@ -751,9 +751,7 @@ joplin.plugins.register({
         const expandAllMode = String((await joplin.settings.value('expandAllMode')) || 'restore');
         const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
-          + '    <button id="btn-new-notebook" title="' + t.newNotebook + '">\uD83D\uDCC1+</button>'
-          + '    <button id="btn-new-note" title="' + t.newNote + '">\uD83D\uDCDD+</button>'
-          + '    <button id="btn-new-todo" title="' + t.newTodo + '">\u2610+</button>'
+          + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
           + '    <button id="btn-collapse-all" data-mode="' + (allFoldersCollapsed ? 'expand' : 'collapse') + '" title="' + (allFoldersCollapsed ? t.expandAll : t.collapseAll) + '">' + (allFoldersCollapsed ? '\u25BC' : '\u25B2') + '</button>'
           + '    <button id="btn-refresh" title="' + t.refresh + '">\u21BB</button>'

@@ -225,6 +225,13 @@ document.addEventListener('click', function(e) {
   // 1. Context menu item: act, close menu, done.
   var ctxItem = e.target.closest('.ctx-item');
   if (ctxItem) {
+    // Toolbar dropdown entries post their message name directly.
+    if (ctxItem.dataset.msg) {
+      postMsg({ name: ctxItem.dataset.msg });
+      var tmenu = document.getElementById('ctx-menu');
+      if (tmenu) tmenu.remove();
+      return;
+    }
     // Drill-in submenu: swap the menu content to the format list; the back
     // row restores the stashed main menu. Neither closes the menu.
     if (ctxItem.classList.contains('ctx-drill')) {
@@ -361,9 +368,20 @@ document.addEventListener('click', function(e) {
   var btn = e.target.closest('button');
   if (!btn) return;
   switch (btn.id) {
-    case 'btn-new-notebook': postMsg({ name: 'newNotebook' }); break;
-    case 'btn-new-note': postMsg({ name: 'newNote' }); break;
-    case 'btn-new-todo': postMsg({ name: 'newTodo' }); break;
+    case 'btn-new': {
+      var oldMenu = document.getElementById('ctx-menu');
+      if (oldMenu) { oldMenu.remove(); break; }
+      var newBtn = document.getElementById('btn-new');
+      if (!newBtn) break;
+      var nbRect = newBtn.getBoundingClientRect();
+      document.body.insertAdjacentHTML('beforeend',
+        '<div id="ctx-menu" class="context-menu" style="left:' + nbRect.left + 'px;top:' + (nbRect.bottom + 2) + 'px;">'
+        + '<div class="ctx-item" data-msg="newNotebook">\uD83D\uDCC1 ' + T('newNotebook') + '</div>'
+        + '<div class="ctx-item" data-msg="newNote">\uD83D\uDCDD ' + T('newNote') + '</div>'
+        + '<div class="ctx-item" data-msg="newTodo">\u2610 ' + T('newTodo') + '</div>'
+        + '</div>');
+      break;
+    }
     case 'btn-sort': postMsg({ name: 'cycleSort' }); break;
     case 'btn-collapse-all': {
       var caBtn = document.getElementById('btn-collapse-all');
