@@ -349,6 +349,9 @@ document.addEventListener('contextmenu', function(e) {
       menuHtml += '<div class="ctx-item" data-action="toggleTodo" data-id="' + id + '" data-type="note">' + T('ctxToggleTodo') + '</div>';
     }
     menuHtml += '<div class="ctx-sep"></div>';
+    menuHtml += '<div class="ctx-item" data-action="publishNote" data-id="' + id + '" data-type="note">' + T('ctxPublishNote') + '</div>';
+    menuHtml += '<div class="ctx-item" data-action="exportPdf" data-id="' + id + '" data-type="note">' + T('ctxExportPdf') + '</div>';
+    menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameNote" data-id="' + id + '" data-type="note" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="noteInfo" data-id="' + id + '" data-type="note">' + T('ctxNoteInfo') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';

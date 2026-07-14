@@ -1050,6 +1050,12 @@ joplin.plugins.register({
                 }
                 break;
               }
+              case 'publishNote':
+                try { await joplin.commands.execute('showShareNoteDialog', [id]); } catch (e) {}
+                break;
+              case 'exportPdf':
+                try { await joplin.commands.execute('exportPdf', [id]); } catch (e) {}
+                break;
               case 'renameNote': {
                 const noteData = await joplin.data.get(['notes', id], { fields: ['title'] });
                 const newNoteName = await showNativeInput(t.promptRename, noteData.title);
