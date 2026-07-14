@@ -380,6 +380,17 @@ html, body {
   background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
 }
 .tags-section-body.collapsed { display: none; }
+/* Smart folders sit right under the pinned body, whose border-bottom
+ * already draws the divider - a border-top here doubled the line. The
+ * section closes with its own bottom divider before the tree instead. */
+.smart-section-header {
+  border-top: none;
+  margin-top: 1px;
+}
+.smart-section-body {
+  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
+  margin-bottom: 2px;
+}
 .smart-section-body.collapsed { display: none; }
 .smart-children.collapsed { display: none; }
 .trash-children.collapsed { display: none; }

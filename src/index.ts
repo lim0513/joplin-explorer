@@ -403,6 +403,16 @@ joplin.plugins.register({
           label: 'Custom smart folders',
           description: 'Name:query pairs separated by ";", using Joplin search syntax. Example: Work:notebook:Work updated:day-30;Starred:tag:star',
         },
+        'smartFolderLimit': {
+          section: 'joplinExplorer',
+          type: 1, // SettingItemType.Int = 1
+          value: 5,
+          minimum: 1,
+          maximum: 50,
+          public: true,
+          label: 'Smart folder result limit',
+          description: 'Maximum notes shown per smart folder (newest first). Default: 5.',
+        },
         'hoverPreview': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -1870,22 +1880,27 @@ joplin.plugins.register({
         saveUiState();
       } else if (msg.name === 'smartFolderNotes') {
         try {
+          // The search API has no order_by: gather a batch, sort newest
+          // first, then apply the configured limit.
+          const smartLimit = Math.max(1, Number((await joplin.settings.value('smartFolderLimit'))) || 5);
           let sNotes: any[] = [];
           let sp = 1;
           let sMore = true;
-          while (sMore && sNotes.length < 50) {
+          while (sMore && sNotes.length < 100) {
             const sr = await joplin.data.get(['search'], {
               query: String(msg.query || ''),
-              fields: ['id', 'title', 'is_todo', 'todo_completed'],
+              fields: ['id', 'title', 'is_todo', 'todo_completed', 'user_updated_time'],
               page: sp, limit: 50,
             });
             sNotes = sNotes.concat((sr.items || []).map((n: any) => ({
               id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed,
+              user_updated_time: n.user_updated_time || 0,
             })));
             sMore = sr.has_more;
             sp++;
           }
-          await joplin.views.panels.postMessage(panel, { name: 'smartFolderNotes', smartId: msg.smartId, notes: sNotes.slice(0, 50) });
+          sNotes.sort((a, b) => (b.user_updated_time || 0) - (a.user_updated_time || 0));
+          await joplin.views.panels.postMessage(panel, { name: 'smartFolderNotes', smartId: msg.smartId, notes: sNotes.slice(0, smartLimit) });
         } catch (err) {
           console.error('Joplin Explorer: smartFolderNotes error', err);
         }
