@@ -485,10 +485,6 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="exportFolder" data-id="' + id + '" data-type="folder">' + T('ctxExportFolder') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteFolder" data-id="' + id + '" data-type="folder">' + T('ctxDeleteFolder') + '</div>';
-  } else if (type === 'note' && item.dataset.trash === '1') {
-    menuHtml += '<div class="ctx-item" data-action="restoreNote" data-id="' + id + '" data-type="trashNote">' + T('ctxRestoreNote') + '</div>';
-    menuHtml += '<div class="ctx-sep"></div>';
-    menuHtml += '<div class="ctx-item ctx-danger" data-action="permanentDeleteNote" data-id="' + id + '" data-type="trashNote">' + T('ctxPermanentDelete') + '</div>';
   } else if (type === 'note') {
     var isNotePinned = isPinned(id);
     menuHtml += '<div class="ctx-item" data-action="' + (isNotePinned ? 'unpinNote' : 'pinNote') + '" data-id="' + id + '" data-type="note">' + (isNotePinned ? T('ctxUnpin') : T('ctxPin')) + '</div>';
