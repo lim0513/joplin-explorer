@@ -325,39 +325,59 @@ html, body {
   word-break: break-word;
 }
 
-/* Pinned section */
-.pinned-section-header {
+/* ---- unified section chrome ----
+ * One soft line ABOVE each section header plus breathing room; bodies draw
+ * no borders at all, so no state combination can double up lines. */
+.pinned-section-header,
+.smart-section-header,
+.trash-section-header,
+.tags-section-header {
   display: flex;
   align-items: center;
-  padding: 3px 8px;
+  padding: 8px 8px 3px;
   gap: 5px;
-  margin: 1px 4px;
+  margin: 6px 4px 1px;
   min-height: 24px;
-  border-radius: 3px;
+  border-top: 1px solid rgba(127, 127, 127, 0.22);
+  border-radius: 0 0 3px 3px;
   cursor: pointer;
   user-select: none;
   color: var(--joplin-color-faded, #888);
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.4px;
 }
-
-.pinned-section-header:hover {
+.pinned-section-header .icon,
+.smart-section-header .icon,
+.trash-section-header .icon,
+.tags-section-header .icon {
+  font-size: 12px;
+  opacity: 0.85;
+}
+.pinned-section-header:hover,
+.smart-section-header:hover,
+.trash-section-header:hover,
+.tags-section-header:hover {
   background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
 }
+/* The notebook tree has no header row - its wrapper draws the same
+ * section-opening line as the headers do. */
+#main-tree {
+  border-top: 1px solid rgba(127, 127, 127, 0.22);
+  margin: 6px 4px 1px;
+  padding-top: 4px;
+}
 
-.pinned-section-body {
-  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
-  margin-bottom: 2px;
+/* Whichever section comes first sits right under the search bar's own
+ * border - no extra line there. */
+#tree-container > div:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 4px;
 }
 
 .pinned-section-body.collapsed {
   display: none;
-}
-
-/* Same divider logic as the smart section: when the body is hidden, the
- * header draws the closing line. */
-.pinned-section-header.collapsed {
-  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
-  margin-bottom: 2px;
 }
 
 .pinned-item {
@@ -365,45 +385,11 @@ html, body {
 }
 
 /* ---- tags section (tags as folders) ---- */
-.smart-section-header,
-.trash-section-header,
-.tags-section-header {
-  display: flex;
-  align-items: center;
-  padding: 3px 8px;
-  gap: 5px;
-  margin: 6px 4px 1px;
-  min-height: 24px;
-  border-radius: 3px;
-  border-top: 1px solid var(--joplin-divider-color, #ddd);
-  cursor: pointer;
-  user-select: none;
-  color: var(--joplin-color-faded, #888);
-  font-weight: 700;
-}
-.smart-section-header:hover,
-.trash-section-header:hover,
-.tags-section-header:hover {
-  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
-}
 .tags-section-body.collapsed { display: none; }
 /* Smart folders sit right under the pinned body, whose border-bottom
  * already draws the divider - a border-top here doubled the line. The
  * section closes with its own bottom divider before the tree instead. */
-.smart-section-header {
-  border-top: none;
-  margin-top: 1px;
-}
-.smart-section-body {
-  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
-  margin-bottom: 2px;
-}
 .smart-section-body.collapsed { display: none; }
-/* Collapsed: the hidden body can't draw the divider - the header does. */
-.smart-section-header.collapsed {
-  border-bottom: 1px solid var(--joplin-divider-color, #ddd);
-  margin-bottom: 2px;
-}
 /* Empty smart folder: keeps its folder shape (arrow included) but dimmed,
  * and clicking it does nothing (no children container exists). */
 .smart-folder.smart-empty { opacity: 0.45; }

@@ -963,7 +963,7 @@ joplin.plugins.register({
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
-          + '  <div id="tree-container">' + pinnedHtml + smartHtml + treeHtml + tagsHtml + trashHtml
+          + '  <div id="tree-container">' + pinnedHtml + smartHtml + '<div id="main-tree">' + treeHtml + '</div>' + tagsHtml + trashHtml
           + '    <div id="drop-zone-empty" class="drop-zone-empty">+ ' + t.dropCreateNotebook + '</div>'
           + '  </div>'
           + '  <div id="search-results" style="display:none;"></div>'
