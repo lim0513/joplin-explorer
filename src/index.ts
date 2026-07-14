@@ -1086,19 +1086,19 @@ joplin.plugins.register({
     // (native restoreItems handles descendants). Deleted notes sort first
     // under order_by deleted_time DESC, so only the deleted prefix is paged.
     async function fetchTrashItems(): Promise<{ folders: any[], notes: any[] }> {
-      const folders: any[] = [];
+      const rawFolders: any[] = [];
       const deletedFolderIds: { [id: string]: boolean } = {};
       try {
         let fp = 1;
         let fMore = true;
         while (fMore) {
           const fr = await joplin.data.get(['folders'], {
-            fields: ['id', 'title', 'deleted_time'],
+            fields: ['id', 'title', 'parent_id', 'deleted_time'],
             include_deleted: '1', page: fp, limit: 100,
           });
           for (const f of (fr.items || [])) {
             if (f.deleted_time > 0) {
-              folders.push({ id: f.id, title: f.title || '(untitled)' });
+              rawFolders.push({ id: f.id, title: f.title || '(untitled)', parent_id: f.parent_id });
               deletedFolderIds[f.id] = true;
             }
           }
@@ -1106,6 +1106,23 @@ joplin.plugins.register({
           fp++;
         }
       } catch (_) { /* keep notes-only */ }
+      // DFS order with depth: deleted sub-notebooks nest under their deleted
+      // parents; folders whose parent is alive are trash roots.
+      const folders: any[] = [];
+      const byParent: { [id: string]: any[] } = {};
+      const trashRoots: any[] = [];
+      for (const f of rawFolders) {
+        if (f.parent_id && deletedFolderIds[f.parent_id]) {
+          (byParent[f.parent_id] = byParent[f.parent_id] || []).push(f);
+        } else {
+          trashRoots.push(f);
+        }
+      }
+      const visitTrashFolder = (f: any, depth: number) => {
+        folders.push({ id: f.id, title: f.title, depth });
+        for (const c of (byParent[f.id] || [])) visitTrashFolder(c, depth + 1);
+      };
+      for (const r of trashRoots) visitTrashFolder(r, 0);
       const notes: any[] = [];
       let p = 1;
       let more = true;
@@ -1670,6 +1687,26 @@ joplin.plugins.register({
         // State bookkeeping only - the webview toggled the DOM locally.
         trashCollapsed = !trashCollapsed;
         saveUiState();
+      } else if (msg.name === 'trashFolderNotes') {
+        try {
+          let tfNotes: any[] = [];
+          let tfp = 1;
+          let tfMore = true;
+          while (tfMore && tfNotes.length < 200) {
+            const tfr = await joplin.data.get(['folders', msg.folderId, 'notes'], {
+              fields: ['id', 'title', 'is_todo', 'todo_completed'],
+              include_deleted: '1', page: tfp, limit: 50,
+            });
+            tfNotes = tfNotes.concat((tfr.items || []).map((n: any) => ({
+              id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed,
+            })));
+            tfMore = tfr.has_more;
+            tfp++;
+          }
+          await joplin.views.panels.postMessage(panel, { name: 'trashFolderNotes', folderId: msg.folderId, notes: tfNotes });
+        } catch (err) {
+          console.error('Joplin Explorer: trashFolderNotes error', err);
+        }
       } else if (msg.name === 'trashNotes') {
         try {
           const ti = await fetchTrashItems();

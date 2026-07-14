@@ -360,7 +360,22 @@ document.addEventListener('click', function(e) {
   // 7. Tree item: open note / toggle folder.
   var item = e.target.closest('.tree-item');
   if (item) {
-    if (item.dataset.trash === '1') return; // trash rows act via context menu
+    if (item.dataset.trash === '1') {
+      // Deleted notebooks expand to show their notes; everything else in
+      // the trash acts only via the context menu.
+      if (item.dataset.type === 'folder') {
+        var tfKids = document.querySelector('.trash-folder-children[data-folder-id="' + item.dataset.id + '"]');
+        if (tfKids) {
+          var tfCollapsed = tfKids.classList.toggle('collapsed');
+          var tfArrow = item.querySelector('.toggle');
+          if (tfArrow) tfArrow.textContent = tfCollapsed ? '\u25B6' : '\u25BC';
+          if (!tfCollapsed && !tfKids.dataset.loaded) {
+            postMsg({ name: 'trashFolderNotes', folderId: item.dataset.id });
+          }
+        }
+      }
+      return;
+    }
     var type = item.dataset.type;
     var id = item.dataset.id;
     var isPinnedItem = item.classList.contains('pinned-item');
@@ -625,22 +640,45 @@ webviewApi.onMessage(function(msg) {
       var trHtml = '';
       var trFolders = m.folders || [];
       for (var tfi = 0; tfi < trFolders.length; tfi++) {
-        trHtml += '<div class="tree-item folder trash-note" data-id="' + trFolders[tfi].id + '" data-type="folder" data-trash="1">'
+        var trF = trFolders[tfi];
+        var trDepth = trF.depth || 0;
+        var trPad = 34 + trDepth * 16;
+        trHtml += '<div class="tree-item folder trash-note" style="padding-left:' + trPad + 'px" data-id="' + trF.id + '" data-type="folder" data-trash="1" data-depth="' + trDepth + '">'
+          + '<span class="toggle">\u25B6</span>'
           + '<span class="icon">\uD83D\uDCC1</span>'
-          + '<span class="label">' + escapeHtml(trFolders[tfi].title) + '</span>'
+          + '<span class="label">' + escapeHtml(trF.title) + '</span>'
           + '</div>';
+        trHtml += '<div class="trash-folder-children collapsed" data-folder-id="' + trF.id + '" data-depth="' + trDepth + '"></div>';
       }
       var trNotes = m.notes || [];
       for (var tri = 0; tri < trNotes.length; tri++) {
         var trNote = trNotes[tri];
         var trIcon = trNote.is_todo ? (trNote.todo_completed ? '\u2611' : '\u2610') : '\uD83D\uDCDD';
-        trHtml += '<div class="tree-item note trash-note" data-id="' + trNote.id + '" data-type="note" data-trash="1">'
+        trHtml += '<div class="tree-item note trash-note" style="padding-left:34px" data-id="' + trNote.id + '" data-type="note" data-trash="1">'
           + '<span class="icon note-icon">' + trIcon + '</span>'
           + '<span class="label">' + escapeHtml(trNote.title) + '</span>'
           + '</div>';
       }
       if (!trHtml) trHtml = '<div class="tag-empty">\u2014</div>';
       trashEl.innerHTML = trHtml;
+    }
+  } else if (m.name === 'trashFolderNotes') {
+    var tfcEl = document.querySelector('.trash-folder-children[data-folder-id="' + m.folderId + '"]');
+    if (tfcEl) {
+      tfcEl.dataset.loaded = '1';
+      var tfcDepth = parseInt(tfcEl.dataset.depth || '0', 10);
+      var tfcPad = 34 + (tfcDepth + 1) * 16;
+      var tfcHtml = '';
+      for (var tfni = 0; tfni < m.notes.length; tfni++) {
+        var tfNote = m.notes[tfni];
+        var tfIcon = tfNote.is_todo ? (tfNote.todo_completed ? '\u2611' : '\u2610') : '\uD83D\uDCDD';
+        tfcHtml += '<div class="tree-item note trash-note" style="padding-left:' + tfcPad + 'px" data-id="' + tfNote.id + '" data-type="note" data-trash="1">'
+          + '<span class="icon note-icon">' + tfIcon + '</span>'
+          + '<span class="label">' + escapeHtml(tfNote.title) + '</span>'
+          + '</div>';
+      }
+      if (!m.notes.length) tfcHtml = '<div class="tag-empty" style="padding-left:' + tfcPad + 'px">\u2014</div>';
+      tfcEl.innerHTML = tfcHtml;
     }
   } else if (m.name === 'tagNotes') {
     // Expand tag inline with its notes

@@ -350,7 +350,8 @@ html, body {
 }
 .tags-section-body.collapsed { display: none; }
 .trash-children.collapsed { display: none; }
-.trash-children .tree-item { padding-left: 44px !important; }
+/* Rows carry inline padding (depth-based); containers only need hide/show */
+.trash-folder-children.collapsed { display: none; }
 .trash-note .label { opacity: 0.75; }
 .tag-folder { padding-left: 26px !important; }
 .tag-children { }
