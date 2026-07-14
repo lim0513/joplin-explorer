@@ -356,6 +356,13 @@ joplin.plugins.register({
           public: false,
           label: 'Note Sort Mode',
         },
+        'uiState': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '{}',
+          public: false,
+          label: 'UI State (JSON)',
+        },
         'showTagsSection': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -500,6 +507,32 @@ joplin.plugins.register({
     // throws "no such column: order"). Map is folderId -> order (higher = top).
     let folderOrder: { [id: string]: number } = {};
     let isFirstLoad = true;
+    // Collapse states used to reset on every app start - restore them.
+    let uiStateLoaded = false;
+    try {
+      const uiRaw = String((await joplin.settings.value('uiState')) || '{}');
+      const ui = JSON.parse(uiRaw);
+      if (ui && typeof ui === 'object') {
+        if (ui.collapsedFolders && typeof ui.collapsedFolders === 'object' && !Array.isArray(ui.collapsedFolders)) {
+          collapsedFolders = ui.collapsedFolders;
+          uiStateLoaded = true;
+        }
+        if (typeof ui.tagsCollapsed === 'boolean') tagsCollapsed = ui.tagsCollapsed;
+        if (typeof ui.pinnedCollapsed === 'boolean') pinnedCollapsed = ui.pinnedCollapsed;
+      }
+    } catch (_) { /* defaults */ }
+    let uiStateTimer: any = null;
+    function saveUiState(): void {
+      if (uiStateTimer) clearTimeout(uiStateTimer);
+      uiStateTimer = setTimeout(async () => {
+        uiStateTimer = null;
+        try {
+          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed }));
+        } catch (err) {
+          console.error('Joplin Explorer: failed to save UI state', err);
+        }
+      }, 500);
+    }
     const pluginDataDir = await joplin.plugins.dataDir();
     let refreshTimer: any = null;
 
@@ -597,7 +630,9 @@ joplin.plugins.register({
         for (const f of folders) folderById[f.id] = f;
 
         if (isFirstLoad) {
-          for (const f of folders) collapsedFolders[f.id] = true;
+          if (!uiStateLoaded) {
+            for (const f of folders) collapsedFolders[f.id] = true;
+          }
           const currentNote = await joplin.workspace.selectedNote();
           if (currentNote) {
             selectedNoteId = currentNote.id;
@@ -1375,6 +1410,7 @@ joplin.plugins.register({
         // the scroll position for a simple collapse click.
         if (collapsedFolders[msg.id]) { delete collapsedFolders[msg.id]; }
         else { collapsedFolders[msg.id] = true; }
+        saveUiState();
       } else if (msg.name === 'collapseAll') {
         // The webview already collapsed every folder in the DOM locally.
         // We must NOT refreshPanel here: Joplin's setHtml de-dupes identical
@@ -1384,6 +1420,7 @@ joplin.plugins.register({
         // only record state for the next real refresh (mirrors toggleFolder).
         for (const f of allFoldersCache) collapsedFolders[f.id] = true;
         if (Array.isArray(msg.prevCollapsed)) collapseSnapshot = msg.prevCollapsed.map(String);
+        saveUiState();
       } else if (msg.name === 'expandAll') {
         // Record-only, like collapseAll. Skeleton expand: the webview keeps
         // leaf folders collapsed and reports them back.
@@ -1391,6 +1428,7 @@ joplin.plugins.register({
         if (Array.isArray(msg.collapsedIds)) {
           for (const cid of msg.collapsedIds) collapsedFolders[String(cid)] = true;
         }
+        saveUiState();
       } else if (msg.name === 'refreshView') {
         await refreshPanel();
       } else if (msg.name === 'newNotebook') {
@@ -1445,6 +1483,7 @@ joplin.plugins.register({
       } else if (msg.name === 'toggleTagsSection') {
         // State bookkeeping only - the webview toggled the DOM locally.
         tagsCollapsed = !tagsCollapsed;
+        saveUiState();
       } else if (msg.name === 'tagFolderNotes') {
         try {
           const notes = await fetchTagNotes(msg.tagId);
@@ -1508,6 +1547,7 @@ joplin.plugins.register({
       } else if (msg.name === 'togglePinnedCollapse') {
         // State bookkeeping only - the webview toggled the DOM locally.
         pinnedCollapsed = !pinnedCollapsed;
+        saveUiState();
       } else if (msg.name === 'cycleSort') {
         const sortModes = ['updated_desc', 'updated_asc', 'title_asc', 'title_desc', 'manual'];
         const idx = sortModes.indexOf(currentSort);
