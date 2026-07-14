@@ -387,14 +387,6 @@ joplin.plugins.register({
           label: 'Restore last view state on startup',
           description: 'Remember collapsed/expanded folders and sections between sessions. When off, the tree starts fully collapsed.',
         },
-        'tagsDefaultExpanded': {
-          section: 'joplinExplorer',
-          type: 3, // SettingItemType.Bool = 3
-          value: false,
-          public: true,
-          label: 'Tags section expanded by default',
-          description: 'Only used when the last view state is not restored: start with the tags section expanded.',
-        },
         'expandAllMode': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
@@ -535,8 +527,9 @@ joplin.plugins.register({
     // Collapse states used to reset on every app start - restore them,
     // unless the user prefers a fully collapsed start.
     let uiStateLoaded = false;
-    // Non-restored default: tags section collapsed unless opted in.
-    tagsCollapsed = (await joplin.settings.value('tagsDefaultExpanded')) !== true;
+    // Non-restored default: tags section starts collapsed. (Visibility of
+    // the section is a separate concern - the showTagsSection setting.)
+    tagsCollapsed = true;
     if ((await joplin.settings.value('restoreUiState')) !== false) {
       try {
         const uiRaw = String((await joplin.settings.value('uiState')) || '{}');
