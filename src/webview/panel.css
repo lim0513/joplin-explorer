@@ -329,6 +329,7 @@ html, body {
 }
 
 /* ---- tags section (tags as folders) ---- */
+.trash-section-header,
 .tags-section-header {
   display: flex;
   align-items: center;
@@ -343,10 +344,14 @@ html, body {
   color: var(--joplin-color-faded, #888);
   font-weight: 700;
 }
+.trash-section-header:hover,
 .tags-section-header:hover {
   background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
 }
 .tags-section-body.collapsed { display: none; }
+.trash-children.collapsed { display: none; }
+.trash-children .tree-item.note { padding-left: 44px !important; }
+.trash-note .label { opacity: 0.75; }
 .tag-folder { padding-left: 26px !important; }
 .tag-children { }
 .tag-children.collapsed { display: none; }

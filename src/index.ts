@@ -521,6 +521,7 @@ joplin.plugins.register({
     let pinnedItems: { id: string, type: string }[] = [];
     let pinnedCollapsed = false;
     let tagsCollapsed = false;
+    let trashCollapsed = true;
     // Folder-collapse state captured when the user hits Collapse All, so
     // Expand All (mode: restore) can bring the tree back - survives webview
     // re-renders because it lives here and rides the root dataset.
@@ -547,6 +548,7 @@ joplin.plugins.register({
           }
           if (typeof ui.tagsCollapsed === 'boolean') tagsCollapsed = ui.tagsCollapsed;
           if (typeof ui.pinnedCollapsed === 'boolean') pinnedCollapsed = ui.pinnedCollapsed;
+          if (typeof ui.trashCollapsed === 'boolean') trashCollapsed = ui.trashCollapsed;
         }
       } catch (_) { /* defaults */ }
     }
@@ -556,7 +558,7 @@ joplin.plugins.register({
       uiStateTimer = setTimeout(async () => {
         uiStateTimer = null;
         try {
-          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed }));
+          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed }));
         } catch (err) {
           console.error('Joplin Explorer: failed to save UI state', err);
         }
@@ -802,6 +804,26 @@ joplin.plugins.register({
           tagsHtml += '</div>';
         }
 
+        // Trash section: shown only when something is in the trash. One
+        // limit:1 probe (deleted notes sort first with order_by deleted_time
+        // DESC + include_deleted) keeps the refresh cost negligible.
+        let trashHtml = '';
+        try {
+          const tprobe = await joplin.data.get(['notes'], {
+            fields: ['id', 'deleted_time'],
+            include_deleted: 1, order_by: 'deleted_time', order_dir: 'DESC', limit: 1,
+          });
+          if (tprobe.items && tprobe.items.length && tprobe.items[0].deleted_time > 0) {
+            const trashArrow = trashCollapsed ? '\u25B6' : '\u25BC';
+            trashHtml += '<div class="trash-section-header' + (trashCollapsed ? ' collapsed' : '') + '" id="trash-header">';
+            if (showToggleArrows) trashHtml += '<span class="toggle">' + trashArrow + '</span>';
+            trashHtml += '<span class="icon">\uD83D\uDDD1\uFE0F</span>'
+              + '<span class="label">' + t.trash + '</span>'
+              + '</div>';
+            trashHtml += '<div class="trash-children' + (trashCollapsed ? ' collapsed' : '') + '" id="trash-children"></div>';
+          }
+        } catch (_) { /* include_deleted unsupported - no trash section */ }
+
         const pinnedJson = escapeHtml(JSON.stringify(pinnedItems));
         const allFoldersCollapsed = folders.length > 0 && folders.every((f) => collapsedFolders[f.id] === true);
         const sortLabels: { [k: string]: string } = {
@@ -823,7 +845,7 @@ joplin.plugins.register({
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
-          + '  <div id="tree-container">' + pinnedHtml + treeHtml + tagsHtml
+          + '  <div id="tree-container">' + pinnedHtml + treeHtml + tagsHtml + trashHtml
           + '    <div id="drop-zone-empty" class="drop-zone-empty">+ ' + t.dropCreateNotebook + '</div>'
           + '  </div>'
           + '  <div id="search-results" style="display:none;"></div>'
@@ -1031,6 +1053,30 @@ joplin.plugins.register({
         id: n.id, title: n.title || '(untitled)',
         is_todo: n.is_todo, todo_completed: n.todo_completed,
       }));
+    }
+
+    // Deleted notes sort first under order_by deleted_time DESC, so we can
+    // page through just the deleted prefix instead of scanning everything.
+    async function fetchTrashNotes(): Promise<any[]> {
+      const out: any[] = [];
+      let p = 1;
+      let more = true;
+      while (more && out.length < 200) {
+        const r = await joplin.data.get(['notes'], {
+          fields: ['id', 'title', 'is_todo', 'todo_completed', 'deleted_time'],
+          include_deleted: 1, order_by: 'deleted_time', order_dir: 'DESC',
+          page: p, limit: 50,
+        });
+        let hitLive = false;
+        for (const n of (r.items || [])) {
+          if (!n.deleted_time) { hitLive = true; break; }
+          out.push({ id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed });
+        }
+        if (hitLive) break;
+        more = r.has_more;
+        p++;
+      }
+      return out;
     }
 
     async function handleContextMenu(msg: any): Promise<void> {
@@ -1254,6 +1300,26 @@ joplin.plugins.register({
                 break;
               }
             }
+          } else if (itemType === 'trashNote') {
+            switch (action) {
+              case 'restoreNote':
+                try { await joplin.commands.execute('restoreNote', [id]); } catch (e) {}
+                break;
+              case 'permanentDeleteNote': {
+                const permaNote = await joplin.data.get(['notes', id], { fields: ['title'], include_deleted: 1 });
+                if (await showNativeConfirm(t.confirmDeleteNote + '\n\n' + (permaNote ? permaNote.title : ''))) {
+                  try { await joplin.data.delete(['notes', id], { permanent: '1' }); } catch (e) {
+                    try { await joplin.commands.execute('permanentlyDeleteNote', [id]); } catch (_) {}
+                  }
+                }
+                break;
+              }
+            }
+            // The trash children live only in the DOM - push the fresh list
+            // (the follow-up full refresh may be de-duped by setHtml).
+            try {
+              await joplin.views.panels.postMessage(panel, { name: 'trashNotes', notes: await fetchTrashNotes() });
+            } catch (_) {}
           }
           await refreshPanel();
         } catch (err) {
@@ -1532,6 +1598,16 @@ joplin.plugins.register({
           await joplin.views.panels.postMessage(panel, { name: 'tagFolderNotes', tagId: msg.tagId, notes });
         } catch (err) {
           console.error('Joplin Explorer: tagNoteAdd error', err);
+        }
+      } else if (msg.name === 'toggleTrashSection') {
+        // State bookkeeping only - the webview toggled the DOM locally.
+        trashCollapsed = !trashCollapsed;
+        saveUiState();
+      } else if (msg.name === 'trashNotes') {
+        try {
+          await joplin.views.panels.postMessage(panel, { name: 'trashNotes', notes: await fetchTrashNotes() });
+        } catch (err) {
+          console.error('Joplin Explorer: trashNotes error', err);
         }
       } else if (msg.name === 'locateFolder') {
         // User clicked a folder in search results -> expand to it in tree

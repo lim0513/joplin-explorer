@@ -305,6 +305,21 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  // 5b2. Trash section header -> local toggle; first expand fetches notes.
+  var trashHeader = e.target.closest('.trash-section-header');
+  if (trashHeader) {
+    var trashNowCollapsed = trashHeader.classList.toggle('collapsed');
+    var trashKids = document.getElementById('trash-children');
+    if (trashKids) trashKids.classList.toggle('collapsed', trashNowCollapsed);
+    var trashToggle = trashHeader.querySelector('.toggle');
+    if (trashToggle) trashToggle.textContent = trashNowCollapsed ? '\u25B6' : '\u25BC';
+    postMsg({ name: 'toggleTrashSection' });
+    if (!trashNowCollapsed && trashKids && !trashKids.dataset.loaded) {
+      postMsg({ name: 'trashNotes' });
+    }
+    return;
+  }
+
   // 5c. Tag folder -> expand/collapse locally; first expand fetches notes.
   var tagFolder = e.target.closest('.tag-folder');
   if (tagFolder) {
@@ -464,6 +479,10 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="exportFolder" data-id="' + id + '" data-type="folder">' + T('ctxExportFolder') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteFolder" data-id="' + id + '" data-type="folder">' + T('ctxDeleteFolder') + '</div>';
+  } else if (type === 'note' && item.dataset.trash === '1') {
+    menuHtml += '<div class="ctx-item" data-action="restoreNote" data-id="' + id + '" data-type="trashNote">' + T('ctxRestoreNote') + '</div>';
+    menuHtml += '<div class="ctx-sep"></div>';
+    menuHtml += '<div class="ctx-item ctx-danger" data-action="permanentDeleteNote" data-id="' + id + '" data-type="trashNote">' + T('ctxPermanentDelete') + '</div>';
   } else if (type === 'note') {
     var isNotePinned = isPinned(id);
     menuHtml += '<div class="ctx-item" data-action="' + (isNotePinned ? 'unpinNote' : 'pinNote') + '" data-id="' + id + '" data-type="note">' + (isNotePinned ? T('ctxUnpin') : T('ctxPin')) + '</div>';
@@ -593,6 +612,22 @@ webviewApi.onMessage(function(msg) {
       if (!m.notes.length) tagHtml = '<div class="tag-empty">\u2014</div>';
       tagKidsEl.innerHTML = tagHtml;
     }
+  } else if (m.name === 'trashNotes') {
+    var trashEl = document.getElementById('trash-children');
+    if (trashEl) {
+      trashEl.dataset.loaded = '1';
+      var trHtml = '';
+      for (var tri = 0; tri < m.notes.length; tri++) {
+        var trNote = m.notes[tri];
+        var trIcon = trNote.is_todo ? (trNote.todo_completed ? '\u2611' : '\u2610') : '\uD83D\uDCDD';
+        trHtml += '<div class="tree-item note trash-note" data-id="' + trNote.id + '" data-type="note" data-trash="1">'
+          + '<span class="icon note-icon">' + trIcon + '</span>'
+          + '<span class="label">' + escapeHtml(trNote.title) + '</span>'
+          + '</div>';
+      }
+      if (!m.notes.length) trHtml = '<div class="tag-empty">\u2014</div>';
+      trashEl.innerHTML = trHtml;
+    }
   } else if (m.name === 'tagNotes') {
     // Expand tag inline with its notes
     expandTagNotes(m.tagId, m.notes);
@@ -670,6 +705,7 @@ document.addEventListener('mousedown', function(e) {
 document.addEventListener('dragstart', function(e) {
   var item = e.target.closest('.tree-item');
   if (!item) return;
+  if (item.closest('.trash-children')) { e.preventDefault(); return; }
   var isPinned = item.classList.contains('pinned-item');
   e.dataTransfer.setData('text/plain', JSON.stringify({
     id: item.dataset.id,
@@ -804,8 +840,9 @@ document.addEventListener('dragover', function(e) {
     }
     return;
   }
-  // Anywhere else inside the tags section is not a drop target.
-  if (el.closest('.tags-section-body') || el.closest('.tags-section-header')) return;
+  // Anywhere else inside the tags or trash sections is not a drop target.
+  if (el.closest('.tags-section-body') || el.closest('.tags-section-header')
+    || el.closest('.trash-children') || el.closest('.trash-section-header')) return;
 
   // Normal tree-item not found — ignore
   if (!target) return;
@@ -922,7 +959,8 @@ document.addEventListener('drop', function(e) {
     endDrag();
     return;
   }
-  if (el0 && (el0.closest('.tags-section-body') || el0.closest('.tags-section-header'))) { endDrag(); return; }
+  if (el0 && (el0.closest('.tags-section-body') || el0.closest('.tags-section-header')
+    || el0.closest('.trash-children') || el0.closest('.trash-section-header'))) { endDrag(); return; }
 
   // Pinned items can only be reordered within pinned section
   if (isDragFromPinned) {
