@@ -33,7 +33,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 **Trash** (v1.5)
 - Collapsible Trash section: deleted notebooks nest hierarchically and expand to show their notes; deleted notes open read-only
-- Restore / delete permanently per item (cascading folder delete); empty trash from the header's context menu
+- Restore / delete permanently per item (cascading folder delete); empty trash from the header's context menu — [#7](https://github.com/lim0513/joplin-explorer/issues/7)
 
 **Auto refresh** (v1.5)
 - Changes made by other plugins or sync appear automatically (data API change-events polling, off-switch in settings) — [#6](https://github.com/lim0513/joplin-explorer/issues/6)
