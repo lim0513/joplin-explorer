@@ -44,6 +44,10 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Smart folders** (v1.5.2)
 - Recently updated and Open to-dos built-ins, plus custom rules using Joplin search syntax; result limit setting, count badges
 
+**Note-row badges** (v1.5.4)
+- Checkbox progress pie on notes containing markdown checkboxes (native-style, aligned with folder counts)
+- Link badge on published notes; click opens the publish dialog
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
