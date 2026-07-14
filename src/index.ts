@@ -881,6 +881,15 @@ joplin.plugins.register({
           + '</div>';
 
         await joplin.views.panels.setHtml(panel, html);
+        // A real re-render rebuilds the trash children EMPTY (they're lazily
+        // loaded DOM). If the section is expanded, push the content right
+        // back, or it looks like the section silently collapsed.
+        if (trashHtml && !trashCollapsed) {
+          try {
+            const tiRefresh = await fetchTrashItems();
+            await joplin.views.panels.postMessage(panel, { name: 'trashNotes', folders: tiRefresh.folders, notes: tiRefresh.notes });
+          } catch (_) {}
+        }
       } catch (err) {
         console.error('Notes In List: refresh error', err);
         await joplin.views.panels.setHtml(panel, '<div style="padding:12px;color:red;">Error: ' + escapeHtml(String(err)) + '</div>');
