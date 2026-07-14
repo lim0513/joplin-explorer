@@ -359,15 +359,22 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="openNote" data-id="' + id + '" data-type="note">' + T('ctxOpenNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="openInNewWindow" data-id="' + id + '" data-type="note">' + T('ctxOpenInNewWindow') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
-    menuHtml += '<div class="ctx-item" data-action="copyLink" data-id="' + id + '" data-type="note">' + T('ctxCopyLink') + '</div>';
-    menuHtml += '<div class="ctx-item" data-action="duplicateNote" data-id="' + id + '" data-type="note">' + T('ctxDuplicateNote') + '</div>';
+    // Native-menu order: tags, type switch, move, duplicate...
+    menuHtml += '<div class="ctx-item" data-action="setTags" data-id="' + id + '" data-type="note">' + T('ctxSetTags') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="switchNoteType" data-id="' + id + '" data-type="note">' + T('ctxSwitchNoteType') + '</div>';
     // "Toggle completed" only makes sense for to-do notes - the backend
     // ignores it for plain notes anyway, so don't offer it.
     if (item.dataset.todo === '1') {
       menuHtml += '<div class="ctx-item" data-action="toggleTodo" data-id="' + id + '" data-type="note">' + T('ctxToggleTodo') + '</div>';
     }
+    menuHtml += '<div class="ctx-item" data-action="moveToFolderDialog" data-id="' + id + '" data-type="note">' + T('ctxMoveToFolder') + '</div>';
+    menuHtml += '<div class="ctx-item" data-action="duplicateNote" data-id="' + id + '" data-type="note">' + T('ctxDuplicateNote') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
+    // ...then the copy pair...
+    menuHtml += '<div class="ctx-item" data-action="copyLink" data-id="' + id + '" data-type="note">' + T('ctxCopyLink') + '</div>';
+    menuHtml += '<div class="ctx-item" data-action="copyExternalLink" data-id="' + id + '" data-type="note">' + T('ctxCopyExternalLink') + '</div>';
+    menuHtml += '<div class="ctx-sep"></div>';
+    // ...then publish/export. Unlike the native menu, Delete stays LAST.
     menuHtml += '<div class="ctx-item" data-action="publishNote" data-id="' + id + '" data-type="note">' + T('ctxPublishNote') + '</div>';
     menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExport') + '<span class="ctx-sub-arrow">\u25B8</span></div>';
     menuHtml += '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExport') + '">'

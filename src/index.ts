@@ -1068,6 +1068,21 @@ joplin.plugins.register({
                 }
                 break;
               }
+              case 'setTags':
+                try { await joplin.commands.execute('setTags', [id]); } catch (e) {}
+                break;
+              case 'moveToFolderDialog':
+                try { await joplin.commands.execute('moveToFolder', [id]); } catch (e) {}
+                break;
+              case 'copyExternalLink': {
+                const extLink = 'joplin://x-callback-url/openNote?id=' + id;
+                try {
+                  await (joplin as any).clipboard.writeText(extLink);
+                } catch (e) {
+                  await joplin.views.panels.postMessage(panel, { name: 'copyText', text: extLink });
+                }
+                break;
+              }
               case 'renameNote': {
                 const noteData = await joplin.data.get(['notes', id], { fields: ['title'] });
                 const newNoteName = await showNativeInput(t.promptRename, noteData.title);
