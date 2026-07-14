@@ -53,7 +53,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 ## 🚀 v1.5.2 — Planned
 
-- [ ] **Smart folders** — recently updated / uncompleted to-dos / rule-based
+- [x] **Smart folders** — recently updated / uncompleted to-dos / rule-based (custom rules via Joplin search syntax)
 
 ---
 

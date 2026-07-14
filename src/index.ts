@@ -558,6 +558,11 @@ joplin.plugins.register({
     let tagsCollapsed = false;
     let trashCollapsed = true;
     let smartCollapsed = false;
+    // Folders we've rendered at least once. Unseen folders default to
+    // collapsed; when this set is missing from saved state (upgrade), the
+    // first refresh grandfathers everything without collapsing.
+    let seenFolders: { [id: string]: boolean } = {};
+    let seedSeenFolders = true;
     // Folder-collapse state captured when the user hits Collapse All, so
     // Expand All (mode: restore) can bring the tree back - survives webview
     // re-renders because it lives here and rides the root dataset.
@@ -587,6 +592,10 @@ joplin.plugins.register({
           if (typeof ui.pinnedCollapsed === 'boolean') pinnedCollapsed = ui.pinnedCollapsed;
           if (typeof ui.trashCollapsed === 'boolean') trashCollapsed = ui.trashCollapsed;
           if (typeof ui.smartCollapsed === 'boolean') smartCollapsed = ui.smartCollapsed;
+          if (ui.seenFolders && typeof ui.seenFolders === 'object' && !Array.isArray(ui.seenFolders)) {
+            seenFolders = ui.seenFolders;
+            seedSeenFolders = false;
+          }
         }
       } catch (_) { /* defaults */ }
     }
@@ -596,7 +605,7 @@ joplin.plugins.register({
       uiStateTimer = setTimeout(async () => {
         uiStateTimer = null;
         try {
-          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, smartCollapsed }));
+          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, smartCollapsed, seenFolders }));
         } catch (err) {
           console.error('Joplin Explorer: failed to save UI state', err);
         }
@@ -697,6 +706,19 @@ joplin.plugins.register({
         allFoldersCache = folders;
         folderById = {};
         for (const f of folders) folderById[f.id] = f;
+
+        // First-time-seen folders start collapsed (absence in the collapse
+        // map would otherwise mean "expanded"). Prune vanished ids too.
+        let seenChanged = false;
+        for (const f of folders) {
+          if (!seenFolders[f.id]) {
+            seenFolders[f.id] = true;
+            if (!seedSeenFolders) collapsedFolders[f.id] = true;
+            seenChanged = true;
+          }
+        }
+        if (seedSeenFolders) { seedSeenFolders = false; seenChanged = true; }
+        if (seenChanged) saveUiState();
 
         if (isFirstLoad) {
           if (!uiStateLoaded) {
@@ -916,23 +938,36 @@ joplin.plugins.register({
           smartHtml += '<div class="smart-section-body' + (smartCollapsed ? ' collapsed' : '') + '" id="smart-body">';
           for (const sd of smartDefs) {
             if (!sd.title || !sd.query) continue;
-            // limit:1 probe - empty smart folders get no expander. Built-ins
-            // probe directly; custom rules go through the search engine.
-            let sdHasResults = false;
+            // Bounded count (also the emptiness probe): built-ins count
+            // directly, custom rules through the search engine. Cap 100.
+            let sdCount = 0;
+            let sdMore = false;
             try {
               if (sd.id === 'recent') {
-                sdHasResults = (await fetchRecentNotes(1)).length > 0;
+                // No badge for 'recent' - existence probe only.
+                sdCount = (await fetchRecentNotes(1)).length;
               } else if (sd.id === 'todos') {
-                sdHasResults = (await fetchOpenTodos(1)).length > 0;
+                const t101 = await fetchOpenTodos(101);
+                sdCount = Math.min(t101.length, 100);
+                sdMore = t101.length > 100;
               } else {
-                const sprobe = await joplin.data.get(['search'], { query: sd.query, fields: ['id'], limit: 1 });
-                sdHasResults = !!(sprobe.items && sprobe.items.length);
+                let cp = 1;
+                let cMore = true;
+                while (cMore && sdCount <= 100) {
+                  const cr = await joplin.data.get(['search'], { query: sd.query, fields: ['id'], page: cp, limit: 100 });
+                  sdCount += (cr.items || []).length;
+                  cMore = cr.has_more;
+                  cp++;
+                }
+                if (sdCount > 100) { sdCount = 100; sdMore = true; }
               }
             } catch (_) {}
+            const sdHasResults = sdCount > 0;
             smartHtml += '<div class="tree-item folder smart-folder collapsed' + (sdHasResults ? '' : ' smart-empty') + '" style="padding-left:26px" data-smart-id="' + sd.id + '" data-query="' + escapeHtml(sd.query) + '" data-type="smart">'
               + '<span class="toggle">\u25B6</span>'
               + '<span class="icon">\uD83D\uDD0D</span>'
               + '<span class="label">' + escapeHtml(sd.title) + '</span>'
+              + (sdHasResults && sd.id !== 'recent' ? '<span class="count">' + sdCount + (sdMore ? '+' : '') + '</span>' : '')
               + '</div>';
             if (sdHasResults) {
               smartHtml += '<div class="smart-children collapsed" data-smart-id="' + sd.id + '"></div>';
@@ -1367,6 +1402,7 @@ joplin.plugins.register({
                 const subName = await showNativeInput(t.newNotebook, '');
                 if (subName && subName.trim()) {
                   const newFolder = await joplin.data.post(['folders'], null, { title: subName.trim(), parent_id: id });
+                  seenFolders[newFolder.id] = true; // panel-created: keep it expanded
                   delete collapsedFolders[id];
                   delete collapsedFolders[newFolder.id];
                 }
@@ -1861,6 +1897,7 @@ joplin.plugins.register({
         const folderName = await showNativeInput(t.promptNewNotebookName, '');
         if (!folderName || !folderName.trim()) return;
         const newFolder = await joplin.data.post(['folders'], null, { title: folderName.trim() });
+        seenFolders[newFolder.id] = true; // panel-created: keep it expanded
         delete collapsedFolders[newFolder.id];
         await refreshPanel();
         await joplin.views.panels.postMessage(panel, { name: 'scrollToFolder', folderId: newFolder.id });
@@ -2068,6 +2105,8 @@ joplin.plugins.register({
           const name = await showNativeInput(t.promptNewNotebookName, '');
           if (!name || !name.trim()) return;
           const newFolder = await joplin.data.post(['folders'], null, { title: name.trim() });
+          seenFolders[newFolder.id] = true; // panel-created: keep it expanded
+          delete collapsedFolders[newFolder.id];
           if (dragType === 'note') {
             await joplin.data.put(['notes', dragId], null, { parent_id: newFolder.id });
           } else if (dragType === 'folder') {

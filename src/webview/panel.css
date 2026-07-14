@@ -334,10 +334,11 @@ html, body {
 .tags-section-header {
   display: flex;
   align-items: center;
-  padding: 8px 8px 3px;
+  padding: 4px 8px;
   gap: 5px;
-  margin: 6px 4px 1px;
+  margin: 5px 4px 1px;
   min-height: 24px;
+  padding: 3px 8px;
   border-top: 1px solid rgba(127, 127, 127, 0.22);
   border-radius: 0 0 3px 3px;
   cursor: pointer;
@@ -346,6 +347,31 @@ html, body {
   font-weight: 600;
   font-size: 13px;
   letter-spacing: 0.4px;
+}
+/* Chevron sits right after the section name (Claude-sidebar style); the
+ * count keeps the right edge. */
+.pinned-section-header .label,
+.smart-section-header .label,
+.trash-section-header .label,
+.tags-section-header .label {
+  flex: 0 1 auto;
+}
+.pinned-section-header .toggle,
+.smart-section-header .toggle,
+.trash-section-header .toggle,
+.tags-section-header .toggle {
+  order: 3;
+  width: auto;
+  margin-left: 2px;
+  font-size: 8px;
+  opacity: 0.75;
+}
+.pinned-section-header .count,
+.smart-section-header .count,
+.trash-section-header .count,
+.tags-section-header .count {
+  order: 4; /* after the chevron (order 3): text › ......... count */
+  margin-left: auto;
 }
 .pinned-section-header .icon,
 .smart-section-header .icon,
@@ -363,10 +389,19 @@ html, body {
 /* The notebook tree has no header row - its wrapper draws the same
  * section-opening line as the headers do. */
 #main-tree {
-  border-top: 1px solid rgba(127, 127, 127, 0.22);
-  margin: 6px 4px 1px;
+  margin: 5px 4px 1px;
   padding-top: 4px;
+  border-top: 1px solid rgba(127, 127, 127, 0.22);
 }
+
+/* Expand animation: children fade/slide in when the USER toggles a section
+ * or folder (JS adds .anim-expand only on interactive expands, so panel
+ * re-renders don't flash). */
+@keyframes sectionExpand {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.anim-expand { animation: sectionExpand 0.16s ease-out; }
 
 /* Whichever section comes first sits right under the search bar's own
  * border - no extra line there. */
@@ -382,6 +417,29 @@ html, body {
 
 .pinned-item {
   padding-left: 26px !important;
+}
+
+/* Expandable rows inside sections put their chevron AFTER the text, like
+ * the section headers - icons of all first-level rows align at the same
+ * left edge as pinned rows. */
+.smart-folder .label,
+.tag-folder .label,
+.trash-note.folder .label {
+  flex: 0 1 auto;
+}
+.smart-folder .toggle,
+.tag-folder .toggle,
+.trash-note.folder .toggle {
+  order: 3;
+  width: auto;
+  margin-left: 2px;
+  font-size: 8px;
+  opacity: 0.75;
+}
+.smart-folder .count,
+.tag-folder .count {
+  order: 4; /* after the chevron: text › ......... count */
+  margin-left: auto;
 }
 
 /* ---- tags section (tags as folders) ---- */

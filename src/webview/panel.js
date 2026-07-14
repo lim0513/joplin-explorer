@@ -114,12 +114,22 @@ function showInlineInput(label, defaultValue, callback) {
   });
 }
 
+// Fade/slide-in for interactively expanded containers. Applied only from
+// user toggles so full re-renders don't flash the whole tree.
+function animateExpand(el) {
+  if (!el) return;
+  el.classList.remove('anim-expand');
+  void el.offsetWidth; // restart the animation
+  el.classList.add('anim-expand');
+}
+
 // Collapse/expand a folder entirely in the DOM (icons swap via CSS on the
 // .collapsed class). The backend is only notified for state bookkeeping.
 function toggleFolderLocal(item, id) {
   var collapsed = item.classList.toggle('collapsed');
   var children = document.querySelector('.children[data-folder-id="' + id + '"]');
   if (children) children.classList.toggle('collapsed', collapsed);
+  if (!collapsed) animateExpand(children);
   var toggle = item.querySelector('.toggle');
   if (toggle) {
     toggle.textContent = collapsed ? '\u25B6' : '\u25BC';
@@ -381,6 +391,7 @@ document.addEventListener('click', function(e) {
     var pinnedCollapsed = pinnedHeader.classList.toggle('collapsed');
     var pinnedBody = document.getElementById('pinned-body');
     if (pinnedBody) pinnedBody.classList.toggle('collapsed', pinnedCollapsed);
+    if (!pinnedCollapsed) animateExpand(pinnedBody);
     var pinnedToggle = pinnedHeader.querySelector('.toggle');
     if (pinnedToggle) pinnedToggle.textContent = pinnedCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'togglePinnedCollapse' });
@@ -393,6 +404,7 @@ document.addEventListener('click', function(e) {
     var tagsNowCollapsed = tagsHeader.classList.toggle('collapsed');
     var tagsBody = document.getElementById('tags-body');
     if (tagsBody) tagsBody.classList.toggle('collapsed', tagsNowCollapsed);
+    if (!tagsNowCollapsed) animateExpand(tagsBody);
     var tagsToggle = tagsHeader.querySelector('.toggle');
     if (tagsToggle) tagsToggle.textContent = tagsNowCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'toggleTagsSection' });
@@ -405,6 +417,7 @@ document.addEventListener('click', function(e) {
     var smartNowCollapsed = smartHeader.classList.toggle('collapsed');
     var smartBody = document.getElementById('smart-body');
     if (smartBody) smartBody.classList.toggle('collapsed', smartNowCollapsed);
+    if (!smartNowCollapsed) animateExpand(smartBody);
     var smartToggle = smartHeader.querySelector('.toggle');
     if (smartToggle) smartToggle.textContent = smartNowCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'toggleSmartSection' });
@@ -417,6 +430,7 @@ document.addEventListener('click', function(e) {
     if (!smKids) return;
     var smCollapsed = smKids.classList.toggle('collapsed');
     smartFolderRow.classList.toggle('collapsed', smCollapsed);
+    if (!smCollapsed) animateExpand(smKids);
     var smArrow = smartFolderRow.querySelector('.toggle');
     if (smArrow) smArrow.textContent = smCollapsed ? '\u25B6' : '\u25BC';
     // Re-query on every expand - smart folder contents change constantly.
@@ -432,6 +446,7 @@ document.addEventListener('click', function(e) {
     var trashNowCollapsed = trashHeader.classList.toggle('collapsed');
     var trashKids = document.getElementById('trash-children');
     if (trashKids) trashKids.classList.toggle('collapsed', trashNowCollapsed);
+    if (!trashNowCollapsed) animateExpand(trashKids);
     var trashToggle = trashHeader.querySelector('.toggle');
     if (trashToggle) trashToggle.textContent = trashNowCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'toggleTrashSection' });
@@ -449,6 +464,7 @@ document.addEventListener('click', function(e) {
     if (!tagKids) return;
     var tagNowCollapsed = tagKids.classList.toggle('collapsed');
     tagFolder.classList.toggle('collapsed', tagNowCollapsed);
+    if (!tagNowCollapsed) animateExpand(tagKids);
     var tfToggle = tagFolder.querySelector('.toggle');
     if (tfToggle) tfToggle.textContent = tagNowCollapsed ? '\u25B6' : '\u25BC';
     if (!tagNowCollapsed && !tagKids.dataset.loaded) {
@@ -484,6 +500,7 @@ document.addEventListener('click', function(e) {
         var tfKids = document.querySelector('.trash-folder-children[data-folder-id="' + item.dataset.id + '"]');
         if (tfKids) {
           var tfCollapsed = tfKids.classList.toggle('collapsed');
+          if (!tfCollapsed) animateExpand(tfKids);
           var tfArrow = item.querySelector('.toggle');
           if (tfArrow) tfArrow.textContent = tfCollapsed ? '\u25B6' : '\u25BC';
           if (!tfCollapsed && !tfKids.dataset.loaded) {
