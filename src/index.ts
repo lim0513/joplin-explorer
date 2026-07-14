@@ -1506,10 +1506,17 @@ joplin.plugins.register({
                 break;
               }
               case 'renameFolder': {
-                const folderData = await joplin.data.get(['folders', id], { fields: ['title'] });
-                const newFolderName = await showNativeInput(t.promptRename, folderData.title);
-                if (newFolderName && newFolderName.trim()) {
-                  await joplin.data.put(['folders', id], null, { title: newFolderName.trim() });
+                // Native notebook dialog (rename + icon picker) - same one the
+                // built-in sidebar's Edit opens. Falls back to a plain rename
+                // prompt if the internal command ever goes away.
+                try {
+                  await joplin.commands.execute('openFolderDialog', { folderId: id });
+                } catch (e) {
+                  const folderData = await joplin.data.get(['folders', id], { fields: ['title'] });
+                  const newFolderName = await showNativeInput(t.promptRename, folderData.title);
+                  if (newFolderName && newFolderName.trim()) {
+                    await joplin.data.put(['folders', id], null, { title: newFolderName.trim() });
+                  }
                 }
                 break;
               }
