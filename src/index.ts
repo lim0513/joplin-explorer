@@ -432,45 +432,48 @@ joplin.plugins.register({
           public: false,
           label: 'UI State (JSON)',
         },
+        // Public settings: labels/descriptions localized at registration
+        // time from the app locale (fresh strings need an app restart to
+        // show, matching Joplin's own language-switch behavior).
         'showTagsSection': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
           value: true,
           public: true,
-          label: 'Show tags section',
-          description: 'Show Joplin tags as folders below the notebook tree.',
+          label: t.sShowTags,
+          description: t.sShowTagsDesc,
         },
         'autoRefresh': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
           value: true,
           public: true,
-          label: 'Auto refresh on external changes',
-          description: 'Poll Joplin\'s change feed every 5 seconds and refresh the panel when notes are created, moved or deleted by other plugins or sync. Edits to the currently open note are ignored (they already update live).',
+          label: t.sAutoRefresh,
+          description: t.sAutoRefreshDesc,
         },
         'restoreUiState': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
           value: true,
           public: true,
-          label: 'Restore last view state on startup',
-          description: 'Remember collapsed/expanded folders and sections between sessions. When off, the tree starts fully collapsed.',
+          label: t.sRestoreUi,
+          description: t.sRestoreUiDesc,
         },
         'showSmartFolders': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
           value: true,
           public: true,
-          label: 'Show smart folders',
-          description: 'Saved searches rendered as folders: Recently updated, Open to-dos, and your own rules.',
+          label: t.sShowSmart,
+          description: t.sShowSmartDesc,
         },
         'smartFolderRules': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
           value: '',
           public: true,
-          label: 'Custom smart folders',
-          description: 'Name:query pairs separated by ";", using Joplin search syntax. Example: Work:notebook:Work updated:day-30;Starred:tag:star',
+          label: t.sSmartRules,
+          description: t.sSmartRulesDesc,
         },
         'smartFolderLimit': {
           section: 'joplinExplorer',
@@ -479,16 +482,16 @@ joplin.plugins.register({
           minimum: 1,
           maximum: 50,
           public: true,
-          label: 'Smart folder result limit',
-          description: 'Maximum notes shown per smart folder (newest first). Default: 5.',
+          label: t.sSmartLimit,
+          description: t.sSmartLimitDesc,
         },
         'hoverPreview': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
           value: true,
           public: true,
-          label: 'Note preview on hover',
-          description: 'Show title, updated time and a body snippet when hovering a note.',
+          label: t.sHoverPreview,
+          description: t.sHoverPreviewDesc,
         },
         'hoverPreviewLength': {
           section: 'joplinExplorer',
@@ -497,7 +500,7 @@ joplin.plugins.register({
           minimum: 50,
           maximum: 1000,
           public: true,
-          label: 'Hover preview length (characters)',
+          label: t.sHoverPreviewLen,
         },
         'toggleArrowPosition': {
           section: 'joplinExplorer',
@@ -505,12 +508,12 @@ joplin.plugins.register({
           value: 'right',
           isEnum: true,
           options: {
-            right: 'After the text',
-            left: 'Left of the text (classic tree)',
+            right: t.sArrowRight,
+            left: t.sArrowLeft,
           },
           public: true,
-          label: 'Expand arrow position',
-          description: 'Applies to notebooks, section headers and section rows alike, so everything matches.',
+          label: t.sArrowPos,
+          description: t.sArrowPosDesc,
         },
         'expandAllMode': {
           section: 'joplinExplorer',
@@ -518,53 +521,53 @@ joplin.plugins.register({
           value: 'restore',
           isEnum: true,
           options: {
-            restore: 'Restore the state before Collapse All',
-            skeleton: 'Folders only (leaf notebooks stay collapsed)',
-            all: 'Everything',
+            restore: t.sExpandRestore,
+            skeleton: t.sExpandSkeleton,
+            all: t.sExpandAllOpt,
           },
           public: true,
-          label: 'Expand All behavior',
-          description: 'What the Expand All button restores. Default: the tree as it was before the last Collapse All.',
+          label: t.sExpandMode,
+          description: t.sExpandModeDesc,
         },
         'showFolderToggles': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
           value: true,
           public: true,
-          label: 'Show toggle arrows',
-          description: 'Show expand/collapse arrows before folders and the pinned section.',
+          label: t.sShowToggles,
+          description: t.sShowTogglesDesc,
         },
         'openFolderIcon': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
           value: '\uD83D\uDCC2',
           public: true,
-          label: 'Open folder icon',
-          description: 'Emoji, image URL, data URI, or local image path for expanded folders without a custom notebook icon.',
+          label: t.sOpenFolderIcon,
+          description: t.sOpenFolderIconDesc,
         },
         'closedFolderIcon': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
           value: '\uD83D\uDCC1',
           public: true,
-          label: 'Closed folder icon',
-          description: 'Emoji, image URL, data URI, or local image path for collapsed folders without a custom notebook icon.',
+          label: t.sClosedFolderIcon,
+          description: t.sClosedFolderIconDesc,
         },
         'openPinnedIcon': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
           value: '\uD83D\uDCCC',
           public: true,
-          label: 'Open pinned icon',
-          description: 'Emoji, image URL, data URI, or local image path for the expanded pinned section.',
+          label: t.sOpenPinnedIcon,
+          description: t.sOpenPinnedIconDesc,
         },
         'closedPinnedIcon': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
           value: '\uD83D\uDCCC',
           public: true,
-          label: 'Closed pinned icon',
-          description: 'Emoji, image URL, data URI, or local image path for the collapsed pinned section.',
+          label: t.sClosedPinnedIcon,
+          description: t.sClosedPinnedIconDesc,
         },
       });
     } catch (err) {
