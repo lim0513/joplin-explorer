@@ -813,7 +813,12 @@ joplin.plugins.register({
             fields: ['id', 'deleted_time'],
             include_deleted: '1', order_by: 'deleted_time', order_dir: 'DESC', limit: 1,
           });
-          if (tprobe.items && tprobe.items.length && tprobe.items[0].deleted_time > 0) {
+          let hasTrash = !!(tprobe.items && tprobe.items.length && tprobe.items[0].deleted_time > 0);
+          if (!hasTrash) {
+            const fprobe = await joplin.data.get(['folders'], { fields: ['id', 'deleted_time'], include_deleted: '1', page: 1, limit: 100 });
+            hasTrash = (fprobe.items || []).some((f: any) => f.deleted_time > 0);
+          }
+          if (hasTrash) {
             const trashArrow = trashCollapsed ? '\u25B6' : '\u25BC';
             trashHtml += '<div class="trash-section-header' + (trashCollapsed ? ' collapsed' : '') + '" id="trash-header">';
             if (showToggleArrows) trashHtml += '<span class="toggle">' + trashArrow + '</span>';
@@ -1055,28 +1060,51 @@ joplin.plugins.register({
       }));
     }
 
-    // Deleted notes sort first under order_by deleted_time DESC, so we can
-    // page through just the deleted prefix instead of scanning everything.
-    async function fetchTrashNotes(): Promise<any[]> {
-      const out: any[] = [];
+    // Deleted notebooks plus top-level deleted notes. Notes living inside a
+    // deleted notebook are omitted - restoring the notebook restores them
+    // (native restoreItems handles descendants). Deleted notes sort first
+    // under order_by deleted_time DESC, so only the deleted prefix is paged.
+    async function fetchTrashItems(): Promise<{ folders: any[], notes: any[] }> {
+      const folders: any[] = [];
+      const deletedFolderIds: { [id: string]: boolean } = {};
+      try {
+        let fp = 1;
+        let fMore = true;
+        while (fMore) {
+          const fr = await joplin.data.get(['folders'], {
+            fields: ['id', 'title', 'deleted_time'],
+            include_deleted: '1', page: fp, limit: 100,
+          });
+          for (const f of (fr.items || [])) {
+            if (f.deleted_time > 0) {
+              folders.push({ id: f.id, title: f.title || '(untitled)' });
+              deletedFolderIds[f.id] = true;
+            }
+          }
+          fMore = fr.has_more;
+          fp++;
+        }
+      } catch (_) { /* keep notes-only */ }
+      const notes: any[] = [];
       let p = 1;
       let more = true;
-      while (more && out.length < 200) {
+      while (more && notes.length < 200) {
         const r = await joplin.data.get(['notes'], {
-          fields: ['id', 'title', 'is_todo', 'todo_completed', 'deleted_time'],
+          fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'deleted_time'],
           include_deleted: '1', order_by: 'deleted_time', order_dir: 'DESC',
           page: p, limit: 50,
         });
         let hitLive = false;
         for (const n of (r.items || [])) {
           if (!n.deleted_time) { hitLive = true; break; }
-          out.push({ id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed });
+          if (deletedFolderIds[n.parent_id]) continue;
+          notes.push({ id: n.id, title: n.title || '(untitled)', is_todo: n.is_todo, todo_completed: n.todo_completed });
         }
         if (hitLive) break;
         more = r.has_more;
         p++;
       }
-      return out;
+      return { folders, notes };
     }
 
     async function handleContextMenu(msg: any): Promise<void> {
@@ -1300,16 +1328,28 @@ joplin.plugins.register({
                 break;
               }
             }
-          } else if (itemType === 'trashNote') {
+          } else if (itemType === 'trashNote' || itemType === 'trashFolder') {
+            const isTrashFolder = itemType === 'trashFolder';
             switch (action) {
-              case 'restoreNote':
-                try { await joplin.commands.execute('restoreNote', [id]); } catch (e) {}
+              case 'restoreItem':
+                try {
+                  await joplin.commands.execute(isTrashFolder ? 'restoreFolder' : 'restoreNote', [id]);
+                } catch (e) {
+                  console.error('Joplin Explorer: restore error', e);
+                }
                 break;
-              case 'permanentDeleteNote': {
-                const permaNote = await joplin.data.get(['notes', id], { fields: ['title'], include_deleted: '1' });
-                if (await showNativeConfirm(t.confirmDeleteNote + '\n\n' + (permaNote ? permaNote.title : ''))) {
-                  try { await joplin.data.delete(['notes', id], { permanent: '1' }); } catch (e) {
-                    try { await joplin.commands.execute('permanentlyDeleteNote', [id]); } catch (_) {}
+              case 'permanentDeleteItem': {
+                const kind = isTrashFolder ? 'folders' : 'notes';
+                let permaTitle = '';
+                try {
+                  const permaInfo = await joplin.data.get([kind, id], { fields: ['title'], include_deleted: '1' });
+                  permaTitle = permaInfo ? permaInfo.title : '';
+                } catch (_) {}
+                if (await showNativeConfirm(t.confirmDeleteNote + '\n\n' + permaTitle)) {
+                  try { await joplin.data.delete([kind, id], { permanent: '1' }); } catch (e) {
+                    if (!isTrashFolder) {
+                      try { await joplin.commands.execute('permanentlyDeleteNote', [id]); } catch (_) {}
+                    }
                   }
                 }
                 break;
@@ -1318,7 +1358,8 @@ joplin.plugins.register({
             // The trash children live only in the DOM - push the fresh list
             // (the follow-up full refresh may be de-duped by setHtml).
             try {
-              await joplin.views.panels.postMessage(panel, { name: 'trashNotes', notes: await fetchTrashNotes() });
+              const ti = await fetchTrashItems();
+              await joplin.views.panels.postMessage(panel, { name: 'trashNotes', folders: ti.folders, notes: ti.notes });
             } catch (_) {}
           }
           await refreshPanel();
@@ -1605,7 +1646,8 @@ joplin.plugins.register({
         saveUiState();
       } else if (msg.name === 'trashNotes') {
         try {
-          await joplin.views.panels.postMessage(panel, { name: 'trashNotes', notes: await fetchTrashNotes() });
+          const ti = await fetchTrashItems();
+          await joplin.views.panels.postMessage(panel, { name: 'trashNotes', folders: ti.folders, notes: ti.notes });
         } catch (err) {
           console.error('Joplin Explorer: trashNotes error', err);
         }

@@ -356,6 +356,7 @@ document.addEventListener('click', function(e) {
   // 7. Tree item: open note / toggle folder.
   var item = e.target.closest('.tree-item');
   if (item) {
+    if (item.dataset.trash === '1') return; // trash rows act via context menu
     var type = item.dataset.type;
     var id = item.dataset.id;
     var isPinnedItem = item.classList.contains('pinned-item');
@@ -467,7 +468,12 @@ document.addEventListener('contextmenu', function(e) {
 
   var menuHtml = '<div id="ctx-menu" class="context-menu" style="left:' + e.pageX + 'px;top:' + e.pageY + 'px;">';
 
-  if (type === 'folder') {
+  if (item.dataset.trash === '1') {
+    var trashType = type === 'folder' ? 'trashFolder' : 'trashNote';
+    menuHtml += '<div class="ctx-item" data-action="restoreItem" data-id="' + id + '" data-type="' + trashType + '">' + T('ctxRestoreNote') + '</div>';
+    menuHtml += '<div class="ctx-sep"></div>';
+    menuHtml += '<div class="ctx-item ctx-danger" data-action="permanentDeleteItem" data-id="' + id + '" data-type="' + trashType + '">' + T('ctxPermanentDelete') + '</div>';
+  } else if (type === 'folder') {
     var isFolderPinned = isPinned(id);
     menuHtml += '<div class="ctx-item" data-action="' + (isFolderPinned ? 'unpinFolder' : 'pinFolder') + '" data-id="' + id + '" data-type="folder">' + (isFolderPinned ? T('ctxUnpin') : T('ctxPin')) + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
@@ -617,15 +623,23 @@ webviewApi.onMessage(function(msg) {
     if (trashEl) {
       trashEl.dataset.loaded = '1';
       var trHtml = '';
-      for (var tri = 0; tri < m.notes.length; tri++) {
-        var trNote = m.notes[tri];
+      var trFolders = m.folders || [];
+      for (var tfi = 0; tfi < trFolders.length; tfi++) {
+        trHtml += '<div class="tree-item folder trash-note" data-id="' + trFolders[tfi].id + '" data-type="folder" data-trash="1">'
+          + '<span class="icon">\uD83D\uDCC1</span>'
+          + '<span class="label">' + escapeHtml(trFolders[tfi].title) + '</span>'
+          + '</div>';
+      }
+      var trNotes = m.notes || [];
+      for (var tri = 0; tri < trNotes.length; tri++) {
+        var trNote = trNotes[tri];
         var trIcon = trNote.is_todo ? (trNote.todo_completed ? '\u2611' : '\u2610') : '\uD83D\uDCDD';
         trHtml += '<div class="tree-item note trash-note" data-id="' + trNote.id + '" data-type="note" data-trash="1">'
           + '<span class="icon note-icon">' + trIcon + '</span>'
           + '<span class="label">' + escapeHtml(trNote.title) + '</span>'
           + '</div>';
       }
-      if (!m.notes.length) trHtml = '<div class="tag-empty">\u2014</div>';
+      if (!trHtml) trHtml = '<div class="tag-empty">\u2014</div>';
       trashEl.innerHTML = trHtml;
     }
   } else if (m.name === 'tagNotes') {
