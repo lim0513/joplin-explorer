@@ -98,6 +98,18 @@ function sharedBadgeHtml(): string {
     + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>';
 }
 
+// txt/md files on Windows are often GBK-encoded; Electron ships full ICU so
+// TextDecoder('gbk') is available. Try UTF-8 first and fall back when the
+// decode produced replacement characters. Strips a leading BOM either way.
+function decodeTextFile(buf: any): string {
+  let text = buf.toString('utf8');
+  if (text.indexOf('�') >= 0) {
+    try { text = new (globalThis as any).TextDecoder('gbk').decode(buf); } catch (_) { /* keep utf8 */ }
+  }
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  return text;
+}
+
 function noteBadgesHtml(n: { is_shared?: number; cb_total?: number; cb_done?: number }): string {
   // Link badge hugs the title; the pie sits at the row's right edge
   // (same spot as folder note counts, via margin-left:auto).
@@ -1596,6 +1608,27 @@ joplin.plugins.register({
                   if (newFolderName && newFolderName.trim()) {
                     await joplin.data.put(['folders', id], null, { title: newFolderName.trim() });
                   }
+                }
+                break;
+              }
+              case 'importFiles': {
+                // Import txt/md files as notes into this notebook. Title =
+                // file name without the extension.
+                try {
+                  const files = await joplin.views.dialogs.showOpenDialog({
+                    properties: ['openFile', 'multiSelections'],
+                    filters: [{ name: 'Text / Markdown', extensions: ['txt', 'md', 'markdown'] }],
+                  });
+                  const list = Array.isArray(files) ? files : (files ? [files] : []);
+                  for (const fp of list) {
+                    const body = decodeTextFile(nodeFs.readFileSync(fp));
+                    const title = nodePath.basename(String(fp)).replace(/\.(txt|md|markdown)$/i, '');
+                    await joplin.data.post(['notes'], null, { title, body, parent_id: id });
+                  }
+                  if (list.length) scheduleRefreshPanel(100);
+                } catch (e) {
+                  console.error('Joplin Explorer: importFiles error', e);
+                  await showNativeInfo(t.importFailed || 'Import failed', String(e && (e as any).message ? (e as any).message : e));
                 }
                 break;
               }

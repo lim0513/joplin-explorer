@@ -677,6 +677,7 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="newNote" data-id="' + id + '" data-type="folder">' + T('ctxNewNoteHere') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="newTodo" data-id="' + id + '" data-type="folder">' + T('ctxNewTodoHere') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="newSubNotebook" data-id="' + id + '" data-type="folder">' + T('ctxNewSubNotebook') + '</div>';
+    menuHtml += '<div class="ctx-item" data-action="importFiles" data-id="' + id + '" data-type="folder">' + T('ctxImportFiles') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameFolder" data-id="' + id + '" data-type="folder" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameFolder') + '</div>';
     // Export drill-in (folders can't do PDF - that's a single-note command).
