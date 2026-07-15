@@ -52,6 +52,9 @@
 - 通过设置重排侧栏分区（收藏夹 / 智能文件夹 / 笔记本 / 标签 / 回收站）——[#9](https://github.com/lim0513/joplin-explorer/issues/9)，感谢 [@CJeffyB](https://github.com/CJeffyB)
 - 分区分割线上方间距可调
 
+**笔记本导出修复**（v1.5.10）
+- 笔记本右键导出恢复可用：下钻格式子菜单（JEX / Markdown / MD+Front Matter / HTML）+ 目录选择器；失败时弹窗提示而非静默吞掉
+
 **其他**
 - Emoji / 自定义图片笔记本图标
 - 同步按钮带状态反馈

@@ -52,6 +52,9 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Reorder the sidebar sections (pinned / smart folders / notebooks / tags / trash) via a settings key list — [#9](https://github.com/lim0513/joplin-explorer/issues/9) — thanks [@CJeffyB](https://github.com/CJeffyB)
 - Adjustable spacing above each section divider
 
+**Notebook export fix** (v1.5.10)
+- Notebook right-click export now works: drill-in format submenu (JEX / Markdown / MD+Front Matter / HTML) + directory picker; failures show a dialog instead of being swallowed
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
