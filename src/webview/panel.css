@@ -336,7 +336,8 @@ html, body {
   align-items: center;
   padding: 4px 8px;
   gap: 5px;
-  margin: 5px 4px 1px;
+  /* --sec-gap: sectionSpacing setting, set inline on the root (#9) */
+  margin: var(--sec-gap, 5px) 4px 1px;
   min-height: 24px;
   padding: 3px 8px;
   border-top: 1px solid rgba(127, 127, 127, 0.22);
@@ -394,7 +395,7 @@ html, body {
 /* The notebook tree has no header row - its wrapper draws the same
  * section-opening line as the headers do. */
 #main-tree {
-  margin: 5px 4px 1px;
+  margin: var(--sec-gap, 5px) 4px 1px;
   padding-top: 4px;
   border-top: 1px solid rgba(127, 127, 127, 0.22);
 }

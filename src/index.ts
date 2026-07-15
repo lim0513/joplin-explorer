@@ -529,6 +529,24 @@ joplin.plugins.register({
           label: t.sExpandMode,
           description: t.sExpandModeDesc,
         },
+        'sectionOrder': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: 'pinned,smart,tree,tags,trash',
+          public: true,
+          label: t.sSectionOrder,
+          description: t.sSectionOrderDesc,
+        },
+        'sectionSpacing': {
+          section: 'joplinExplorer',
+          type: 1, // SettingItemType.Int = 1
+          value: 5,
+          minimum: 0,
+          maximum: 30,
+          public: true,
+          label: t.sSectionGap,
+          description: t.sSectionGapDesc,
+        },
         'showFolderToggles': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -1079,7 +1097,28 @@ joplin.plugins.register({
         const expandAllMode = String((await joplin.settings.value('expandAllMode')) || 'restore');
         const hoverPreviewOn = (await joplin.settings.value('hoverPreview')) !== false ? '1' : '0';
         const arrowPos = String((await joplin.settings.value('toggleArrowPosition')) || 'right') === 'left' ? 'left' : 'right';
-        const html = '<div id="notes-in-list-root" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        // Section order + spacing (#9): each section is one self-contained
+        // HTML string, so reordering is just concatenation order. Unknown or
+        // missing keys fall back to the default order.
+        const sectionHtml: { [k: string]: string } = {
+          pinned: pinnedHtml,
+          smart: smartHtml,
+          tree: '<div id="main-tree">' + treeHtml + '</div>',
+          tags: tagsHtml,
+          trash: trashHtml,
+        };
+        const orderKeys: string[] = [];
+        for (const k of String((await joplin.settings.value('sectionOrder')) || '').split(',').map((s) => s.trim().toLowerCase()).filter((s) => !!s)) {
+          if (sectionHtml[k] !== undefined && orderKeys.indexOf(k) < 0) orderKeys.push(k);
+        }
+        for (const k of ['pinned', 'smart', 'tree', 'tags', 'trash']) {
+          if (orderKeys.indexOf(k) < 0) orderKeys.push(k);
+        }
+        const sectionsJoined = orderKeys.map((k) => sectionHtml[k]).join('');
+        let secGap = Number(await joplin.settings.value('sectionSpacing'));
+        if (!isFinite(secGap) || secGap < 0) secGap = 5;
+        if (secGap > 30) secGap = 30;
+        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
@@ -1089,7 +1128,7 @@ joplin.plugins.register({
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
           + '  </div>'
-          + '  <div id="tree-container">' + pinnedHtml + smartHtml + '<div id="main-tree">' + treeHtml + '</div>' + tagsHtml + trashHtml
+          + '  <div id="tree-container">' + sectionsJoined
           + '    <div id="drop-zone-empty" class="drop-zone-empty">+ ' + t.dropCreateNotebook + '</div>'
           + '  </div>'
           + '  <div id="search-results" style="display:none;"></div>'
@@ -1163,6 +1202,8 @@ joplin.plugins.register({
         || event.keys.indexOf('hoverPreview') >= 0
         || event.keys.indexOf('expandAllMode') >= 0
         || event.keys.indexOf('showTagsSection') >= 0
+        || event.keys.indexOf('sectionOrder') >= 0
+        || event.keys.indexOf('sectionSpacing') >= 0
         || event.keys.indexOf('showFolderToggles') >= 0
         || event.keys.indexOf('openFolderIcon') >= 0
         || event.keys.indexOf('closedFolderIcon') >= 0
