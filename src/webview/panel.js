@@ -679,7 +679,14 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="newSubNotebook" data-id="' + id + '" data-type="folder">' + T('ctxNewSubNotebook') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameFolder" data-id="' + id + '" data-type="folder" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameFolder') + '</div>';
-    menuHtml += '<div class="ctx-item" data-action="exportFolder" data-id="' + id + '" data-type="folder">' + T('ctxExportFolder') + '</div>';
+    // Export drill-in (folders can't do PDF - that's a single-note command).
+    menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExportFolder') + '<span class="ctx-sub-arrow">▸</span></div>';
+    menuHtml += '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExportFolder') + '">'
+      + '<div class="ctx-item" data-action="exportFolder" data-format="jex" data-id="' + id + '" data-type="folder">JEX</div>'
+      + '<div class="ctx-item" data-action="exportFolder" data-format="md" data-id="' + id + '" data-type="folder">Markdown</div>'
+      + '<div class="ctx-item" data-action="exportFolder" data-format="md_frontmatter" data-id="' + id + '" data-type="folder">Markdown + Front Matter</div>'
+      + '<div class="ctx-item" data-action="exportFolder" data-format="html" data-id="' + id + '" data-type="folder">HTML</div>'
+      + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteFolder" data-id="' + id + '" data-type="folder">' + T('ctxDeleteFolder') + '</div>';
   } else if (type === 'note') {

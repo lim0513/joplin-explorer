@@ -1599,9 +1599,22 @@ joplin.plugins.register({
                 }
                 break;
               }
-              case 'exportFolder':
-                try { await joplin.commands.execute('exportFolders', [id]); } catch (e) {}
+              case 'exportFolder': {
+                // exportFolders(sourceFolderIds, format, path) needs an
+                // explicit format AND target dir - without them the desktop
+                // command throws (the native picker can't open from a webview
+                // action), which used to look like "nothing happens". Pick the
+                // directory ourselves, same as note export.
+                try {
+                  const dirs = await joplin.views.dialogs.showOpenDialog({ properties: ['openDirectory'] });
+                  const dir = Array.isArray(dirs) ? dirs[0] : dirs;
+                  if (dir) await joplin.commands.execute('exportFolders', [id], msg.format || 'jex', dir);
+                } catch (e) {
+                  console.error('Joplin Explorer: exportFolder error', e);
+                  await showNativeInfo(t.exportFailed || 'Export failed', String(e && (e as any).message ? (e as any).message : e));
+                }
                 break;
+              }
               case 'pinFolder': {
                 if (!pinnedItems.some(p => p.id === id)) {
                   pinnedItems.push({ id, type: 'folder' });
@@ -1661,7 +1674,8 @@ joplin.plugins.register({
                 try { await joplin.commands.execute('showShareNoteDialog', [id]); } catch (e) {}
                 break;
               case 'exportPdf':
-                try { await joplin.commands.execute('exportPdf', [id]); } catch (e) {}
+                try { await joplin.commands.execute('exportPdf', [id]); }
+                catch (e) { console.error('Joplin Explorer: exportPdf error', e); }
                 break;
               case 'exportNote': {
                 // Directory-target formats (md/jex/html...): pick the folder
