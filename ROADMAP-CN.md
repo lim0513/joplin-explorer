@@ -49,7 +49,7 @@
 - 已发布笔记显示链接徽标，点击打开发布对话框
 
 **分区布局**（v1.5.9）
-- 通过设置重排侧栏分区（收藏夹 / 智能文件夹 / 笔记本 / 标签 / 回收站）——[#9](https://github.com/lim0513/joplin-explorer/issues/9)
+- 通过设置重排侧栏分区（收藏夹 / 智能文件夹 / 笔记本 / 标签 / 回收站）——[#9](https://github.com/lim0513/joplin-explorer/issues/9)，感谢 [@CJeffyB](https://github.com/CJeffyB)
 - 分区分割线上方间距可调
 
 **其他**

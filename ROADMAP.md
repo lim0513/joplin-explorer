@@ -49,7 +49,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Link badge on published notes; click opens the publish dialog
 
 **Section layout** (v1.5.9)
-- Reorder the sidebar sections (pinned / smart folders / notebooks / tags / trash) via a settings key list — [#9](https://github.com/lim0513/joplin-explorer/issues/9)
+- Reorder the sidebar sections (pinned / smart folders / notebooks / tags / trash) via a settings key list — [#9](https://github.com/lim0513/joplin-explorer/issues/9) — thanks [@CJeffyB](https://github.com/CJeffyB)
 - Adjustable spacing above each section divider
 
 **Misc**
