@@ -58,6 +58,10 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Import files** (v1.5.11)
 - Notebook right-click "Import files": multi-select txt/md picker, each file becomes a note (title = file name without extension). Encoding-aware (UTF-8 with GBK fallback, BOM stripped)
 
+**Trash & locate fixes** (v1.5.12)
+- Restoring a note whose notebook is also trashed now offers to restore the notebook too (instead of silently dropping the note to the root)
+- Clicking a note under a tag now locates and expands the main tree to it
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
