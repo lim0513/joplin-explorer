@@ -2057,6 +2057,11 @@ joplin.plugins.register({
       if (msg.name === 'openNote') {
         selectedNoteId = msg.id;
         await joplin.commands.execute('openNote', msg.id);
+        // Locate it in the main tree. We set selectedNoteId above, so the
+        // onNoteSelectionChange handler will short-circuit and NOT emit
+        // selectNote - emit it here so clicking a note under a tag (or in
+        // pinned/search) still jumps the tree to it.
+        await joplin.views.panels.postMessage(panel, { name: 'selectNote', id: msg.id });
       } else if (msg.name === 'refresh') {
         await refreshPanel();
       } else if (msg.name === 'toggleFolder') {
