@@ -623,6 +623,21 @@ joplin.plugins.register({
       return result.id === 'ok';
     }
 
+    // Three-way choice used when restoring a note whose notebook is also
+    // trashed. Returns the clicked button id ('both' | 'noteOnly' | 'cancel').
+    async function showRestoreChoice(message: string, bothLabel: string, noteOnlyLabel: string): Promise<string> {
+      await joplin.views.dialogs.setHtml(confirmDialog,
+        '<div style="padding:10px;min-width:320px;"><div style="font-size:13px;line-height:1.6;">' + escapeHtml(message) + '</div></div>'
+      );
+      await joplin.views.dialogs.setButtons(confirmDialog, [
+        { id: 'both', title: bothLabel },
+        { id: 'noteOnly', title: noteOnlyLabel },
+        { id: 'cancel', title: t.cancel || 'Cancel' },
+      ]);
+      const result = await joplin.views.dialogs.open(confirmDialog);
+      return result.id;
+    }
+
     async function showNativeInfo(title: string, body: string): Promise<void> {
       await joplin.views.dialogs.setHtml(infoDialog,
         '<div style="padding:10px;min-width:320px;">'
@@ -1847,6 +1862,36 @@ joplin.plugins.register({
             switch (action) {
               case 'restoreItem':
                 try {
+                  if (!isTrashFolder) {
+                    // Restoring a note whose notebook is ALSO in the trash:
+                    // the native command would drop it to the root (parent_id
+                    // cleared), which reads as "the note vanished". Offer to
+                    // restore the notebook too.
+                    let parentDeleted: any = null;
+                    try {
+                      const n = await joplin.data.get(['notes', id], { fields: ['parent_id'], include_deleted: '1' });
+                      if (n && n.parent_id) {
+                        const pf = await joplin.data.get(['folders', n.parent_id], { fields: ['id', 'title', 'deleted_time'], include_deleted: '1' });
+                        if (pf && pf.deleted_time > 0) parentDeleted = pf;
+                      }
+                    } catch (_) { /* fall through to plain restore */ }
+                    if (parentDeleted) {
+                      const msg = (t.confirmRestoreParent || 'The notebook "{folder}" that held this note is also in the trash. Restore the notebook together with the note?')
+                        .replace('{folder}', parentDeleted.title || '');
+                      const choice = await showRestoreChoice(
+                        msg,
+                        t.restoreBoth || 'Restore notebook + note',
+                        t.restoreNoteOnly || 'Note only (to root)');
+                      if (choice === 'cancel') break;
+                      if (choice === 'both') {
+                        // Restoring the folder cascades to its notes (incl. this
+                        // one), so this single call restores everything.
+                        await joplin.commands.execute('restoreFolder', [parentDeleted.id]);
+                        break;
+                      }
+                      // choice === 'noteOnly' -> fall through to plain restore
+                    }
+                  }
                   await joplin.commands.execute(isTrashFolder ? 'restoreFolder' : 'restoreNote', [id]);
                 } catch (e) {
                   console.error('Joplin Explorer: restore error', e);
