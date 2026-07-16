@@ -55,6 +55,9 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Notebook export fix** (v1.5.10)
 - Notebook right-click export now works: drill-in format submenu (JEX / Markdown / MD+Front Matter / HTML) + directory picker; failures show a dialog instead of being swallowed
 
+**Import files** (v1.5.11)
+- Notebook right-click "Import files": multi-select txt/md picker, each file becomes a note (title = file name without extension). Encoding-aware (UTF-8 with GBK fallback, BOM stripped)
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
