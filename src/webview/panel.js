@@ -216,9 +216,10 @@ var _collapseSnapshot = null;
 // (Joplin's setHtml de-dupes), so no re-render happens, the DOM stays
 // collapsed, and scrollIntoView on the hidden target row silently no-ops.
 function expandAncestorsLocal(el) {
+  var expanded = [];
   var ch = el.closest('.children');
   while (ch) {
-    ch.classList.remove('collapsed');
+    if (ch.classList.contains('collapsed')) { ch.classList.remove('collapsed'); if (ch.dataset.folderId) expanded.push(ch.dataset.folderId); }
     var row = document.querySelector('.tree-item.folder:not(.pinned-item)[data-id="' + ch.dataset.folderId + '"]');
     if (row) {
       row.classList.remove('collapsed');
@@ -227,6 +228,7 @@ function expandAncestorsLocal(el) {
     }
     ch = ch.parentElement ? ch.parentElement.closest('.children') : null;
   }
+  return expanded;
 }
 
 // ---- hover preview ----
@@ -932,14 +934,22 @@ webviewApi.onMessage(function(msg) {
       ta.remove();
     }
   } else if (m.name === 'selectNote') {
-    // Update selection without full re-render
+    // Update selection without full re-render, and locate the note in the
+    // MAIN TREE (not the tag/pinned copy): expand its collapsed ancestors so
+    // it's actually visible, then scroll. Fixes clicking a note under a tag
+    // not jumping the tree to it.
     document.querySelectorAll('.tree-item.note.selected').forEach(function(el) {
       el.classList.remove('selected');
     });
-    var noteEl = document.querySelector('.tree-item.note[data-id="' + m.id + '"]');
+    var mainTree = document.getElementById('main-tree');
+    var noteEl = mainTree ? mainTree.querySelector('.tree-item.note[data-id="' + m.id + '"]') : null;
+    if (!noteEl) noteEl = document.querySelector('.tree-item.note[data-id="' + m.id + '"]');
     if (noteEl) {
       noteEl.classList.add('selected');
+      var opened = (mainTree && mainTree.contains(noteEl)) ? expandAncestorsLocal(noteEl) : [];
       noteEl.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+      // Record the reveal so the next backend refresh doesn't re-collapse.
+      if (opened.length) postMsg({ name: 'revealNote', folderIds: opened });
     }
   } else if (m.name === 'updateNote') {
     document.querySelectorAll('.tree-item.note[data-id="' + m.id + '"]').forEach(function(el) {

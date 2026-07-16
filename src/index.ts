@@ -2268,6 +2268,14 @@ joplin.plugins.register({
         } catch (err) {
           console.error('Joplin Explorer: locateFolder error', err);
         }
+      } else if (msg.name === 'revealNote') {
+        // The webview expanded these ancestor folders to reveal a selected
+        // note; persist so a later refresh keeps them open (record-only, no
+        // re-render - the DOM already reflects it).
+        if (Array.isArray(msg.folderIds)) {
+          for (const fid of msg.folderIds) delete collapsedFolders[String(fid)];
+          saveUiState();
+        }
       } else if (msg.name === 'locatePinnedFolder') {
         try {
           expandToFolder(msg.folderId);
