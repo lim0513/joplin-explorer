@@ -1431,7 +1431,7 @@ joplin.plugins.register({
         }
       }
       const visitTrashFolder = (f: any, depth: number) => {
-        folders.push({ id: f.id, title: f.title, depth });
+        folders.push({ id: f.id, title: f.title, depth, hasSub: !!(byParent[f.id] && byParent[f.id].length) });
         for (const c of (byParent[f.id] || [])) visitTrashFolder(c, depth + 1);
       };
       for (const r of trashRoots) visitTrashFolder(r, 0);

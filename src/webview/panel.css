@@ -447,6 +447,8 @@ html, body {
 .smart-folder.smart-empty:hover { background: none; cursor: default; }
 .smart-children.collapsed { display: none; }
 .trash-children.collapsed { display: none; }
+/* Rows swept out of view when an ancestor trash folder is collapsed */
+.trash-hidden { display: none; }
 /* Rows carry inline padding (depth-based); containers only need hide/show */
 .trash-folder-children.collapsed { display: none; }
 .trash-note .label { opacity: 0.75; }

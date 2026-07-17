@@ -508,14 +508,45 @@ document.addEventListener('click', function(e) {
     if (item.dataset.trash === '1') {
       // Deleted notebooks expand to show their notes; deleted notes open
       // read-only like in Joplin's own trash; manage via the context menu.
+      // Trash folders render as a FLAT DFS list with depth attributes, so
+      // collapse must sweep the row's subtree region: every following row
+      // with a greater depth belongs to it (fixes sub-notebooks staying
+      // visible after collapsing their parent).
       if (item.dataset.type === 'folder') {
+        var tfArrow = item.querySelector('.toggle');
+        if (!tfArrow || !tfArrow.textContent) return; // leaf: nothing to toggle
+        var tfDepth = Number(item.dataset.depth || 0);
+        var collapsing = tfArrow.textContent === '\u25BC';
         var tfKids = document.querySelector('.trash-folder-children[data-folder-id="' + item.dataset.id + '"]');
-        if (tfKids) {
-          var tfCollapsed = tfKids.classList.toggle('collapsed');
-          if (!tfCollapsed) animateExpand(tfKids);
-          var tfArrow = item.querySelector('.toggle');
-          if (tfArrow) tfArrow.textContent = tfCollapsed ? '\u25B6' : '\u25BC';
-          if (!tfCollapsed && !tfKids.dataset.loaded) {
+        var el = item.nextElementSibling;
+        while (el) {
+          if (el.classList.contains('trash-folder-children')) {
+            var cd = Number(el.dataset.depth || 0);
+            if (el === tfKids) {
+              el.classList.toggle('collapsed', collapsing);
+            } else if (cd > tfDepth) {
+              el.classList.add('collapsed'); // descendants re-fold
+            } else { break; }
+          } else if (el.classList.contains('tree-item') && el.dataset.trash === '1' && el.dataset.type === 'folder') {
+            var rd = Number(el.dataset.depth || 0);
+            if (rd <= tfDepth) break;
+            if (collapsing) {
+              el.classList.add('trash-hidden');
+            } else {
+              // Expanding reveals ONE level; deeper stays hidden & folded.
+              el.classList.toggle('trash-hidden', rd !== tfDepth + 1);
+            }
+            var ca = el.querySelector('.toggle');
+            if (ca && ca.textContent) ca.textContent = '\u25B6';
+          } else {
+            break; // reached the loose root-level notes (or the end)
+          }
+          el = el.nextElementSibling;
+        }
+        tfArrow.textContent = collapsing ? '\u25B6' : '\u25BC';
+        if (!collapsing && tfKids) {
+          animateExpand(tfKids);
+          if (!tfKids.dataset.loaded) {
             postMsg({ name: 'trashFolderNotes', folderId: item.dataset.id });
           }
         }
@@ -846,7 +877,7 @@ webviewApi.onMessage(function(msg) {
         var trDepth = trF.depth || 0;
         var trPad = 34 + trDepth * 16;
         trHtml += '<div class="tree-item folder trash-note" style="padding-left:' + trPad + 'px" data-id="' + trF.id + '" data-type="folder" data-trash="1" data-depth="' + trDepth + '">'
-          + '<span class="toggle">' + (trF.hasNotes ? '\u25B6' : '') + '</span>'
+          + '<span class="toggle">' + ((trF.hasNotes || trF.hasSub) ? '\u25B6' : '') + '</span>'
           + '<span class="icon">\uD83D\uDCC1</span>'
           + '<span class="label">' + escapeHtml(trF.title) + '</span>'
           + '</div>';
