@@ -70,6 +70,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Empty pinned section shows a temporary drop target during drag, enabling the first drag-to-pin — [#13](https://github.com/lim0513/joplin-explorer/issues/13)
 - Trashed notes no longer appear under tags nor inflate tag counts — [#15](https://github.com/lim0513/joplin-explorer/issues/15) (all three thanks to [@CJeffyB](https://github.com/CJeffyB))
 - v1.5.15: the empty-pinned drop target floats sticky at the viewport top, and its injection no longer breaks dragging
+- v1.5.16: nested trash notebooks collapse correctly (sub-notebooks fold away with their parent); README screenshots added
 
 **Misc**
 - Emoji / custom image notebook icons

@@ -70,6 +70,7 @@
 - 收藏夹为空时拖拽期间显示临时落点，首次拖拽收藏可用——[#13](https://github.com/lim0513/joplin-explorer/issues/13)
 - 已删除笔记不再出现在标签下、不再虚增标签计数——[#15](https://github.com/lim0513/joplin-explorer/issues/15)（三项均感谢 [@CJeffyB](https://github.com/CJeffyB)）
 - v1.5.15：空收藏夹落点改为视口顶部悬浮显示，且注入不再破坏拖拽
+- v1.5.16：回收站里多层笔记本正确折叠（子笔记本随父级收起）；README 增加展示图
 
 **其他**
 - Emoji / 自定义图片笔记本图标

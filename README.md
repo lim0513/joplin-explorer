@@ -4,6 +4,12 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 
 [中文说明](README-CN.md)
 
+![Joplin Explorer sidebar](assets/1.png)
+
+| Hover preview | Context menu | Settings |
+| :---: | :---: | :---: |
+| ![Hover preview](assets/2.png) | ![Context menu](assets/3.png) | ![Settings](assets/4.png) |
+
 ## Features
 
 - **Unified Tree View** — Notebooks and notes displayed in one collapsible panel
