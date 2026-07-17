@@ -490,6 +490,25 @@ html, body {
   z-index: 10;
 }
 
+/* Temporary drop target when the pinned section is empty (#13): sticky so
+ * it stays visible however far the tree is scrolled (same pattern as the
+ * drop-zone-empty bar). */
+#pinned-drop-ph {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  justify-content: center;
+  border: 2px dashed var(--joplin-color2, #4a9cf5);
+  border-radius: 6px;
+  margin: 4px 8px;
+  padding: 6px 8px;
+  color: var(--joplin-color2, #4a9cf5);
+  font-size: 12px;
+  background: linear-gradient(rgba(74, 156, 245, 0.15), rgba(74, 156, 245, 0.15)),
+    var(--joplin-background-color, #1e1e1e);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
 /* Pinned section accepts drops during drag — outline doesn't affect layout */
 #tree-container.dragging-active .pinned-section-header {
   outline: 2px dashed var(--joplin-color2, #4a9cf5);
