@@ -62,6 +62,9 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Restoring a note whose notebook is also trashed now offers to restore the notebook too (instead of silently dropping the note to the root)
 - Clicking a note under a tag now locates and expands the main tree to it
 
+**Collapse-button browsing fix** (v1.5.13)
+- Manually expanding a folder after Collapse All flips the button back to Collapse, so restoring never wipes fresh browsing — [#11](https://github.com/lim0513/joplin-explorer/issues/11), thanks [@CJeffyB](https://github.com/CJeffyB)
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
