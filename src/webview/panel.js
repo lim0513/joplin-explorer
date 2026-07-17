@@ -542,6 +542,18 @@ document.addEventListener('click', function(e) {
         // Toggle locally (no re-render, keeps scroll), backend just records state
         toggleFolderLocal(item, id);
         postMsg({ name: 'toggleFolder', id: id });
+        // Browsing invalidates a pending "Expand (restore)": once the user
+        // manually expands a folder, restoring the pre-collapse snapshot
+        // would wipe what they just opened (#11). Flip the button back to
+        // Collapse mode; the next collapse re-snapshots the current state.
+        if (!item.classList.contains('collapsed')) {
+          var caBtn2 = document.getElementById('btn-collapse-all');
+          if (caBtn2 && caBtn2.dataset.mode === 'expand') {
+            caBtn2.dataset.mode = 'collapse';
+            caBtn2.textContent = '▲';
+            caBtn2.title = T('collapseAll');
+          }
+        }
       }
     }
     return;
