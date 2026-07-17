@@ -1016,14 +1016,20 @@ document.addEventListener('dragstart', function(e) {
     if (tc) {
       tc.classList.add('dragging-active');
       // Empty pinned section renders no header, so drag-to-pin had no
-      // landing spot for the FIRST pin (#13). Inject a temporary target;
-      // it reuses .pinned-section-header so all drop handlers apply.
-      if (!document.getElementById('pinned-header') && !document.getElementById('pinned-drop-ph')) {
-        var ph = document.createElement('div');
-        ph.id = 'pinned-drop-ph';
-        ph.className = 'pinned-section-header';
-        ph.textContent = '📌 ' + T('pinned');
-        tc.insertBefore(ph, tc.firstChild);
+      // landing spot for the FIRST pin (#13). Inject a temporary target -
+      // DEFERRED: mutating the DOM synchronously inside dragstart makes
+      // Chromium cancel the whole drag (the reflow moves the drag source).
+      // After the handler returns the drag snapshot exists and it's safe.
+      if (!document.getElementById('pinned-header')) {
+        setTimeout(function () {
+          if (!document.querySelector('.tree-item.dragging')) return; // drag already over
+          if (document.getElementById('pinned-header') || document.getElementById('pinned-drop-ph')) return;
+          var ph = document.createElement('div');
+          ph.id = 'pinned-drop-ph';
+          ph.className = 'pinned-section-header';
+          ph.textContent = '📌 ' + T('pinned');
+          tc.insertBefore(ph, tc.firstChild);
+        }, 0);
       }
     }
   }
