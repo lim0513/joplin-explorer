@@ -4,11 +4,11 @@
 
 [English](README.md)
 
-![Joplin Explorer 侧边栏](assets/1.png)
+![Joplin Explorer 侧边栏](https://raw.githubusercontent.com/lim0513/joplin-explorer/HEAD/assets/1.png)
 
 | 悬停预览 | 右键菜单 | 设置 |
 | :---: | :---: | :---: |
-| ![悬停预览](assets/2.png) | ![右键菜单](assets/3.png) | ![设置](assets/4.png) |
+| ![悬停预览](https://raw.githubusercontent.com/lim0513/joplin-explorer/HEAD/assets/2.png) | ![右键菜单](https://raw.githubusercontent.com/lim0513/joplin-explorer/HEAD/assets/3.png) | ![设置](https://raw.githubusercontent.com/lim0513/joplin-explorer/HEAD/assets/4.png) |
 
 ## 功能
 

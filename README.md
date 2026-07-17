@@ -4,11 +4,11 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 
 [中文说明](README-CN.md)
 
-![Joplin Explorer sidebar](assets/1.png)
+![Joplin Explorer sidebar](https://raw.githubusercontent.com/lim0513/joplin-explorer/HEAD/assets/1.png)
 
 | Hover preview | Context menu | Settings |
 | :---: | :---: | :---: |
-| ![Hover preview](assets/2.png) | ![Context menu](assets/3.png) | ![Settings](assets/4.png) |
+| ![Hover preview](https://raw.githubusercontent.com/lim0513/joplin-explorer/HEAD/assets/2.png) | ![Context menu](https://raw.githubusercontent.com/lim0513/joplin-explorer/HEAD/assets/3.png) | ![Settings](https://raw.githubusercontent.com/lim0513/joplin-explorer/HEAD/assets/4.png) |
 
 ## Features
 
