@@ -1000,12 +1000,32 @@ document.addEventListener('dragstart', function(e) {
     type: item.dataset.type,
     pinned: isPinned,
   }));
+  // Joplin-native drag payload (#12): the same mime types the built-in note
+  // list sets, so native drop targets (editor -> insert link, Canvas -> note
+  // card) accept drags from this panel too.
+  if (item.dataset.type === 'note') {
+    e.dataTransfer.setData('text/x-jop-note-ids', JSON.stringify([item.dataset.id]));
+  } else if (item.dataset.type === 'folder') {
+    e.dataTransfer.setData('text/x-jop-folder-ids', JSON.stringify([item.dataset.id]));
+  }
   e.dataTransfer.effectAllowed = 'move';
   item.classList.add('dragging');
   // Show drop zones during drag (not for pinned items)
   if (!isPinned) {
     var tc = document.getElementById('tree-container');
-    if (tc) tc.classList.add('dragging-active');
+    if (tc) {
+      tc.classList.add('dragging-active');
+      // Empty pinned section renders no header, so drag-to-pin had no
+      // landing spot for the FIRST pin (#13). Inject a temporary target;
+      // it reuses .pinned-section-header so all drop handlers apply.
+      if (!document.getElementById('pinned-header') && !document.getElementById('pinned-drop-ph')) {
+        var ph = document.createElement('div');
+        ph.id = 'pinned-drop-ph';
+        ph.className = 'pinned-section-header';
+        ph.textContent = '📌 ' + T('pinned');
+        tc.insertBefore(ph, tc.firstChild);
+      }
+    }
   }
 });
 
@@ -1056,6 +1076,8 @@ function endDrag() {
   clearDropIndicators();
   var tc = document.getElementById('tree-container');
   if (tc) tc.classList.remove('dragging-active');
+  var ph = document.getElementById('pinned-drop-ph');
+  if (ph) ph.remove();
 }
 
 document.addEventListener('dragend', function(e) {

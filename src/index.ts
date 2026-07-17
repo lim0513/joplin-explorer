@@ -917,8 +917,12 @@ joplin.plugins.register({
           let counts: string[] = tags.map(() => '');
           if (tags.length <= 200) {
             counts = await Promise.all(tags.map((x: any) =>
-              joplin.data.get(['tags', x.id, 'notes'], { fields: ['id'], limit: 100 })
-                .then((r: any) => r.items.length === 0 ? '0' : (r.has_more ? '100+' : String(r.items.length)))
+              joplin.data.get(['tags', x.id, 'notes'], { fields: ['id', 'deleted_time'], limit: 100 })
+                .then((r: any) => {
+                  // Trashed notes ride this route too (#15) - don't count them.
+                  const live = (r.items || []).filter((n: any) => !n.deleted_time).length;
+                  return live === 0 && !r.has_more ? '0' : (r.has_more ? '100+' : String(live));
+                })
                 .catch(() => '')
             ));
             tags = tags.filter((_x: any, i: number) => counts[i] !== '0');
@@ -1372,10 +1376,12 @@ joplin.plugins.register({
       let more = true;
       while (more && notes.length < 200) {
         const r = await joplin.data.get(['tags', tagId, 'notes'], {
-          fields: ['id', 'title', 'is_todo', 'todo_completed'],
+          fields: ['id', 'title', 'is_todo', 'todo_completed', 'deleted_time'],
           page: p, limit: 50,
         });
-        notes = notes.concat(r.items);
+        // Unlike /notes, the /tags/:id/notes route does NOT exclude trashed
+        // notes (#15) - filter them here so the tag view matches Joplin's own.
+        notes = notes.concat((r.items || []).filter((n: any) => !n.deleted_time));
         more = r.has_more;
         p++;
       }
