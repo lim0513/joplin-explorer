@@ -65,6 +65,11 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Collapse-button browsing fix** (v1.5.13)
 - Manually expanding a folder after Collapse All flips the button back to Collapse, so restoring never wipes fresh browsing — [#11](https://github.com/lim0513/joplin-explorer/issues/11), thanks [@CJeffyB](https://github.com/CJeffyB)
 
+**Drag & tag fixes** (v1.5.14)
+- Panel drags carry Joplin's native mime payload: drop a note into the editor to insert a link (Canvas-ready for 3.7) — [#12](https://github.com/lim0513/joplin-explorer/issues/12)
+- Empty pinned section shows a temporary drop target during drag, enabling the first drag-to-pin — [#13](https://github.com/lim0513/joplin-explorer/issues/13)
+- Trashed notes no longer appear under tags nor inflate tag counts — [#15](https://github.com/lim0513/joplin-explorer/issues/15) (all three thanks to [@CJeffyB](https://github.com/CJeffyB))
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
@@ -78,6 +83,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 - [ ] Sidebar layout options: line height, indentation depth, show/hide updated time
 - [ ] Auto icons based on note type
+- [ ] More import formats: CSV (as Markdown table), HTML (converted to Markdown) — [#14](https://github.com/lim0513/joplin-explorer/issues/14)
 
 ---
 

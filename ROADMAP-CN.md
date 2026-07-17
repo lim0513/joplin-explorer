@@ -65,6 +65,11 @@
 **收缩按钮浏览修复**（v1.5.13）
 - 全收缩后手动展开文件夹会让按钮翻回"收缩"态，恢复操作不再覆盖刚浏览展开的内容——[#11](https://github.com/lim0513/joplin-explorer/issues/11)，感谢 [@CJeffyB](https://github.com/CJeffyB)
 
+**拖拽与标签修复**（v1.5.14）
+- 面板拖拽携带 Joplin 原生 mime 载荷：笔记拖入编辑器可插入链接（3.7 Canvas 即插即用）——[#12](https://github.com/lim0513/joplin-explorer/issues/12)
+- 收藏夹为空时拖拽期间显示临时落点，首次拖拽收藏可用——[#13](https://github.com/lim0513/joplin-explorer/issues/13)
+- 已删除笔记不再出现在标签下、不再虚增标签计数——[#15](https://github.com/lim0513/joplin-explorer/issues/15)（三项均感谢 [@CJeffyB](https://github.com/CJeffyB)）
+
 **其他**
 - Emoji / 自定义图片笔记本图标
 - 同步按钮带状态反馈
@@ -78,6 +83,7 @@
 
 - [ ] 布局选项：行高、缩进深度、显示/隐藏更新时间
 - [ ] 按笔记类型自动图标
+- [ ] 更多导入格式：CSV（转 Markdown 表格）、HTML（转 Markdown）——[#14](https://github.com/lim0513/joplin-explorer/issues/14)
 
 ---
 
