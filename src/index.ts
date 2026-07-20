@@ -540,10 +540,24 @@ joplin.plugins.register({
             restore: t.sExpandRestore,
             skeleton: t.sExpandSkeleton,
             all: t.sExpandAllOpt,
+            collapseOnly: t.sExpandCollapseOnly,
           },
           public: true,
           label: t.sExpandMode,
           description: t.sExpandModeDesc,
+        },
+        'collapseAllScope': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: 'notebooksOnly',
+          isEnum: true,
+          options: {
+            notebooksOnly: t.sScopeNotebooks,
+            allSections: t.sScopeAll,
+          },
+          public: true,
+          label: t.sCollapseScope,
+          description: t.sCollapseScopeDesc,
         },
         'sectionOrder': {
           section: 'joplinExplorer',
@@ -1174,6 +1188,7 @@ joplin.plugins.register({
         const i18nJson = escapeHtml(JSON.stringify(t));
 
         const expandAllMode = String((await joplin.settings.value('expandAllMode')) || 'restore');
+        const collapseScope = String((await joplin.settings.value('collapseAllScope')) || 'notebooksOnly');
         const hoverPreviewOn = (await joplin.settings.value('hoverPreview')) !== false ? '1' : '0';
         const arrowPos = String((await joplin.settings.value('toggleArrowPosition')) || 'right') === 'left' ? 'left' : 'right';
         // Section order + spacing (#9): each section is one self-contained
@@ -1197,11 +1212,13 @@ joplin.plugins.register({
         let secGap = Number(await joplin.settings.value('sectionSpacing'));
         if (!isFinite(secGap) || secGap < 0) secGap = 5;
         if (secGap > 30) secGap = 30;
-        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
-          + '    <button id="btn-collapse-all" data-mode="' + (allFoldersCollapsed ? 'expand' : 'collapse') + '" title="' + (allFoldersCollapsed ? t.expandAll : t.collapseAll) + '">' + (allFoldersCollapsed ? '\u25BC' : '\u25B2') + '</button>'
+          // collapseOnly (#19): the button never enters Expand state - it
+          // stays a pure Collapse control.
+          + '    <button id="btn-collapse-all" data-mode="' + ((allFoldersCollapsed && expandAllMode !== 'collapseOnly') ? 'expand' : 'collapse') + '" title="' + ((allFoldersCollapsed && expandAllMode !== 'collapseOnly') ? t.expandAll : t.collapseAll) + '">' + ((allFoldersCollapsed && expandAllMode !== 'collapseOnly') ? '\u25BC' : '\u25B2') + '</button>'
           + '    <button id="btn-refresh" title="' + t.refresh + '">\u21BB</button>'
           + '  </div>'
           + '  <div class="search-bar">'
@@ -1280,6 +1297,7 @@ joplin.plugins.register({
         || event.keys.indexOf('smartFolderRules') >= 0
         || event.keys.indexOf('hoverPreview') >= 0
         || event.keys.indexOf('expandAllMode') >= 0
+        || event.keys.indexOf('collapseAllScope') >= 0
         || event.keys.indexOf('showTagsSection') >= 0
         || event.keys.indexOf('sectionOrder') >= 0
         || event.keys.indexOf('sectionSpacing') >= 0
@@ -2185,6 +2203,8 @@ joplin.plugins.register({
         // only record state for the next real refresh (mirrors toggleFolder).
         for (const f of allFoldersCache) collapsedFolders[f.id] = true;
         if (Array.isArray(msg.prevCollapsed)) collapseSnapshot = msg.prevCollapsed.map(String);
+        // collapseAllScope=allSections (#19): also fold the sections.
+        if (msg.sections) { pinnedCollapsed = true; smartCollapsed = true; tagsCollapsed = true; trashCollapsed = true; }
         saveUiState();
       } else if (msg.name === 'expandAll') {
         // Record-only, like collapseAll. Skeleton expand: the webview keeps
@@ -2193,6 +2213,8 @@ joplin.plugins.register({
         if (Array.isArray(msg.collapsedIds)) {
           for (const cid of msg.collapsedIds) collapsedFolders[String(cid)] = true;
         }
+        // Reopen the sections that Collapse All (allSections scope) folded.
+        if (msg.sections) { pinnedCollapsed = false; smartCollapsed = false; tagsCollapsed = false; trashCollapsed = false; }
         saveUiState();
       } else if (msg.name === 'panelReady') {
         // The webview was (re)created - e.g. after a settings roundtrip -

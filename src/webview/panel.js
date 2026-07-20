@@ -157,6 +157,35 @@ function collapseAllLocal() {
   });
 }
 
+// Collapse or expand the four section headers (pinned / smart / tags / trash)
+// in the DOM, for the "collapse all sections" scope (#19). Returns true if any
+// section was present. Backend records the state via the collapse/expand msg.
+function setSectionsCollapsed(collapsed) {
+  var pairs = [
+    ['pinned-header', 'pinned-body'],
+    ['smart-header', 'smart-section-body'],
+    ['tags-header', 'tags-body'],
+    ['trash-header', 'trash-children'],
+  ];
+  var any = false;
+  for (var i = 0; i < pairs.length; i++) {
+    var hdr = document.getElementById(pairs[i][0]);
+    var body = document.getElementById(pairs[i][1]);
+    if (!hdr) continue;
+    any = true;
+    hdr.classList.toggle('collapsed', collapsed);
+    if (body) body.classList.toggle('collapsed', collapsed);
+    var arr = hdr.querySelector('.toggle');
+    if (arr) arr.textContent = collapsed ? '▶' : '▼';
+  }
+  return any;
+}
+
+function collapseScope() {
+  var root = document.getElementById('notes-in-list-root');
+  return root ? (root.dataset.collapseScope || 'notebooksOnly') : 'notebooksOnly';
+}
+
 // Skeleton expand: unfold the whole FOLDER hierarchy but keep leaf folders
 // (no sub-notebooks) collapsed, so note rows mostly stay hidden and the
 // tree doesn't explode in length. Returns the ids left collapsed so the
@@ -611,6 +640,18 @@ document.addEventListener('click', function(e) {
     case 'btn-sort': postMsg({ name: 'cycleSort' }); break;
     case 'btn-collapse-all': {
       var caBtn = document.getElementById('btn-collapse-all');
+      var rootEl0 = document.getElementById('notes-in-list-root');
+      var caMode = rootEl0 ? (rootEl0.dataset.expandMode || 'restore') : 'restore';
+      // collapseOnly (#19): always collapse, never expand; keep the button
+      // fixed in Collapse state.
+      var withSections = collapseScope() === 'allSections';
+      if (caMode === 'collapseOnly') {
+        collapseAllLocal();
+        var sec0 = withSections ? setSectionsCollapsed(true) : false;
+        postMsg({ name: 'collapseAll', sections: sec0 });
+        if (caBtn) { caBtn.dataset.mode = 'collapse'; caBtn.textContent = '▲'; caBtn.title = T('collapseAll'); }
+        break;
+      }
       if (caBtn && caBtn.dataset.mode === 'expand') {
         var rootEl = document.getElementById('notes-in-list-root');
         var expandMode = rootEl ? (rootEl.dataset.expandMode || 'restore') : 'restore';
@@ -627,15 +668,17 @@ document.addEventListener('click', function(e) {
         } else {
           stillCollapsed = expandAllLocal(); // skeleton
         }
-        // Expand must always DO something. A degenerate snapshot ("all
-        // collapsed") or a skeleton pass over a flat tree would leave the
-        // tree untouched while the button still flips - which reads as
-        // inverted. Fall back to a full expand in that case.
+        // Expand must always DO something in 'restore'/'all': a degenerate
+        // snapshot ("all collapsed") would leave the tree untouched while the
+        // button flips - reads as inverted. Fall back to a full expand. NOT
+        // for 'skeleton': on a flat tree it legitimately expands nothing, and
+        // forcing a full expand would contradict the skeleton setting (#17).
         var mainFolderCount = document.querySelectorAll('#main-tree .tree-item.folder').length;
-        if (mainFolderCount > 0 && stillCollapsed.length >= mainFolderCount) {
+        if (expandMode !== 'skeleton' && mainFolderCount > 0 && stillCollapsed.length >= mainFolderCount) {
           stillCollapsed = applyCollapsedSet([]);
         }
-        postMsg({ name: 'expandAll', collapsedIds: stillCollapsed });
+        var secX = withSections ? setSectionsCollapsed(false) : false;
+        postMsg({ name: 'expandAll', collapsedIds: stillCollapsed, sections: secX });
         caBtn.dataset.mode = 'collapse';
         caBtn.textContent = '\u25B2';
         caBtn.title = T('collapseAll');
@@ -648,14 +691,15 @@ document.addEventListener('click', function(e) {
           if (fitem.classList.contains('collapsed')) pre.push(fitem.dataset.id);
         });
         collapseAllLocal();
+        var secC = withSections ? setSectionsCollapsed(true) : false;
         if (pre.length >= mainTotal && mainTotal > 0) {
           // Tree was already fully collapsed - keep the previous (useful)
           // snapshot instead of overwriting it with "everything collapsed",
           // which would turn the next Restore into a no-op.
-          postMsg({ name: 'collapseAll' });
+          postMsg({ name: 'collapseAll', sections: secC });
         } else {
           _collapseSnapshot = pre;
-          postMsg({ name: 'collapseAll', prevCollapsed: pre });
+          postMsg({ name: 'collapseAll', prevCollapsed: pre, sections: secC });
         }
         if (caBtn) {
           caBtn.dataset.mode = 'expand';
