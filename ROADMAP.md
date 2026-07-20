@@ -71,6 +71,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Trashed notes no longer appear under tags nor inflate tag counts — [#15](https://github.com/lim0513/joplin-explorer/issues/15) (all three thanks to [@CJeffyB](https://github.com/CJeffyB))
 - v1.5.15: the empty-pinned drop target floats sticky at the viewport top, and its injection no longer breaks dragging
 - v1.5.16: nested trash notebooks collapse correctly (sub-notebooks fold away with their parent); README screenshots added
+- v1.5.17: note icon configurable (#20) + default 📄; double-click opens a new window (#18); native New-notebook dialog (#16); Expand-mode fixes (#17); Collapse scope + Collapse-only mode (#19)
 
 **Misc**
 - Emoji / custom image notebook icons
