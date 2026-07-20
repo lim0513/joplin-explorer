@@ -69,10 +69,18 @@
 - 面板拖拽携带 Joplin 原生 mime 载荷：笔记拖入编辑器可插入链接（3.7 Canvas 即插即用）——[#12](https://github.com/lim0513/joplin-explorer/issues/12)
 - 收藏夹为空时拖拽期间显示临时落点，首次拖拽收藏可用——[#13](https://github.com/lim0513/joplin-explorer/issues/13)
 - 已删除笔记不再出现在标签下、不再虚增标签计数——[#15](https://github.com/lim0513/joplin-explorer/issues/15)（三项均感谢 [@CJeffyB](https://github.com/CJeffyB)）
-- v1.5.15：空收藏夹落点改为视口顶部悬浮显示，且注入不再破坏拖拽
-- v1.5.16：回收站里多层笔记本正确折叠（子笔记本随父级收起）；README 增加展示图
-- v1.5.17：笔记图标可配置（#20）+ 默认 📄；双击开新窗口（#18）；新建笔记本调原生对话框（#16）；展开模式修复（#17）；折叠范围 + 仅折叠模式（#19）
-- v1.5.18：manifest 增加插件图标（16/32/48/128）和截图，用于插件站列表展示
+
+**落点跟进修复**（v1.5.15）
+- 空收藏夹落点改为视口顶部悬浮显示，且注入不再破坏拖拽
+
+**回收站嵌套折叠**（v1.5.16）
+- 回收站里多层笔记本正确折叠（子笔记本随父级收起）；README 增加展示图
+
+**Issue 批次 #16–20**（v1.5.17）
+- 笔记图标可配置 + 默认 📄——[#20](https://github.com/lim0513/joplin-explorer/issues/20)；双击开新窗口——[#18](https://github.com/lim0513/joplin-explorer/issues/18)；新建笔记本调原生对话框——[#16](https://github.com/lim0513/joplin-explorer/issues/16)；展开模式修复——[#17](https://github.com/lim0513/joplin-explorer/issues/17)；折叠范围 + 仅折叠模式——[#19](https://github.com/lim0513/joplin-explorer/issues/19)（均感谢 [@CJeffyB](https://github.com/CJeffyB)）
+
+**插件站展示**（v1.5.18）
+- manifest 增加插件图标（16/32/48/128）和截图，用于插件站列表展示
 
 **其他**
 - Emoji / 自定义图片笔记本图标

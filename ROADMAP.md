@@ -69,10 +69,18 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Panel drags carry Joplin's native mime payload: drop a note into the editor to insert a link (Canvas-ready for 3.7) — [#12](https://github.com/lim0513/joplin-explorer/issues/12)
 - Empty pinned section shows a temporary drop target during drag, enabling the first drag-to-pin — [#13](https://github.com/lim0513/joplin-explorer/issues/13)
 - Trashed notes no longer appear under tags nor inflate tag counts — [#15](https://github.com/lim0513/joplin-explorer/issues/15) (all three thanks to [@CJeffyB](https://github.com/CJeffyB))
-- v1.5.15: the empty-pinned drop target floats sticky at the viewport top, and its injection no longer breaks dragging
-- v1.5.16: nested trash notebooks collapse correctly (sub-notebooks fold away with their parent); README screenshots added
-- v1.5.17: note icon configurable (#20) + default 📄; double-click opens a new window (#18); native New-notebook dialog (#16); Expand-mode fixes (#17); Collapse scope + Collapse-only mode (#19)
-- v1.5.18: plugin icon (16/32/48/128) + screenshots added to the manifest for the plugin website listing
+
+**Drop-target follow-up** (v1.5.15)
+- The empty-pinned drop target floats sticky at the viewport top, and its injection no longer breaks dragging
+
+**Nested trash collapse** (v1.5.16)
+- Nested trash notebooks collapse correctly (sub-notebooks fold away with their parent); README screenshots added
+
+**Issue batch #16–20** (v1.5.17)
+- Note icon configurable + default 📄 — [#20](https://github.com/lim0513/joplin-explorer/issues/20); double-click opens a note in a new window — [#18](https://github.com/lim0513/joplin-explorer/issues/18); native New-notebook dialog — [#16](https://github.com/lim0513/joplin-explorer/issues/16); Expand-mode fixes — [#17](https://github.com/lim0513/joplin-explorer/issues/17); Collapse scope + Collapse-only mode — [#19](https://github.com/lim0513/joplin-explorer/issues/19) (all thanks to [@CJeffyB](https://github.com/CJeffyB))
+
+**Plugin listing** (v1.5.18)
+- Plugin icon (16/32/48/128) + screenshots added to the manifest for the plugin website listing
 
 **Misc**
 - Emoji / custom image notebook icons
