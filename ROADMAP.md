@@ -72,6 +72,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - v1.5.15: the empty-pinned drop target floats sticky at the viewport top, and its injection no longer breaks dragging
 - v1.5.16: nested trash notebooks collapse correctly (sub-notebooks fold away with their parent); README screenshots added
 - v1.5.17: note icon configurable (#20) + default 📄; double-click opens a new window (#18); native New-notebook dialog (#16); Expand-mode fixes (#17); Collapse scope + Collapse-only mode (#19)
+- v1.5.18: plugin icon (16/32/48/128) + screenshots added to the manifest for the plugin website listing
 
 **Misc**
 - Emoji / custom image notebook icons
