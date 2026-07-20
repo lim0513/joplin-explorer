@@ -338,9 +338,13 @@ function getFolderIcon(node: TreeNode, isCollapsed = true, openIcon: IconRenderD
   return isCollapsed ? closedIcon : openIcon;
 }
 
+// Plain-note glyph, configurable (#20). Default is \uD83D\uDCC4 (page facing up) - a
+// cleaner mark than the old \uD83D\uDCDD (memo with red pen). Set from the noteIcon
+// setting at startup and on change.
+let noteIconGlyph = '\uD83D\uDCC4';
 function getNoteIcon(note: { is_todo?: number, todo_completed?: number }): string {
   if (note.is_todo) return note.todo_completed ? '\u2611' : '\u2610';
-  return '\uD83D\uDCDD';
+  return noteIconGlyph;
 }
 
 function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet: { [id: string]: boolean }, level = 0, showFolderToggles = true, openFolderIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC2' }, closedFolderIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC1' }): string {
@@ -559,6 +563,14 @@ joplin.plugins.register({
           label: t.sSectionGap,
           description: t.sSectionGapDesc,
         },
+        'noteIcon': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '📄',
+          public: true,
+          label: t.sNoteIcon,
+          description: t.sNoteIconDesc,
+        },
         'showFolderToggles': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -603,6 +615,15 @@ joplin.plugins.register({
     } catch (err) {
       console.error('Joplin Explorer: failed to register settings', err);
     }
+
+    // Load the configurable plain-note glyph now that its setting exists (#20).
+    async function loadNoteIcon(): Promise<void> {
+      try {
+        const v = String((await joplin.settings.value('noteIcon')) || '').trim();
+        noteIconGlyph = v || '📄';
+      } catch (_) { /* keep default */ }
+    }
+    await loadNoteIcon();
 
     // Native dialogs
     const inputDialog = await joplin.views.dialogs.create('explorerInputDialog');
@@ -822,6 +843,33 @@ joplin.plugins.register({
         const found: FolderItem | undefined = folderById[parentId];
         parentId = found ? found.parent_id : null;
       }
+    }
+
+    // After opening the native "New notebook" dialog (#16): openFolderDialog
+    // returns immediately, so poll the folder count briefly and refresh the
+    // moment a notebook is added. Cancel = no change = quiet timeout (the 5s
+    // signature poll still covers anything after the window). New folders are
+    // pre-seeded seen+expanded so they don't appear collapsed.
+    async function watchNewFolder(): Promise<void> {
+      let before = -1;
+      try { before = (await getAllFolders()).length; } catch (_) { return; }
+      void (async () => {
+        for (let i = 0; i < 240; i++) {
+          await new Promise((res) => setTimeout(res, 500));
+          try {
+            const now = await getAllFolders();
+            if (now.length > before) {
+              const known = new Set(Object.keys(folderById));
+              for (const f of now) {
+                if (!known.has(f.id)) { seenFolders[f.id] = true; if (f.parent_id) delete collapsedFolders[f.parent_id]; }
+              }
+              saveUiState();
+              scheduleRefreshPanel(100);
+              return;
+            }
+          } catch (_) { return; }
+        }
+      })();
     }
 
     async function refreshPanel(): Promise<void> {
@@ -1240,7 +1288,9 @@ joplin.plugins.register({
         || event.keys.indexOf('closedFolderIcon') >= 0
         || event.keys.indexOf('openPinnedIcon') >= 0
         || event.keys.indexOf('closedPinnedIcon') >= 0
+        || event.keys.indexOf('noteIcon') >= 0
       )) {
+        if (event.keys.indexOf('noteIcon') >= 0) await loadNoteIcon();
         clearIconResolveCache();
         await refreshPanel();
       }
@@ -1570,12 +1620,16 @@ joplin.plugins.register({
                 break;
               }
               case 'newSubNotebook': {
-                const subName = await showNativeInput(t.newNotebook, '');
-                if (subName && subName.trim()) {
-                  const newFolder = await joplin.data.post(['folders'], null, { title: subName.trim(), parent_id: id });
-                  seenFolders[newFolder.id] = true; // panel-created: keep it expanded
+                // Native notebook dialog (name focus + icon picker), same as
+                // the built-in sidebar (#16). openFolderDialog returns as soon
+                // as it opens, so a short watcher refreshes when the new
+                // notebook lands and keeps its parent expanded.
+                try {
                   delete collapsedFolders[id];
-                  delete collapsedFolders[newFolder.id];
+                  await joplin.commands.execute('openFolderDialog', { isNew: true, parentId: id });
+                  watchNewFolder();
+                } catch (e) {
+                  console.error('Joplin Explorer: newSubNotebook error', e);
                 }
                 break;
               }
@@ -2173,13 +2227,13 @@ joplin.plugins.register({
       } else if (msg.name === 'refreshView') {
         await refreshPanel();
       } else if (msg.name === 'newNotebook') {
-        const folderName = await showNativeInput(t.promptNewNotebookName, '');
-        if (!folderName || !folderName.trim()) return;
-        const newFolder = await joplin.data.post(['folders'], null, { title: folderName.trim() });
-        seenFolders[newFolder.id] = true; // panel-created: keep it expanded
-        delete collapsedFolders[newFolder.id];
-        await refreshPanel();
-        await joplin.views.panels.postMessage(panel, { name: 'scrollToFolder', folderId: newFolder.id });
+        // Native "Create notebook" dialog (name focus + icon picker), #16.
+        try {
+          await joplin.commands.execute('openFolderDialog', { isNew: true });
+          watchNewFolder();
+        } catch (e) {
+          console.error('Joplin Explorer: newNotebook error', e);
+        }
       } else if (msg.name === 'newNote') {
         await joplin.commands.execute('newNote');
         const nn = await joplin.workspace.selectedNote();

@@ -1009,6 +1009,16 @@ webviewApi.onMessage(function(msg) {
   }
 });
 
+// Double-click a note -> open in a new window (#18), like Joplin's own note
+// list. Trash/tag/pinned copies included; folders keep their toggle behavior.
+document.addEventListener('dblclick', function(e) {
+  var t = e.target;
+  if (t && t.closest && (t.closest('#ctx-menu') || t.closest('#note-preview'))) return;
+  var item = t.closest ? t.closest('.tree-item.note') : null;
+  if (!item || item.dataset.trash === '1' || !item.dataset.id) return;
+  postMsg({ name: 'contextMenu', action: 'openInNewWindow', id: item.dataset.id, itemType: 'note' });
+});
+
 // ======================== Drag & Drop ========================
 // Make tree items draggable
 document.addEventListener('mousedown', function(e) {
