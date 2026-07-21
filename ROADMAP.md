@@ -89,6 +89,9 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Collapse-all fix** (v1.5.20)
 - "Collapse all (with sections)" now also folds the Smart Folders section body (a DOM-id mismatch had left it open)
 
+**Smart-folder badge fix** (v1.5.21)
+- Notes listed under a smart folder (Open to-dos, etc.) now show the checkbox progress pie / published badge — the initial fetch was missing the badge data
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback

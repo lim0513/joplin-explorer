@@ -1616,6 +1616,23 @@ joplin.plugins.register({
       return out.slice(0, limit);
     }
 
+    // Smart-folder rows are built from a lightweight search that omits the
+    // body/is_shared fields the badges need. Fetch those per note (lists are
+    // limited, so this is a handful of calls) and attach ready-made badge HTML.
+    async function attachSmartBadges(notes: any[]): Promise<any[]> {
+      await Promise.all(notes.map(async (n) => {
+        try {
+          const full = await joplin.data.get(['notes', n.id], { fields: ['is_shared', 'body'] });
+          const cb = countCheckboxes((full as any).body || '');
+          n.is_shared = (full as any).is_shared;
+          n.cb_total = cb.total;
+          n.cb_done = cb.done;
+          n.badges = noteBadgesHtml(n);
+        } catch (_) { n.badges = ''; }
+      }));
+      return notes;
+    }
+
     async function handleContextMenu(msg: any): Promise<void> {
 
         const action = msg.action;
@@ -2344,6 +2361,7 @@ joplin.plugins.register({
             const direct = msg.smartId === 'recent'
               ? await fetchRecentNotes(smartLimit)
               : await fetchOpenTodos(smartLimit);
+            await attachSmartBadges(direct);
             await joplin.views.panels.postMessage(panel, { name: 'smartFolderNotes', smartId: msg.smartId, notes: direct });
             return;
           }
@@ -2364,7 +2382,9 @@ joplin.plugins.register({
             sp++;
           }
           sNotes.sort((a, b) => (b.user_updated_time || 0) - (a.user_updated_time || 0));
-          await joplin.views.panels.postMessage(panel, { name: 'smartFolderNotes', smartId: msg.smartId, notes: sNotes.slice(0, smartLimit) });
+          const sTop = sNotes.slice(0, smartLimit);
+          await attachSmartBadges(sTop);
+          await joplin.views.panels.postMessage(panel, { name: 'smartFolderNotes', smartId: msg.smartId, notes: sTop });
         } catch (err) {
           console.error('Joplin Explorer: smartFolderNotes error', err);
         }

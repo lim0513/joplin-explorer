@@ -952,6 +952,7 @@ webviewApi.onMessage(function(msg) {
         smHtml += '<div class="tree-item note smart-note" style="padding-left:44px" data-id="' + smNote.id + '" data-type="note" data-todo="' + (smNote.is_todo ? 1 : 0) + '">'
           + '<span class="icon note-icon">' + smIcon + '</span>'
           + '<span class="label">' + escapeHtml(smNote.title) + '</span>'
+          + (smNote.badges || '')
           + '</div>';
       }
       if (!m.notes.length) smHtml = '<div class="tag-empty">\u2014</div>';
