@@ -100,6 +100,7 @@
 - [ ] 布局选项：行高、缩进深度、显示/隐藏更新时间
 - [ ] 按笔记类型自动图标
 - [ ] 更多导入格式：CSV（转 Markdown 表格）、HTML（转 Markdown）——[#14](https://github.com/lim0513/joplin-explorer/issues/14)
+- [ ] 单笔记自定义图标 + 文件夹展开/折叠成对图标（图标存入 user_data，注意滚动性能）——[#23](https://github.com/lim0513/joplin-explorer/issues/23)，感谢 [@CJeffyB](https://github.com/CJeffyB)
 
 ---
 

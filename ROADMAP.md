@@ -100,6 +100,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - [ ] Sidebar layout options: line height, indentation depth, show/hide updated time
 - [ ] Auto icons based on note type
 - [ ] More import formats: CSV (as Markdown table), HTML (converted to Markdown) — [#14](https://github.com/lim0513/joplin-explorer/issues/14)
+- [ ] Per-note custom icons + paired open/close folder icons (icon stored in user_data; mind scroll performance) — [#23](https://github.com/lim0513/joplin-explorer/issues/23), thanks [@CJeffyB](https://github.com/CJeffyB)
 
 ---
 
