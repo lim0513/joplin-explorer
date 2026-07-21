@@ -646,8 +646,8 @@ joplin.plugins.register({
 
     async function showNativeConfirm(message: string): Promise<boolean> {
       await joplin.views.dialogs.setHtml(confirmDialog,
-        '<div style="padding:10px;min-width:280px;">'
-        + '<div style="font-size:13px;">' + escapeHtml(message) + '</div>'
+        '<div style="padding:10px;box-sizing:border-box;width:340px;max-width:100%;">'
+        + '<div style="font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;">' + escapeHtml(message) + '</div>'
         + '</div>'
       );
       await joplin.views.dialogs.setButtons(confirmDialog, [
@@ -662,7 +662,7 @@ joplin.plugins.register({
     // trashed. Returns the clicked button id ('both' | 'noteOnly' | 'cancel').
     async function showRestoreChoice(message: string, bothLabel: string, noteOnlyLabel: string): Promise<string> {
       await joplin.views.dialogs.setHtml(confirmDialog,
-        '<div style="padding:10px;min-width:320px;"><div style="font-size:13px;line-height:1.6;">' + escapeHtml(message) + '</div></div>'
+        '<div style="padding:10px;box-sizing:border-box;width:360px;max-width:100%;"><div style="font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;">' + escapeHtml(message) + '</div></div>'
       );
       await joplin.views.dialogs.setButtons(confirmDialog, [
         { id: 'both', title: bothLabel },
@@ -688,12 +688,13 @@ joplin.plugins.register({
 
     async function showNativeInput(label: string, defaultValue: string): Promise<string | null> {
       await joplin.views.dialogs.setHtml(inputDialog,
-        '<div style="padding:10px;min-width:300px;">'
-        + '<div style="margin-bottom:8px;font-size:13px;">' + escapeHtml(label) + '</div>'
+        '<div style="padding:10px;box-sizing:border-box;width:360px;max-width:100%;">'
+        + '<div style="margin-bottom:8px;font-size:13px;word-break:break-word;overflow-wrap:anywhere;">' + escapeHtml(label) + '</div>'
         + '<form name="inputForm">'
-        + '<input name="value" type="text" value="' + escapeHtml(defaultValue || '') + '" '
+        + '<input name="value" type="text" autofocus value="' + escapeHtml(defaultValue || '') + '" '
         + 'style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:13px;" />'
         + '</form>'
+        + '<script>setTimeout(function(){var i=document.querySelector(\'input[name=value]\');if(i){i.focus();i.select();}},30);</script>'
         + '</div>'
       );
       await joplin.views.dialogs.setButtons(inputDialog, [
@@ -1763,6 +1764,17 @@ joplin.plugins.register({
               case 'openInNewWindow':
                 try { await joplin.commands.execute('openNoteInNewWindow', id); }
                 catch (e) { await joplin.commands.execute('openNote', id); }
+                break;
+              case 'editExternally':
+                // Open the note first so the external-editing command targets it,
+                // then hand off to Joplin's native external editor (#24.1).
+                try {
+                  await joplin.commands.execute('openNote', id);
+                  selectedNoteId = id;
+                  await joplin.commands.execute('startExternalEditing', id);
+                } catch (e) {
+                  await showNativeInfo('Joplin', String((e as any) && (e as any).message || e));
+                }
                 break;
               case 'copyLink': {
                 const linkNote = await joplin.data.get(['notes', id], { fields: ['id', 'title'] });

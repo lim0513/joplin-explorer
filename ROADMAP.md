@@ -82,6 +82,10 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Plugin listing** (v1.5.18)
 - Plugin icon (16/32/48/128) + screenshots added to the manifest for the plugin website listing
 
+**Dialog & context-menu fixes** (v1.5.19)
+- Rename / delete-confirm dialogs no longer truncate long note names — text wraps and the dialog width adapts — [#22](https://github.com/lim0513/joplin-explorer/issues/22), [#26](https://github.com/lim0513/joplin-explorer/issues/26); the rename input now auto-focuses and selects its text
+- Note right-click adds "Edit in external editor" — [#24](https://github.com/lim0513/joplin-explorer/issues/24) (all thanks to [@CJeffyB](https://github.com/CJeffyB))
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback

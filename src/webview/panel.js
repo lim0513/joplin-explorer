@@ -785,6 +785,7 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="openNote" data-id="' + id + '" data-type="note">' + T('ctxOpenNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="openInNewWindow" data-id="' + id + '" data-type="note">' + T('ctxOpenInNewWindow') + '</div>';
+    menuHtml += '<div class="ctx-item" data-action="editExternally" data-id="' + id + '" data-type="note">' + T('ctxEditExternally') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     // Native-menu order: tags, type switch, move, duplicate...
     menuHtml += '<div class="ctx-item" data-action="setTags" data-id="' + id + '" data-type="note">' + T('ctxSetTags') + '</div>';

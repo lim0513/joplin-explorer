@@ -82,6 +82,10 @@
 **插件站展示**（v1.5.18）
 - manifest 增加插件图标（16/32/48/128）和截图，用于插件站列表展示
 
+**对话框与右键修复**（v1.5.19）
+- 重命名 / 删除确认对话框不再截断长笔记名，文字自动换行、自适应宽度——[#22](https://github.com/lim0513/joplin-explorer/issues/22)、[#26](https://github.com/lim0513/joplin-explorer/issues/26)；重命名输入框自动聚焦并选中
+- 笔记右键新增"用外部编辑器打开"——[#24](https://github.com/lim0513/joplin-explorer/issues/24)（均感谢 [@CJeffyB](https://github.com/CJeffyB)）
+
 **其他**
 - Emoji / 自定义图片笔记本图标
 - 同步按钮带状态反馈

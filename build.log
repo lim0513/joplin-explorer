@@ -1,0 +1,11 @@
+assets by path webview/ 57.6 KiB
+  asset webview/panel.js 38.1 KiB [compared for emit] [from: src/webview/panel.js] [copied] [minimized]
+  asset webview/panel.css 19.4 KiB [compared for emit] [from: src/webview/panel.css] [copied]
+asset index.js 84.7 KiB [compared for emit] [minimized] (name: main)
+asset manifest.json 1.13 KiB [compared for emit] [from: src/manifest.json] [copied]
+orphan modules 39.4 KiB [orphan] 1 module
+./src/index.ts + 1 modules 180 KiB [built] [code generated]
+external "fs" 42 bytes [built] [code generated]
+external "path" 42 bytes [built] [code generated]
+external "crypto" 42 bytes [built] [code generated]
+webpack 5.105.4 compiled successfully in 2173 ms
