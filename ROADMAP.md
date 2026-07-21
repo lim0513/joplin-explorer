@@ -86,6 +86,9 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Rename / delete-confirm dialogs no longer truncate long note names — text wraps and the dialog width adapts — [#22](https://github.com/lim0513/joplin-explorer/issues/22), [#26](https://github.com/lim0513/joplin-explorer/issues/26); the rename input now auto-focuses and selects its text
 - Note right-click adds "Edit in external editor" — [#24](https://github.com/lim0513/joplin-explorer/issues/24) (all thanks to [@CJeffyB](https://github.com/CJeffyB))
 
+**Collapse-all fix** (v1.5.20)
+- "Collapse all (with sections)" now also folds the Smart Folders section body (a DOM-id mismatch had left it open)
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback

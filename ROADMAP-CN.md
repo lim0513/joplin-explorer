@@ -86,6 +86,9 @@
 - 重命名 / 删除确认对话框不再截断长笔记名，文字自动换行、自适应宽度——[#22](https://github.com/lim0513/joplin-explorer/issues/22)、[#26](https://github.com/lim0513/joplin-explorer/issues/26)；重命名输入框自动聚焦并选中
 - 笔记右键新增"用外部编辑器打开"——[#24](https://github.com/lim0513/joplin-explorer/issues/24)（均感谢 [@CJeffyB](https://github.com/CJeffyB)）
 
+**全收起修复**（v1.5.20）
+- "全部折叠（含分区）"时智能文件夹分区正文未一起收起（DOM id 不匹配），已修正
+
 **其他**
 - Emoji / 自定义图片笔记本图标
 - 同步按钮带状态反馈

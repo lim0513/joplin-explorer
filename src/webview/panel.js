@@ -163,7 +163,7 @@ function collapseAllLocal() {
 function setSectionsCollapsed(collapsed) {
   var pairs = [
     ['pinned-header', 'pinned-body'],
-    ['smart-header', 'smart-section-body'],
+    ['smart-header', 'smart-body'],
     ['tags-header', 'tags-body'],
     ['trash-header', 'trash-children'],
   ];
