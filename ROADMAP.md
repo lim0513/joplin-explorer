@@ -113,7 +113,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 ---
 
-## 🎨 v1.6.x — UI / UX Options
+## 🎨 v1.6 — UI / UX Options
 
 - [ ] Sidebar layout options: line height, indentation depth, show/hide updated time
 - [ ] Auto icons based on note type
