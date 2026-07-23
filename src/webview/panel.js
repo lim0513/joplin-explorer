@@ -770,7 +770,7 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameFolder" data-id="' + id + '" data-type="folder" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameFolder') + '</div>';
     // Export drill-in (folders can't do PDF - that's a single-note command).
-    menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExportFolder') + '<span class="ctx-sub-arrow">▸</span></div>';
+    menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExportFolder') + '<span class="ctx-sub-arrow">▶</span></div>';
     menuHtml += '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExportFolder') + '">'
       + '<div class="ctx-item" data-action="exportFolder" data-format="jex" data-id="' + id + '" data-type="folder">JEX</div>'
       + '<div class="ctx-item" data-action="exportFolder" data-format="md" data-id="' + id + '" data-type="folder">Markdown</div>'
@@ -804,7 +804,7 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-sep"></div>';
     // ...then publish/export. Unlike the native menu, Delete stays LAST.
     menuHtml += '<div class="ctx-item" data-action="publishNote" data-id="' + id + '" data-type="note">' + T('ctxPublishNote') + '</div>';
-    menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExport') + '<span class="ctx-sub-arrow">\u25B8</span></div>';
+    menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExport') + '<span class="ctx-sub-arrow">\u25B6</span></div>';
     menuHtml += '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExport') + '">'
       + '<div class="ctx-item" data-action="exportPdf" data-id="' + id + '" data-type="note">PDF</div>'
       + '<div class="ctx-item" data-action="exportNote" data-format="md" data-id="' + id + '" data-type="note">Markdown</div>'

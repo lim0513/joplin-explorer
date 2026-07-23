@@ -92,6 +92,9 @@
 **智能文件夹徽标修复**（v1.5.21）
 - 智能文件夹（未完成待办等）展开时，笔记右侧未显示 checkbox 进度饼图/发布徽标——初始检索缺少徽标数据，现已补齐
 
+**下钻箭头放大**（v1.5.23）
+- 右键"导出"子菜单的下钻三角改用实心 ▶（与文件夹展开箭头同款字形）并放大，之前的细 ▸ 太小不易看清
+
 **自动定位与拖拽净化**（v1.5.22）
 - 从面板外跳转笔记（如"转到任意"搜索）时，面板自动滚动到该笔记（仅在不可见时滚动并居中）——[#27](https://github.com/lim0513/joplin-explorer/issues/27)，感谢 [@bwat47](https://github.com/bwat47)
 - 拖笔记到编辑器时不再带出内部 JSON，只插入干净的 `[标题](:/id)` 链接（内部载荷改用自定义 mime，不再污染 text/plain）——[#21](https://github.com/lim0513/joplin-explorer/issues/21)，感谢 [@CJeffyB](https://github.com/CJeffyB)

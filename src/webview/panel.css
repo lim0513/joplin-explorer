@@ -281,8 +281,11 @@ html, body {
 /* Drill-in submenu (the narrow panel webview clips flyouts) */
 .ctx-sub-arrow {
   float: right;
-  color: var(--joplin-color-faded, #888);
-  font-size: 10px;
+  color: var(--joplin-color, #ccc);
+  opacity: 0.7;
+  /* Solid ▶ (same glyph as the folder toggle) so it reads clearly. */
+  font-size: 11px;
+  line-height: inherit;
   margin-left: 12px;
 }
 .ctx-back {
