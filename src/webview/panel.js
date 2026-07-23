@@ -1036,7 +1036,22 @@ webviewApi.onMessage(function(msg) {
     if (noteEl) {
       noteEl.classList.add('selected');
       var opened = (mainTree && mainTree.contains(noteEl)) ? expandAncestorsLocal(noteEl) : [];
-      noteEl.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+      // Auto-reveal (#27): scroll the selected note into view when it was
+      // reached from outside the panel (e.g. "Go to anything"). Deferred to the
+      // next frame so it runs AFTER the MutationObserver's scroll-restore (a
+      // microtask) that would otherwise snap us back to _savedScrollTop, and
+      // after the un-collapse reflow. Only scrolls when the row is off-screen,
+      // then updates _savedScrollTop so the restore becomes a no-op.
+      requestAnimationFrame(function() {
+        var container = document.getElementById('tree-container');
+        if (!container) { noteEl.scrollIntoView({ block: 'nearest', behavior: 'instant' }); return; }
+        var cRect = container.getBoundingClientRect();
+        var nRect = noteEl.getBoundingClientRect();
+        if (nRect.top < cRect.top || nRect.bottom > cRect.bottom) {
+          noteEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+        _savedScrollTop = container.scrollTop;
+      });
       // Record the reveal so the next backend refresh doesn't re-collapse.
       if (opened.length) postMsg({ name: 'revealNote', folderIds: opened });
     }
@@ -1082,7 +1097,12 @@ document.addEventListener('dragstart', function(e) {
   if (item.closest('.trash-children') || item.closest('.smart-section-body')
     || item.classList.contains('tag-folder')) { e.preventDefault(); return; }
   var isPinned = item.classList.contains('pinned-item');
-  e.dataTransfer.setData('text/plain', JSON.stringify({
+  // Internal payload lives on a CUSTOM mime, never text/plain (#21). Putting
+  // it on text/plain meant dropping a note into the editor inserted the raw
+  // JSON blob in front of the link. The built-in note list sets no text/plain,
+  // so leaving it empty makes an editor drop insert just the clean
+  // [title](:/id) link from the native mime below.
+  e.dataTransfer.setData('text/x-je-item', JSON.stringify({
     id: item.dataset.id,
     type: item.dataset.type,
     pinned: isPinned,
@@ -1313,7 +1333,8 @@ document.addEventListener('drop', function(e) {
   var treeContainer = document.getElementById('tree-container');
 
   var data;
-  try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch(err) { endDrag(); return; }
+  try { data = JSON.parse(e.dataTransfer.getData('text/x-je-item')); } catch(err) { endDrag(); return; }
+  if (!data || !data.id) { endDrag(); return; }
 
   var dragId = data.id;
   var dragType = data.type;

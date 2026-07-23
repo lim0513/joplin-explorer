@@ -92,6 +92,10 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Smart-folder badge fix** (v1.5.21)
 - Notes listed under a smart folder (Open to-dos, etc.) now show the checkbox progress pie / published badge — the initial fetch was missing the badge data
 
+**Auto-reveal & clean drag payload** (v1.5.22)
+- Navigating to a note from outside the panel (e.g. "Go to anything") now scrolls the panel to reveal it (only when off-screen, centered) — [#27](https://github.com/lim0513/joplin-explorer/issues/27), thanks [@bwat47](https://github.com/bwat47)
+- Dropping a note into the editor no longer prepends internal JSON — just the clean `[title](:/id)` link (internal payload moved to a custom mime instead of text/plain) — [#21](https://github.com/lim0513/joplin-explorer/issues/21), thanks [@CJeffyB](https://github.com/CJeffyB)
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
