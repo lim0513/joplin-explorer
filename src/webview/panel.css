@@ -279,14 +279,25 @@ html, body {
 }
 
 /* Drill-in submenu (the narrow panel webview clips flyouts) */
+/* Drill row is flex so the arrow can sit vertically centered at the right. */
+.ctx-drill {
+  display: flex;
+  align-items: center;
+}
+/* True geometric triangle: a zero-size box whose left border forms a solid
+   right-pointing arrow. No font glyph involved, so flex centering is exact —
+   the glyph-baseline guesswork of ▶/▸ goes away entirely. */
 .ctx-sub-arrow {
-  float: right;
-  color: var(--joplin-color, #ccc);
+  margin-left: auto;
+  width: 0;
+  height: 0;
+  font-size: 0;      /* hide the ▶ text content itself */
+  color: transparent;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--joplin-color, #ccc);
   opacity: 0.7;
-  /* Solid ▶ (same glyph as the folder toggle) so it reads clearly. */
-  font-size: 9px;
-  line-height: inherit;
-  margin-left: 12px;
+  box-sizing: content-box;
 }
 .ctx-back {
   color: var(--joplin-color-faded, #888);
