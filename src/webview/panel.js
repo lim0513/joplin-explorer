@@ -370,7 +370,11 @@ document.addEventListener('click', function(e) {
     // row restores the stashed main menu. Neither closes the menu.
     if (ctxItem.classList.contains('ctx-drill')) {
       var menuEl = document.getElementById('ctx-menu');
-      var tpl = menuEl ? menuEl.querySelector('.ctx-export-template') : null;
+      // Each drill row's template is its immediate next sibling - REQUIRED
+      // now that one menu can hold several drills (Export + Import).
+      var tpl = (ctxItem.nextElementSibling && ctxItem.nextElementSibling.classList.contains('ctx-export-template'))
+        ? ctxItem.nextElementSibling
+        : (menuEl ? menuEl.querySelector('.ctx-export-template') : null);
       if (menuEl && tpl) {
         window._ctxMainHtml = menuEl.innerHTML;
         menuEl.innerHTML = '<div class="ctx-item ctx-back">\u25C2 ' + (tpl.dataset.title || '') + '</div>'
@@ -599,7 +603,10 @@ document.addEventListener('click', function(e) {
         // Pinned folder: expand to it in tree and scroll
         postMsg({ name: 'locatePinnedFolder', folderId: id });
       } else {
-        // Toggle locally (no re-render, keeps scroll), backend just records state
+        // Toggle locally (no re-render, keeps scroll), backend just records state.
+        // NOTE: deliberately does NOT select the folder in Joplin - openFolder
+        // would auto-open the folder's first note, and expanding should keep
+        // focus on the notebook without opening anything.
         toggleFolderLocal(item, id);
         postMsg({ name: 'toggleFolder', id: id });
         // Browsing invalidates a pending "Expand (restore)": once the user
@@ -766,7 +773,6 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="newNote" data-id="' + id + '" data-type="folder">' + T('ctxNewNoteHere') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="newTodo" data-id="' + id + '" data-type="folder">' + T('ctxNewTodoHere') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="newSubNotebook" data-id="' + id + '" data-type="folder">' + T('ctxNewSubNotebook') + '</div>';
-    menuHtml += '<div class="ctx-item" data-action="importFiles" data-id="' + id + '" data-type="folder">' + T('ctxImportFiles') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameFolder" data-id="' + id + '" data-type="folder" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameFolder') + '</div>';
     // Export drill-in (folders can't do PDF - that's a single-note command).

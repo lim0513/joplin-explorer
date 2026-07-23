@@ -110,6 +110,49 @@ function decodeTextFile(buf: any): string {
   return text;
 }
 
+// Minimal RFC-4180-ish CSV parser: quoted fields, escaped quotes (""),
+// commas/newlines inside quotes, CRLF. Returns rows of cells.
+function parseCsv(text: string, sep: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; }
+        else inQuotes = false;
+      } else cell += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === sep) {
+      row.push(cell); cell = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      rows.push(row); row = [];
+    } else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  // Drop trailing fully-empty rows (common final newline artifacts).
+  while (rows.length && rows[rows.length - 1].every(c => c === '')) rows.pop();
+  return rows;
+}
+
+// First row = header. Cells get pipe/newline-escaped; short rows are padded
+// so ragged CSVs still render as a valid table.
+function csvToMarkdownTable(text: string, sep: string): string {
+  const rows = parseCsv(text, sep);
+  if (!rows.length) return '';
+  const width = Math.max(...rows.map(r => r.length));
+  const esc = (s: string) => s.replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>').trim();
+  const line = (r: string[]) => '| ' + Array.from({ length: width }, (_, i) => esc(r[i] || '')).join(' | ') + ' |';
+  const out = [line(rows[0]), '|' + Array.from({ length: width }, () => ' --- |').join('')];
+  for (let i = 1; i < rows.length; i++) out.push(line(rows[i]));
+  return out.join('\n') + '\n';
+}
+
 function noteBadgesHtml(n: { is_shared?: number; cb_total?: number; cb_done?: number }): string {
   // Link badge hugs the title; the pie sits at the row's right edge
   // (same spot as folder note counts, via margin-left:auto).
@@ -1722,27 +1765,6 @@ joplin.plugins.register({
                 }
                 break;
               }
-              case 'importFiles': {
-                // Import txt/md files as notes into this notebook. Title =
-                // file name without the extension.
-                try {
-                  const files = await joplin.views.dialogs.showOpenDialog({
-                    properties: ['openFile', 'multiSelections'],
-                    filters: [{ name: 'Text / Markdown', extensions: ['txt', 'md', 'markdown'] }],
-                  });
-                  const list = Array.isArray(files) ? files : (files ? [files] : []);
-                  for (const fp of list) {
-                    const body = decodeTextFile(nodeFs.readFileSync(fp));
-                    const title = nodePath.basename(String(fp)).replace(/\.(txt|md|markdown)$/i, '');
-                    await joplin.data.post(['notes'], null, { title, body, parent_id: id });
-                  }
-                  if (list.length) scheduleRefreshPanel(100);
-                } catch (e) {
-                  console.error('Joplin Explorer: importFiles error', e);
-                  await showNativeInfo(t.importFailed || 'Import failed', String(e && (e as any).message ? (e as any).message : e));
-                }
-                break;
-              }
               case 'exportFolder': {
                 // exportFolders(sourceFolderIds, format, path) needs an
                 // explicit format AND target dir - without them the desktop
@@ -2587,6 +2609,46 @@ joplin.plugins.register({
       }
     }
     await applyAutoRefreshSetting();
+
+    // Register CSV as first-class import modules (#14): both variants appear
+    // in File > Import too. Formats differ ('csv' / 'csv_code') to avoid
+    // registry collisions, but fullLabel shows the pre-underscore part so
+    // both read "CSV - ...". Guarded: interop API may be absent on old cores.
+    // NOTE: the plugin sandbox proxies joplin.* - do NOT stash namespaces in
+    // variables or probe methods with property access (the proxy accumulates
+    // path segments and the call breaks). Always call the full chain directly.
+    try {
+      {
+        const csvImport = (asTable: boolean) => async (ctx: any) => {
+          const src = String(ctx.sourcePath || '');
+          const raw = decodeTextFile(nodeFs.readFileSync(src));
+          const title = nodePath.basename(src).replace(/\.(csv|tsv)$/i, '');
+          const body = asTable
+            ? csvToMarkdownTable(raw, /\.tsv$/i.test(src) ? '\t' : ',')
+            : '```csv\n' + raw.replace(/```/g, '`​``') + (raw.endsWith('\n') ? '' : '\n') + '```\n';
+          const destId = (ctx.options && ctx.options.destinationFolderId) || '';
+          const payload: any = { title, body };
+          if (destId) payload.parent_id = destId;
+          await joplin.data.post(['notes'], null, payload);
+        };
+        // Native menu renders "CSV - <description>", so strip our context
+        // menu labels' own "CSV → " prefix to avoid "CSV - CSV → ...".
+        const csvDesc = (s: string, fb: string) => (s || fb).replace(/^\s*CSV\s*→\s*/i, '');
+        await (joplin as any).interop.registerImportModule({
+          format: 'csv', description: csvDesc(t.impFmtCsvTable, 'Markdown table'),
+          fileExtensions: ['csv', 'tsv'], sources: ['file'], isNoteArchive: false,
+          onExec: csvImport(true),
+        });
+        await (joplin as any).interop.registerImportModule({
+          format: 'csv_code', description: csvDesc(t.impFmtCsvCode, 'Code block'),
+          fileExtensions: ['csv', 'tsv'], sources: ['file'], isNoteArchive: false,
+          onExec: csvImport(false),
+        });
+        console.info('Joplin Explorer: CSV import modules registered');
+      }
+    } catch (e) {
+      console.warn('Joplin Explorer: CSV import module registration failed (older Joplin without joplin.interop? context-menu CSV import still works)', e);
+    }
 
     await joplin.workspace.onNoteSelectionChange(async () => {
       const note = await joplin.workspace.selectedNote();

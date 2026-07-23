@@ -99,6 +99,11 @@
 **下钻箭头放大**（v1.5.23）
 - 右键"导出"子菜单的下钻三角改用实心 ▶（与文件夹展开箭头同款字形），尺寸对齐文件夹箭头（9px），替换之前太细的 ▸
 
+**导入格式与下钻箭头**（v1.6.0）
+- CSV 导入：注册为两个原生导入模块，出现在 Joplin **文件 → 导入** 列表中——"CSV - Markdown 表格"（转 Markdown 表格，列数不齐/字段含换行也能正确成表）与 "CSV - 代码块"（``` 围栏保留原始 CSV）；均支持 .csv/.tsv、编码自适应——[#14](https://github.com/lim0513/joplin-explorer/issues/14)
+- HTML 及其余格式交由 Joplin 原生导入处理（图片资源化、格式最全），不再自建导入
+- 下钻子菜单箭头改用纯几何 CSS 三角形，精确垂直居中（不再依赖字体字形）
+
 **其他**
 - Emoji / 自定义图片笔记本图标
 - 同步按钮带状态反馈
@@ -108,11 +113,10 @@
 
 ---
 
-## 🎨 v1.6 — 界面与体验选项
+## 🎨 v1.7 — 界面与体验选项
 
 - [ ] 布局选项：行高、缩进深度、显示/隐藏更新时间
 - [ ] 按笔记类型自动图标
-- [ ] 更多导入格式：CSV（转 Markdown 表格）、HTML（转 Markdown）——[#14](https://github.com/lim0513/joplin-explorer/issues/14)
 - [ ] 单笔记自定义图标 + 文件夹展开/折叠成对图标（图标存入 user_data，注意滚动性能）——[#23](https://github.com/lim0513/joplin-explorer/issues/23)，感谢 [@CJeffyB](https://github.com/CJeffyB)
 
 ---

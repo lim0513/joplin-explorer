@@ -95,6 +95,11 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Larger drill-in arrow** (v1.5.23)
 - The Export submenu's drill-in triangle now uses the solid ▶ (same glyph as the folder toggle) and is larger — the old thin ▸ was too small to read
 
+**Import formats & drill arrow** (v1.6.0)
+- CSV import: registered as two native import modules, appearing in Joplin's **File → Import** list — "CSV - Markdown table" (converts to a Markdown table; handles ragged rows / embedded newlines) and "CSV - code block" (keeps the raw CSV in a ``` fence); both accept .csv/.tsv with encoding auto-detection — [#14](https://github.com/lim0513/joplin-explorer/issues/14)
+- HTML and all other formats are handled by Joplin's native import (image resources, full format list); the plugin no longer ships its own importer
+- The drill-in submenu arrow is now a pure geometric CSS triangle, exactly vertically centered (no longer dependent on font glyph metrics)
+
 **Auto-reveal & clean drag payload** (v1.5.22)
 - Navigating to a note from outside the panel (e.g. "Go to anything") now scrolls the panel to reveal it (only when off-screen, centered) — [#27](https://github.com/lim0513/joplin-explorer/issues/27), thanks [@bwat47](https://github.com/bwat47)
 - Dropping a note into the editor no longer prepends internal JSON — just the clean `[title](:/id)` link (internal payload moved to a custom mime instead of text/plain) — [#21](https://github.com/lim0513/joplin-explorer/issues/21), thanks [@CJeffyB](https://github.com/CJeffyB)
@@ -108,11 +113,10 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 ---
 
-## 🎨 v1.6 — UI / UX Options
+## 🎨 v1.7 — UI / UX Options
 
 - [ ] Sidebar layout options: line height, indentation depth, show/hide updated time
 - [ ] Auto icons based on note type
-- [ ] More import formats: CSV (as Markdown table), HTML (converted to Markdown) — [#14](https://github.com/lim0513/joplin-explorer/issues/14)
 - [ ] Per-note custom icons + paired open/close folder icons (icon stored in user_data; mind scroll performance) — [#23](https://github.com/lim0513/joplin-explorer/issues/23), thanks [@CJeffyB](https://github.com/CJeffyB)
 
 ---
