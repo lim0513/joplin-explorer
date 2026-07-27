@@ -73,7 +73,8 @@ html, body {
 }
 
 #search-input:focus {
-  border-color: var(--joplin-color2, #4a9cf5);
+  border-color: var(--joplin-url-color, #4a9cf5);
+  box-shadow: 0 0 0 2px var(--joplin-selected-color, rgba(74, 156, 245, 0.2));
 }
 
 /* Tree container */
