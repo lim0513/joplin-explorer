@@ -492,13 +492,13 @@ html, body {
 #tree-container.dragging-active .drop-zone-empty {
   opacity: 1;
   pointer-events: auto;
-  border: 2px dashed var(--joplin-color2, #4a9cf5);
+  border: 2px dashed var(--joplin-url-color, #4a9cf5);
   border-radius: 6px;
   margin: 4px 8px;
   text-align: center;
   line-height: 28px;
   font-size: 11px;
-  color: var(--joplin-color2, #4a9cf5);
+  color: var(--joplin-url-color, #4a9cf5);
   /* Solid panel base under the blue tint - the zone floats (sticky) above
    * tree rows, so a translucent-only background let them bleed through. */
   background: linear-gradient(rgba(74, 156, 245, 0.15), rgba(74, 156, 245, 0.15)),
@@ -515,11 +515,11 @@ html, body {
   top: 0;
   z-index: 10;
   justify-content: center;
-  border: 2px dashed var(--joplin-color2, #4a9cf5);
+  border: 2px dashed var(--joplin-url-color, #4a9cf5);
   border-radius: 6px;
   margin: 4px 8px;
   padding: 6px 8px;
-  color: var(--joplin-color2, #4a9cf5);
+  color: var(--joplin-url-color, #4a9cf5);
   font-size: 12px;
   background: linear-gradient(rgba(74, 156, 245, 0.15), rgba(74, 156, 245, 0.15)),
     var(--joplin-background-color, #1e1e1e);
@@ -528,7 +528,7 @@ html, body {
 
 /* Pinned section accepts drops during drag — outline doesn't affect layout */
 #tree-container.dragging-active .pinned-section-header {
-  outline: 2px dashed var(--joplin-color2, #4a9cf5);
+  outline: 2px dashed var(--joplin-url-color, #4a9cf5);
   outline-offset: -2px;
 }
 
@@ -540,7 +540,7 @@ html, body {
 
 .tree-item.drop-target {
   background: var(--joplin-selected-color, rgba(74, 156, 245, 0.28));
-  outline: 2px solid var(--joplin-color2, #4a9cf5);
+  outline: 2px solid var(--joplin-url-color, #4a9cf5);
   outline-offset: -2px;
   border-radius: 4px;
   box-shadow: 0 0 0 2px rgba(74, 156, 245, 0.15);
@@ -559,7 +559,7 @@ html, body {
   left: 4px;
   right: 4px;
   height: 3px;
-  background: var(--joplin-color2, #4a9cf5);
+  background: var(--joplin-url-color, #4a9cf5);
   border-radius: 2px;
   box-shadow: 0 0 4px rgba(74, 156, 245, 0.6);
   pointer-events: none;
@@ -576,7 +576,7 @@ html, body {
 
 /* Dropping into empty area -> create new notebook */
 #tree-container.drop-empty {
-  box-shadow: inset 0 0 0 2px var(--joplin-color2, #4a9cf5);
+  box-shadow: inset 0 0 0 2px var(--joplin-url-color, #4a9cf5);
   background: rgba(74, 156, 245, 0.06);
 }
 
@@ -776,7 +776,8 @@ html, body {
 }
 
 .inline-input-field:focus {
-  border-color: var(--joplin-color2, #4a9cf5);
+  border-color: var(--joplin-url-color, #4a9cf5);
+  box-shadow: 0 0 0 2px var(--joplin-selected-color, rgba(74, 156, 245, 0.2));
 }
 
 .inline-input-buttons {
