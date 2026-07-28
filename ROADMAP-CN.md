@@ -133,7 +133,7 @@
 
 - [ ] 布局选项：行高、缩进深度、显示/隐藏更新时间
 - [ ] 按笔记类型自动图标
-- [ ] 单笔记自定义图标 + 文件夹展开/折叠成对图标（图标存入 user_data，注意滚动性能）——[#23](https://github.com/lim0513/joplin-explorer/issues/23)，感谢 [@CJeffyB](https://github.com/CJeffyB)
+- [ ] 单笔记自定义图标 + 单文件夹展开态图标——存 `user_data`（已实测：可随批量查询读取，零额外开销，随同步跨设备），写入走官方 userDataSet；方案详见 CLAUDE.md——[#23](https://github.com/lim0513/joplin-explorer/issues/23)，感谢 [@CJeffyB](https://github.com/CJeffyB)
 
 ---
 

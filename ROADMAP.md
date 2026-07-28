@@ -133,7 +133,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 - [ ] Sidebar layout options: line height, indentation depth, show/hide updated time
 - [ ] Auto icons based on note type
-- [ ] Per-note custom icons + paired open/close folder icons (icon stored in user_data; mind scroll performance) — [#23](https://github.com/lim0513/joplin-explorer/issues/23), thanks [@CJeffyB](https://github.com/CJeffyB)
+- [ ] Per-note custom icons + per-folder open-state icon — stored in `user_data` (verified: bulk-readable in the existing paginated query at zero extra cost, syncs across devices), written via the official userDataSet API; design notes in CLAUDE.md — [#23](https://github.com/lim0513/joplin-explorer/issues/23), thanks [@CJeffyB](https://github.com/CJeffyB)
 
 ---
 

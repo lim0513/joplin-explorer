@@ -122,6 +122,18 @@ Wrap in try/catch for older cores instead of feature-detecting by property acces
 - **Native dialogs** (`showNativeInput`, `showNativeConfirm`, `showNativeInfo`) are this project's reusable wrappers around `joplin.views.dialogs`. Use them instead of `window.prompt`/`confirm` (which don't exist in the plugin host).
 - **`updateNote` postMessage** updates one note's title/icon in place without rebuilding the whole tree. Falls back to full `refreshPanel` when the change moves the note to another folder or breaks current sort order.
 
+## #23 per-note / per-folder icons — settled design (NOT yet implemented)
+
+Verified 2026-07-28 against a live Joplin (test profile), correcting an earlier wrong assumption:
+
+- **`user_data` IS bulk-readable**: it's a plain column on notes/folders/tags, accepted in the `fields=` list of paginated GET queries. Confirmed empirically: write via `PUT /notes/:id {user_data}`, then `GET /notes?fields=id,user_data` returns it. The old claim "user_data needs one API call per note" was false — do NOT re-reject the design on those grounds.
+- **Storage**: per-note icon AND per-folder open-state icon both live in `user_data`. Syncs across devices, invisible in every Joplin UI, zero migration.
+- **Write** with the official plugin API `joplin.data.userDataSet(ModelType, id, key, value)` — it namespaces per-plugin and carries sync-merge metadata. Do not hand-write the raw JSON envelope (my test did; fine for a probe, wrong for production).
+- **Read** in bulk: add `user_data` to the `fields` of `getAllNotes` / folder fetch, parse the envelope in the same pass that counts checkboxes. Zero extra API calls.
+- **UI**: context-menu "Set icon… / Clear icon" on notes and folders, reusing `showNativeInput` + `resolveIconSettingCached` (emoji / URL / file path all work already). In-place refresh via the `updateNote` path.
+- Per-folder pairing completes the global open/close pair: `getFolderIcon` currently returns the same native emoji for both states (line ~380) — the user_data open-variant overrides the open state only.
+- Rejected alternatives (kept for the record): title-leading-emoji convention and frontmatter `icon:` (both pollute user content; frontmatter parse would have been free since getAllNotes already fetches body); plugin-settings map + config-note sync (doesn't sync natively / extra machinery).
+
 ## Panel scrolling & reveal
 
 - A `MutationObserver` restores `_savedScrollTop` after every `setHtml`. **Any programmatic scroll must run after it** (`requestAnimationFrame`) *and* update `_savedScrollTop` afterwards, or the restore silently undoes it. This is why the original auto-reveal appeared to do nothing.
