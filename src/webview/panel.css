@@ -434,6 +434,19 @@ html, body {
   padding-top: 2px;
 }
 #main-tree.collapsed { display: none; }
+
+/* Nested tags (#28): virtual rows are prefixes that aren't real tags - they
+ * group and nothing else, so they read one notch quieter than real tags. */
+.tag-folder.tag-virtual > .label {
+  color: var(--joplin-color-faded, #888);
+  font-weight: 500;
+}
+/* Subtree total in "own (subtree)" badges - de-emphasised so the tag's own
+ * count stays the primary number. */
+.count .count-sub {
+  opacity: 0.65;
+  font-size: 9px;
+}
 /* #main-tree already carries the 4px side margins; zero the rows' own so
  * tree counts land on the same right edge as section header counts
  * (they were 4px further left - measured, not eyeballed). */
@@ -487,10 +500,14 @@ html, body {
 /* Rows carry inline padding (depth-based); containers only need hide/show */
 .trash-folder-children.collapsed { display: none; }
 .trash-note .label { opacity: 0.75; }
-.tag-folder { padding-left: 26px !important; }
+/* Flat tag list: fixed indents. In the nested view (#28) rows carry their own
+ * depth-based inline padding, so these must NOT apply - hence :not([style]),
+ * which matches only the flat rows (the nested ones always have a style attr).
+ * The old unconditional !important rules pinned every level to one indent. */
+.tag-folder:not([style]) { padding-left: 26px !important; }
 .tag-children { }
 .tag-children.collapsed { display: none; }
-.tag-children .tree-item.note { padding-left: 44px !important; }
+.tag-children .tree-item.note:not([style]) { padding-left: 44px !important; }
 .tag-empty {
   padding: 2px 8px 2px 44px;
   color: var(--joplin-color-faded, #888);

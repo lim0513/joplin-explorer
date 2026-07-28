@@ -12,6 +12,12 @@ function postMsg(msg) {
 // a recreated webview otherwise replays the stale last-sent html.
 postMsg({ name: 'panelReady' });
 
+// Tag paths are user data and land inside attribute selectors ($, ., /, quotes
+// are all legal in a tag name), so escape what would break the selector.
+function cssEscapeAttr(v) {
+  return String(v == null ? '' : v).replace(/(["\\])/g, '\\$1');
+}
+
 function currentSortMode() {
   var root = document.getElementById('notes-in-list-root');
   return root ? (root.dataset.sort || '') : '';
@@ -516,17 +522,24 @@ document.addEventListener('click', function(e) {
   }
 
   // 5c. Tag folder -> expand/collapse locally; first expand fetches notes.
+  // In the nested view (#28) rows are addressed by path, since virtual prefix
+  // rows have no tag id at all; the container holds child tags already and
+  // gets the row's own notes appended after them on first expand.
   var tagFolder = e.target.closest('.tag-folder');
   if (tagFolder) {
     var tfId = tagFolder.dataset.tagId;
-    var tagKids = document.querySelector('.tag-children[data-tag-id="' + tfId + '"]');
+    var tfPath = tagFolder.dataset.tagPath;
+    var tagKids = tfPath
+      ? document.querySelector('.tag-children[data-tag-path="' + cssEscapeAttr(tfPath) + '"]')
+      : document.querySelector('.tag-children[data-tag-id="' + tfId + '"]');
     if (!tagKids) return;
     var tagNowCollapsed = tagKids.classList.toggle('collapsed');
     tagFolder.classList.toggle('collapsed', tagNowCollapsed);
     if (!tagNowCollapsed) animateExpand(tagKids);
     var tfToggle = tagFolder.querySelector('.toggle');
     if (tfToggle) tfToggle.textContent = tagNowCollapsed ? '\u25B6' : '\u25BC';
-    if (!tagNowCollapsed && !tagKids.dataset.loaded) {
+    // Virtual rows (no tag id) have no notes of their own - nothing to fetch.
+    if (!tagNowCollapsed && tfId && !tagKids.dataset.loaded) {
       postMsg({ name: 'tagFolderNotes', tagId: tfId });
     }
     return;
@@ -855,9 +868,13 @@ document.addEventListener('contextmenu', function(e) {
     }
   } else if (type === 'tag') {
     var ctxTagId = item.dataset.tagId;
-    menuHtml += '<div class="ctx-item" data-action="renameTag" data-id="' + ctxTagId + '" data-type="tag">' + T('ctxRenameTag') + '</div>';
-    menuHtml += '<div class="ctx-sep"></div>';
-    menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteTag" data-id="' + ctxTagId + '" data-type="tag">' + T('ctxDeleteTag') + '</div>';
+    // Virtual prefix rows (#28) have no tag id - there is nothing on the
+    // Joplin side to rename or delete, so they get no menu at all.
+    if (ctxTagId) {
+      menuHtml += '<div class="ctx-item" data-action="renameTag" data-id="' + ctxTagId + '" data-type="tag">' + T('ctxRenameTag') + '</div>';
+      menuHtml += '<div class="ctx-sep"></div>';
+      menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteTag" data-id="' + ctxTagId + '" data-type="tag">' + T('ctxDeleteTag') + '</div>';
+    }
   }
 
   menuHtml += '</div>';
@@ -931,17 +948,22 @@ webviewApi.onMessage(function(msg) {
     var tagKidsEl = document.querySelector('.tag-children[data-tag-id="' + m.tagId + '"]');
     if (tagKidsEl) {
       tagKidsEl.dataset.loaded = '1';
+      // In the nested view this container already holds child tag rows, so the
+      // notes are APPENDED after them (like notes after sub-folders), and the
+      // notes are indented one level past their tag row.
+      var tagPad = tagKidsEl.dataset.noteIndent;
+      var tagPadStyle = tagPad ? ' style="padding-left:' + tagPad + 'px"' : '';
       var tagHtml = '';
       for (var tni = 0; tni < m.notes.length; tni++) {
         var tNote = m.notes[tni];
         var tIcon = tNote.is_todo ? (tNote.todo_completed ? '\u2611' : '\u2610') : '\uD83D\uDCDD';
-        tagHtml += '<div class="tree-item note tag-note" data-id="' + tNote.id + '" data-type="note" data-tag-id="' + m.tagId + '" data-todo="' + (tNote.is_todo ? 1 : 0) + '">'
+        tagHtml += '<div class="tree-item note tag-note"' + tagPadStyle + ' data-id="' + tNote.id + '" data-type="note" data-tag-id="' + m.tagId + '" data-todo="' + (tNote.is_todo ? 1 : 0) + '">'
           + '<span class="icon note-icon">' + tIcon + '</span>'
           + '<span class="label">' + escapeHtml(tNote.title) + '</span>'
           + '</div>';
       }
-      if (!m.notes.length) tagHtml = '<div class="tag-empty">\u2014</div>';
-      tagKidsEl.innerHTML = tagHtml;
+      if (!m.notes.length && !tagKidsEl.children.length) tagHtml = '<div class="tag-empty">\u2014</div>';
+      tagKidsEl.insertAdjacentHTML('beforeend', tagHtml);
     }
   } else if (m.name === 'trashNotes') {
     var trashEl = document.getElementById('trash-children');
@@ -1285,7 +1307,8 @@ document.addEventListener('dragover', function(e) {
   // Tag folder - accepts notes from anywhere (assigns the tag)
   var onTagFolder = el.closest('.tag-folder');
   if (onTagFolder) {
-    if (document.querySelector('.tree-item.note.dragging')) {
+    // Virtual prefix rows (#28) aren't real tags - nothing to assign to.
+    if (document.querySelector('.tree-item.note.dragging') && onTagFolder.dataset.tagId) {
       e.preventDefault();
       // Must stay within dragstart's effectAllowed ('move') - a mismatching
       // dropEffect makes the browser show the not-allowed cursor.
@@ -1410,7 +1433,7 @@ document.addEventListener('drop', function(e) {
   // Note dropped on a tag folder -> assign that tag
   var onTagF = el0 ? el0.closest('.tag-folder') : null;
   if (onTagF) {
-    if (dragType === 'note') {
+    if (dragType === 'note' && onTagF.dataset.tagId) {
       postMsg({ name: 'tagNoteAdd', tagId: onTagF.dataset.tagId, noteId: dragId });
     }
     endDrag();

@@ -115,6 +115,11 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Section headers (Pinned / Smart folders / Notebooks / Tags / Trash) stick to the top of the panel while scrolling, so every section stays visible and clickable even in a long tree — [#31](https://github.com/lim0513/joplin-explorer/issues/31), thanks [@CJeffyB](https://github.com/CJeffyB)
 - The notebooks area gained a real section header (📚 Notebooks + total note count): it folds as a unit, persists across restarts and participates in "Collapse all (with sections)". Root notebooks are indented one level accordingly, aligning with second-level rows in the other sections
 
+**Grouped / nested tags** (v1.6.4)
+- Tag names split on a configurable separator (setting, off by default) render as a collapsible tree: real tags act as parents (child tags first, then the tag's own notes — mirroring the notebook tree); prefix-only levels appear as dimmed 🔖 virtual rows with no context menu and no drop-to-tag — [#28](https://github.com/lim0513/joplin-explorer/issues/28), thanks [@CJeffyB](https://github.com/CJeffyB)
+- Parent badges show two numbers, `7 (10)`: the tag's own notes + the de-duplicated subtree total (collapsed to one number when equal), with an explanatory tooltip. De-duplication reuses the note ids already returned by the count probe — zero extra API calls
+- Ships `scripts/demo-nested-tags.js` to generate/clean a fixture covering the edge cases
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback

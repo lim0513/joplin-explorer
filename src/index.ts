@@ -390,6 +390,120 @@ function getNoteIcon(note: { is_todo?: number, todo_completed?: number }): strin
   return noteIconGlyph;
 }
 
+/* ==================== Nested tags (#28) ==================== */
+// Display-only grouping: tag titles are split on a separator and rendered as a
+// tree. Real tags act as parents when they exist ("$.Pet.Aoife" is both a tag
+// and a container); prefixes that are not tags become virtual rows that only
+// expand/collapse. Nothing about the tags themselves changes.
+interface TagNode {
+  path: string;                 // full prefix, e.g. "$.Pet.Aoife"
+  label: string;                // just this segment, e.g. "Aoife"
+  tagId: string;                // '' when this path is only a prefix
+  count: string;                // own count for real tags
+  noteIds: string[];            // own note ids (bounded at 100)
+  bounded: boolean;             // true when own or descendant count hit "100+"
+  children: TagNode[];
+}
+
+function buildTagTree(tags: { id: string, title: string, count: string, noteIds?: string[] }[], sep: string): TagNode[] {
+  const roots: TagNode[] = [];
+  const byPath: { [p: string]: TagNode } = {};
+  const makeNode = (path: string, label: string): TagNode =>
+    ({ path, label, tagId: '', count: '', noteIds: [], bounded: false, children: [] });
+
+  for (const tag of tags) {
+    // Trailing/leading separators would otherwise create empty segments.
+    const segments = tag.title.split(sep).filter((s) => s !== '');
+    if (!segments.length) continue;
+    let prefix = '';
+    let siblings = roots;
+    for (let i = 0; i < segments.length; i++) {
+      prefix = i === 0 ? segments[0] : prefix + sep + segments[i];
+      let node = byPath[prefix];
+      if (!node) {
+        node = makeNode(prefix, segments[i]);
+        byPath[prefix] = node;
+        siblings.push(node);
+      }
+      if (i === segments.length - 1) {
+        node.tagId = tag.id;
+        node.count = tag.count;
+        node.noteIds = tag.noteIds || [];
+        node.bounded = tag.count === '100+';
+      }
+      siblings = node.children;
+    }
+  }
+  const sortRec = (nodes: TagNode[]) => {
+    nodes.sort((a, b) => a.label.localeCompare(b.label));
+    nodes.forEach((n) => sortRec(n.children));
+  };
+  sortRec(roots);
+  return roots;
+}
+
+// Subtree note count, de-duplicated: a note tagged both "$.Pet.Aoife" and
+// "$.Pet.Aoife.Vet" must be counted once. Returns '' when nothing is known,
+// '100+' when any input was truncated at the 100-note probe limit.
+function tagSubtreeCount(node: TagNode): { text: string, ids: Set<string>, bounded: boolean } {
+  const ids = new Set<string>(node.noteIds);
+  let bounded = node.bounded;
+  for (const child of node.children) {
+    const sub = tagSubtreeCount(child);
+    sub.ids.forEach((id) => ids.add(id));
+    if (sub.bounded) bounded = true;
+  }
+  const text = bounded ? '100+' : (ids.size ? String(ids.size) : '');
+  return { text, ids, bounded };
+}
+
+function renderTagTreeHtml(nodes: TagNode[], showToggleArrows: boolean, cntLabels: { both: string, sub: string }, level = 0): string {
+  let html = '';
+  for (const node of nodes) {
+    const indent = 26 + level * 18;
+    const hasChildren = node.children.length > 0;
+    const isVirtual = !node.tagId;
+    // Virtual rows carry no data-tag-id: rename/delete/drop all key off it, so
+    // they are inert by construction rather than by special-casing.
+    html += '<div class="tree-item folder tag-folder collapsed'
+      + (isVirtual ? ' tag-virtual' : '') + '"'
+      + ' style="padding-left:' + indent + 'px"'
+      + (node.tagId ? ' data-tag-id="' + node.tagId + '"' : '')
+      + ' data-tag-path="' + escapeHtml(node.path) + '"'
+      + ' data-type="tag" title="' + escapeHtml(node.path) + '">';
+    if (showToggleArrows) html += '<span class="toggle">\u25B6</span>';
+    html += '<span class="icon">' + (isVirtual ? '\uD83D\uDD16' : '\uD83C\uDFF7\uFE0F') + '</span>';
+    html += '<span class="label">' + escapeHtml(node.label) + '</span>';
+    // Count badge. A real tag that also has children shows BOTH numbers -
+    // "own (subtree)" - because those answer different questions and the
+    // subtree total alone hides how many notes carry this exact tag.
+    // Suppressed when they'd be identical, and leaves/virtual rows show one.
+    const subCnt = tagSubtreeCount(node).text;
+    const ownCnt = node.count;
+    let cntHtml = '';
+    let cntTitle = '';
+    if (!isVirtual && hasChildren && ownCnt && subCnt && ownCnt !== subCnt) {
+      cntHtml = escapeHtml(ownCnt) + ' <span class="count-sub">(' + escapeHtml(subCnt) + ')</span>';
+      cntTitle = cntLabels.both.replace('{own}', ownCnt).replace('{sub}', subCnt);
+    } else if (!isVirtual && ownCnt) {
+      cntHtml = escapeHtml(ownCnt);
+    } else if (subCnt) {
+      cntHtml = subCnt;
+      cntTitle = cntLabels.sub.replace('{sub}', subCnt);
+    }
+    if (cntHtml) html += '<span class="count"' + (cntTitle ? ' title="' + escapeHtml(cntTitle) + '"' : '') + '>' + cntHtml + '</span>';
+    html += '</div>';
+    // One container per row: child tags are rendered up-front, the row's own
+    // notes get appended lazily after them (mirrors notebooks: folders first).
+    html += '<div class="tag-children collapsed" data-tag-path="' + escapeHtml(node.path) + '"'
+      + (node.tagId ? ' data-tag-id="' + node.tagId + '"' : '')
+      + ' data-note-indent="' + (indent + 18) + '">';
+    if (hasChildren) html += renderTagTreeHtml(node.children, showToggleArrows, cntLabels, level + 1);
+    html += '</div>';
+  }
+  return html;
+}
+
 function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet: { [id: string]: boolean }, level = 0, showFolderToggles = true, openFolderIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC2' }, closedFolderIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC1' }): string {
   let html = '';
   for (const node of nodes) {
@@ -504,6 +618,14 @@ joplin.plugins.register({
           public: true,
           label: t.sShowTags,
           description: t.sShowTagsDesc,
+        },
+        'tagNestSeparator': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: '',
+          public: true,
+          label: t.sTagNestSep,
+          description: t.sTagNestSepDesc,
         },
         'autoRefresh': {
           section: 'joplinExplorer',
@@ -780,7 +902,7 @@ joplin.plugins.register({
     // Expand All (mode: restore) can bring the tree back - survives webview
     // re-renders because it lives here and rides the root dataset.
     let collapseSnapshot: string[] | null = null;
-    let allTagsCache: { id: string, title: string, count: string }[] = [];
+    let allTagsCache: { id: string, title: string, count: string, noteIds?: string[] }[] = [];
     // Folder manual order lives in a plugin setting, NOT the Joplin `folders`
     // table: older Joplin builds have no `order` column on folders (querying it
     // throws "no such column: order"). Map is folderId -> order (higher = top).
@@ -1026,20 +1148,31 @@ joplin.plugins.register({
           // (up to 100, then "100+" - same policy as search tag counts).
           // Skipped for very large tag sets to keep refresh cheap.
           let counts: string[] = tags.map(() => '');
+          // Note ids per tag, harvested from the SAME request that produces the
+          // counts (it already returns ids) - needed to de-duplicate parent
+          // counts in the nested view (#28) at zero extra API cost.
+          let noteIdSets: string[][] = tags.map(() => []);
           if (tags.length <= 200) {
-            counts = await Promise.all(tags.map((x: any) =>
+            const results = await Promise.all(tags.map((x: any) =>
               joplin.data.get(['tags', x.id, 'notes'], { fields: ['id', 'deleted_time'], limit: 100 })
                 .then((r: any) => {
                   // Trashed notes ride this route too (#15) - don't count them.
-                  const live = (r.items || []).filter((n: any) => !n.deleted_time).length;
-                  return live === 0 && !r.has_more ? '0' : (r.has_more ? '100+' : String(live));
+                  const live = (r.items || []).filter((n: any) => !n.deleted_time);
+                  return {
+                    count: live.length === 0 && !r.has_more ? '0' : (r.has_more ? '100+' : String(live.length)),
+                    ids: live.map((n: any) => n.id),
+                  };
                 })
-                .catch(() => '')
+                .catch(() => ({ count: '', ids: [] as string[] }))
             ));
-            tags = tags.filter((_x: any, i: number) => counts[i] !== '0');
+            counts = results.map((r) => r.count);
+            noteIdSets = results.map((r) => r.ids);
+            const keep = counts.map((c) => c !== '0');
+            tags = tags.filter((_x: any, i: number) => keep[i]);
+            noteIdSets = noteIdSets.filter((_s, i) => keep[i]);
             counts = counts.filter((c: string) => c !== '0');
           }
-          allTagsCache = tags.map((x: any, i: number) => ({ id: x.id, title: x.title || '', count: counts[i] || '' }));
+          allTagsCache = tags.map((x: any, i: number) => ({ id: x.id, title: x.title || '', count: counts[i] || '', noteIds: noteIdSets[i] || [] }));
         } catch (_) { allTagsCache = []; }
 
         // Build pinned section
@@ -1104,14 +1237,21 @@ joplin.plugins.register({
             + '<span class="count">' + allTagsCache.length + '</span>'
             + '</div>';
           tagsHtml += '<div class="tags-section-body' + (tagsCollapsed ? ' collapsed' : '') + '" id="tags-body">';
-          for (const tg of allTagsCache) {
-            tagsHtml += '<div class="tree-item folder tag-folder collapsed" data-tag-id="' + tg.id + '" data-type="tag">';
-            if (showToggleArrows) tagsHtml += '<span class="toggle">\u25B6</span>';
-            tagsHtml += '<span class="icon">\uD83C\uDFF7\uFE0F</span>';
-            tagsHtml += '<span class="label">' + escapeHtml(tg.title) + '</span>';
-            if (tg.count) tagsHtml += '<span class="count">' + tg.count + '</span>';
-            tagsHtml += '</div>';
-            tagsHtml += '<div class="tag-children collapsed" data-tag-id="' + tg.id + '"></div>';
+          const tagSep = String((await joplin.settings.value('tagNestSeparator')) || '');
+          if (tagSep) {
+            // Nested view (#28) - opt-in via the separator setting.
+            tagsHtml += renderTagTreeHtml(buildTagTree(allTagsCache, tagSep), showToggleArrows,
+              { both: t.tagCountBoth, sub: t.tagCountSub });
+          } else {
+            for (const tg of allTagsCache) {
+              tagsHtml += '<div class="tree-item folder tag-folder collapsed" data-tag-id="' + tg.id + '" data-type="tag">';
+              if (showToggleArrows) tagsHtml += '<span class="toggle">\u25B6</span>';
+              tagsHtml += '<span class="icon">\uD83C\uDFF7\uFE0F</span>';
+              tagsHtml += '<span class="label">' + escapeHtml(tg.title) + '</span>';
+              if (tg.count) tagsHtml += '<span class="count">' + tg.count + '</span>';
+              tagsHtml += '</div>';
+              tagsHtml += '<div class="tag-children collapsed" data-tag-id="' + tg.id + '"></div>';
+            }
           }
           tagsHtml += '</div>';
         }
@@ -1360,6 +1500,7 @@ joplin.plugins.register({
         || event.keys.indexOf('expandAllMode') >= 0
         || event.keys.indexOf('collapseAllScope') >= 0
         || event.keys.indexOf('showTagsSection') >= 0
+        || event.keys.indexOf('tagNestSeparator') >= 0
         || event.keys.indexOf('sectionOrder') >= 0
         || event.keys.indexOf('sectionSpacing') >= 0
         || event.keys.indexOf('showFolderToggles') >= 0
