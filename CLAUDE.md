@@ -4,6 +4,12 @@ Things that aren't obvious from the code or the Joplin docs. If you're about to 
 
 ---
 
+## Workflow with the user (IMPORTANT)
+
+- **Do not publish eagerly.** Default loop while iterating: edit → `npx webpack --env production` → `node scripts/pack-jpl.js` → tell the user it's in `publish/`, and let them test. Only bump the version, tag, GitHub-release and `npm publish` **when the user says 发布 / "release"**.
+- The user tests via **Development plugins** pointed at the repo root (`D:\repos\Joplin-explorer`), so a rebuild + Joplin restart is enough — no "install from file" needed. Note a dev-loaded plugin conflicts with the store-installed copy (same id); one must be disabled.
+- Commit locally during development; push together with the release.
+
 ## Release pipeline (CRITICAL)
 
 `publish/plugin.jpl` is a **gzipped tar archive** containing its own copy of `manifest.json`. Joplin uses the **outer** manifest (or the npm registry metadata) to decide whether an update is available, but reads the version actually installed from the **inner** manifest inside the `.jpl`.
@@ -35,6 +41,7 @@ Between v1.2.0 and v1.2.3 nothing refreshed `publish/plugin.jpl`. The outer mani
 - For security-key users, the token MUST have **"Bypass 2FA when publishing"** checked. Without it, `npm publish` errors with `EOTP` and a security-key user cannot satisfy the prompt.
 - `npm unpublish` is only allowed within 24h. After that, the broken version stays forever — bump and move on, optionally `npm deprecate`.
 - Default to one-shot tokens: generate → publish → delete.
+- The token lives in `D:\repos\.npm-publish-token.txt` (one level above the repos, so it is never git-tracked). That file is a **memo**, not a bare token — extract the value with a regex (`npm_[A-Za-z0-9]+`) before writing `.npmrc`. Dumping the whole file in makes `npm publish` fail with a misleading **404** (npm masks auth failures as 404).
 
 ---
 
@@ -54,11 +61,39 @@ Between v1.2.0 and v1.2.3 nothing refreshed `publish/plugin.jpl`. The outer mani
 - `joplin.data.get(['search'], { query, ... })` uses **FTS5 with tokenization** — it does **not** substring-match. Querying `"8121R"` will not find `"KY8121R"`. We combine FTS results with a local case-insensitive title substring scan against `allNotesCache` to compensate. Don't lose that fallback.
 - `joplin.plugins.dataDir()` returns a per-plugin persistent directory. Use it for caches like icon files; never write under the install location.
 
+## Theming (CSS variables)
+
+- **`--joplin-color2` is the SIDEBAR TEXT colour, not an accent.** In light themes Joplin's sidebar is dark with white text, so `color2` is *white* — using it for borders/outlines/text on the panel background makes them invisible on light themes. Use **`--joplin-url-color`** as the accent (it is guaranteed readable against the background in every theme). Fixed across all 10 usages in PR #30; don't reintroduce it.
+- `--joplin-selected-color` works well for focus rings / soft highlights.
+- **Always sanity-check new CSS against a light theme.** The whole `color2` class of bugs shipped because development only ever happened on a dark theme.
+
+## Import / export via the native engine
+
+- Plugins **cannot enumerate** `InteropService.modules()`, so a plugin can never reproduce the full File > Import list (which is built per module × source).
+- `importFrom` **with no arguments** shows a generic type prompt. For multi-source formats (md/html/enex, which accept both file and directory) `sourceType` is then unset and the picker degrades to *directory selection* on Windows. Passing partial options is worse: the block that auto-fills `destinationFolderId`/`outputFormat` is skipped entirely. If calling it programmatically, pass **all** of `{sourcePath, importFormat, outputFormat, sourceType, destinationFolderId}`.
+- **`joplin.interop.registerImportModule` is the supported way to add a format.** Registered modules appear in File > Import (MenuBar listens for `modulesChanged`). `onExec` receives `{sourcePath, options, warnings}`; the target notebook is `options.destinationFolderId`. The native menu label renders as `FORMAT - description`, so don't repeat the format name in the description.
+- We deliberately **do not ship our own importer**: the native one converts *and* attaches images as resources. Explorer only contributes the CSV modules (Markdown table / code block). See v1.6.0.
+- **`openFolder` selects the folder AND opens its first note.** That side effect makes it unsuitable for "sync the panel's clicked folder to Joplin's selection" — expanding a notebook must not open a note.
+
+## The plugin API sandbox proxy
+
+`joplin.*` is an IPC proxy that accumulates the property path. **Never stash a namespace in a variable or probe a method with property access:**
+
+```ts
+const interop = joplin.interop;
+if (interop.registerImportModule) { ... }   // WRONG: path becomes
+                                            // "joplin.interop.registerImportModule.registerImportModule"
+await joplin.interop.registerImportModule({ ... });  // RIGHT: full chain, every call
+```
+
+Wrap in try/catch for older cores instead of feature-detecting by property access.
+
 ## Webview drag-and-drop pitfalls
 
 - HTML5 `effectAllowed` and `dropEffect` must agree. `effectAllowed='move'` **rejects** `dropEffect='copy'` and produces a "forbidden" cursor with no visible error. If you see the forbidden cursor on a drop target you think you set up correctly, this is almost always the cause.
 - `event.target` inside `dragover`/`drop` can be a **Text node** (`nodeType === 3`) — Text nodes have no `.closest()` method. Always do `if (el && el.nodeType === 3) el = el.parentElement;` before calling `.closest()`.
 - For drag highlights, use CSS `outline` (not `border`) — `border` shifts layout and causes content to jump during drag-over.
+- **Keep the internal payload OFF `text/plain`.** It used to carry our `{id,type,pinned}` JSON, which meant dropping a note into the editor inserted that blob in front of the link. The native note list sets no `text/plain` at all. We now use the custom mime **`text/x-je-item`** and leave `text/plain` empty, so external drops see only Joplin's own `text/x-jop-note-ids` payload and produce a clean `[title](:/id)` link (#21).
 - Position drop-zone hints with `position: sticky; bottom: 0` (gated by a `dragging-active` class on the container) for the bottom create-notebook zone — `position: fixed` works for hover overlays but won't scroll with the tree.
 - The dragging-active class is added on `dragstart` and removed on `dragend`/`drop`. Splitting `clearDropIndicators()` (visual only) from `endDrag()` (also removes `dragging-active`) prevents flickering when moving between targets.
 
@@ -86,6 +121,17 @@ Between v1.2.0 and v1.2.3 nothing refreshed `publish/plugin.jpl`. The outer mani
 - **Deleted pinned items are auto-cleaned** every `refreshPanel` by filtering against current folder/note id sets. If you change the refresh path, keep this filter.
 - **Native dialogs** (`showNativeInput`, `showNativeConfirm`, `showNativeInfo`) are this project's reusable wrappers around `joplin.views.dialogs`. Use them instead of `window.prompt`/`confirm` (which don't exist in the plugin host).
 - **`updateNote` postMessage** updates one note's title/icon in place without rebuilding the whole tree. Falls back to full `refreshPanel` when the change moves the note to another folder or breaks current sort order.
+
+## Panel scrolling & reveal
+
+- A `MutationObserver` restores `_savedScrollTop` after every `setHtml`. **Any programmatic scroll must run after it** (`requestAnimationFrame`) *and* update `_savedScrollTop` afterwards, or the restore silently undoes it. This is why the original auto-reveal appeared to do nothing.
+- Two deliberately different behaviours: auto-reveal on selection change scrolls **only when the row is off-screen** (`block:'nearest'`-ish, avoids jitter); explicit actions (toolbar reveal button, exiting search) **always centre** the note. Don't unify them.
+- Dialog HTML built for `joplin.views.dialogs` must use a fixed `width` + `max-width:100%` with `word-break`, not `min-width` — `min-width` overflows the auto-sized dialog webview and clips text on the right (#22/#26).
+
+## Icons and glyphs
+
+- Font glyphs sit at font-determined positions inside their em box, so `align-items:center` centres the *box*, not the visible mark — pixel-nudging is guesswork. For small UI arrows, draw a **geometric CSS triangle** (zero-size box + borders) instead; flex centring is then exact. Applied to `.ctx-sub-arrow`.
+- Multiple drill-in submenus can coexist in one context menu; the template must be resolved as the drill row's **immediate next sibling**, not by `querySelector` on the menu (which always returned the first one).
 
 ## Build outputs
 

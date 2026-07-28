@@ -108,6 +108,9 @@
 - 笔记本右键新增"复制笔记本 ID"（对齐原生侧边栏，供 Templates 等按 ID 指定笔记本的插件使用）——[#29](https://github.com/lim0513/joplin-explorer/issues/29)
 - 从搜索结果打开笔记后清空搜索，树会展开并定位到该笔记（原先会跳到顶部）；工具栏新增"定位当前笔记"按钮——[#32](https://github.com/lim0513/joplin-explorer/issues/32)，感谢 [@bwat47](https://github.com/bwat47)
 
+**浅色主题配色修复**（v1.6.2）
+- 搜索框聚焦边框、拖拽落点区（虚线框与文字）此前使用 `--joplin-color2`，而该变量是 Joplin 的**侧栏文字色**（浅色主题下为白色），导致这些元素在浅色主题下几乎不可见；统一改用 `--joplin-url-color` 作为强调色，并为输入框聚焦增加高亮环 —— PR [#30](https://github.com/lim0513/joplin-explorer/pull/30)，感谢 [@bwat47](https://github.com/bwat47)
+
 **其他**
 - Emoji / 自定义图片笔记本图标
 - 同步按钮带状态反馈

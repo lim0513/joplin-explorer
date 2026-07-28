@@ -108,6 +108,9 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Notebooks get **Copy notebook ID** in their context menu (mirrors the native sidebar; useful for plugins like Templates that target a notebook by id) — [#29](https://github.com/lim0513/joplin-explorer/issues/29)
 - Clearing the search after opening a note from the results now expands and scrolls the tree to that note (it used to jump to the top); new toolbar button reveals the note currently open in the editor — [#32](https://github.com/lim0513/joplin-explorer/issues/32), thanks [@bwat47](https://github.com/bwat47)
 
+**Light-theme colour fix** (v1.6.2)
+- The search-input focus border and the drag/drop zones (dashed outlines and text) used `--joplin-color2`, which is Joplin's **sidebar text colour** (white in light themes) — making them effectively invisible on light backgrounds. All now use `--joplin-url-color` as the accent, plus a focus ring on inputs — PR [#30](https://github.com/lim0513/joplin-explorer/pull/30), thanks [@bwat47](https://github.com/bwat47)
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
