@@ -134,6 +134,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 ## 🧩 v2.0 — Major Release
 
-- [ ] **Explorer API** — register custom nodes, context menu items, programmatic highlighting
+- [ ] **Explorer API** — register custom nodes, context menu items, programmatic highlighting (would also unlock cross-plugin context-menu items — [#24](https://github.com/lim0513/joplin-explorer/issues/24) — and multi-select driving plugin commands — [#25](https://github.com/lim0513/joplin-explorer/issues/25))
 - [ ] **Multi-window Explorer**
-- [ ] **Advanced sorting rul
+- [ ] **Advanced sorting rules** — per-notebook sort overrides, custom comparators
+- [ ] **Panel layout rework** — independently scrollable sections — [#31](https://github.com/lim0513/joplin-explorer/issues/31)

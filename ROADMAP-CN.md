@@ -134,4 +134,7 @@
 
 ## 🧩 v2.0 — 大版本
 
-- [ ] **Explorer API** —— 注册自定义节点、右键菜单项、程序化高
+- [ ] **Explorer API** —— 注册自定义节点、右键菜单项、程序化高亮（同时可解锁：其他插件向 Explorer 右键注入菜单项——[#24](https://github.com/lim0513/joplin-explorer/issues/24)；多选并驱动插件命令——[#25](https://github.com/lim0513/joplin-explorer/issues/25)）
+- [ ] **多窗口 Explorer**
+- [ ] **高级排序规则** —— 按笔记本单独设置排序、自定义比较器
+- [ ] **面板布局重构** —— 各分区独立滚动——[#31](https://github.com/lim0513/joplin-explorer/issues/31)
