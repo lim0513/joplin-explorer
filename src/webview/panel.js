@@ -164,6 +164,7 @@ function setSectionsCollapsed(collapsed) {
   var pairs = [
     ['pinned-header', 'pinned-body'],
     ['smart-header', 'smart-body'],
+    ['tree-header', 'main-tree'],
     ['tags-header', 'tags-body'],
     ['trash-header', 'trash-children'],
   ];
@@ -453,6 +454,19 @@ document.addEventListener('click', function(e) {
     var tagsToggle = tagsHeader.querySelector('.toggle');
     if (tagsToggle) tagsToggle.textContent = tagsNowCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'toggleTagsSection' });
+    return;
+  }
+
+  // 5a2. Notebooks section header -> fold the whole tree (#31).
+  var treeHeader = e.target.closest('.tree-section-header');
+  if (treeHeader) {
+    var treeNowCollapsed = treeHeader.classList.toggle('collapsed');
+    var treeBody = document.getElementById('main-tree');
+    if (treeBody) treeBody.classList.toggle('collapsed', treeNowCollapsed);
+    if (!treeNowCollapsed) animateExpand(treeBody);
+    var treeToggle = treeHeader.querySelector('.toggle');
+    if (treeToggle) treeToggle.textContent = treeNowCollapsed ? '▶' : '▼';
+    postMsg({ name: 'toggleTreeSection' });
     return;
   }
 

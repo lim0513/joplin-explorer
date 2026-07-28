@@ -346,6 +346,7 @@ html, body {
 .pinned-section-header,
 .smart-section-header,
 .trash-section-header,
+.tree-section-header,
 .tags-section-header {
   display: flex;
   align-items: center;
@@ -363,6 +364,15 @@ html, body {
   font-weight: 600;
   font-size: 13px;
   letter-spacing: 0.4px;
+  /* Section pinning (#31): headers stick to the top of the scroll container so
+   * Pinned / Smart / Tags / Trash stay reachable without scrolling the whole
+   * tree. Needs an opaque background - rows would otherwise show through - and
+   * a z-index above tree rows but below the drop-zone hints (z-index 10).
+   * The negative top cancels --sec-gap so the header parks flush, not gapped. */
+  position: sticky;
+  top: calc(var(--sec-gap, 5px) * -1);
+  z-index: 6;
+  background: var(--joplin-background-color, #1e1e1e);
 }
 /* Arrow position mode (toggleArrowPosition setting, root data-arrow-pos).
  * "right": chevrons sit right after the text everywhere - section headers,
@@ -371,6 +381,7 @@ html, body {
 [data-arrow-pos="right"] .pinned-section-header .label,
 [data-arrow-pos="right"] .smart-section-header .label,
 [data-arrow-pos="right"] .trash-section-header .label,
+[data-arrow-pos="right"] .tree-section-header .label,
 [data-arrow-pos="right"] .tags-section-header .label,
 [data-arrow-pos="right"] .tree-item.folder .label {
   flex: 0 1 auto;
@@ -378,6 +389,7 @@ html, body {
 [data-arrow-pos="right"] .pinned-section-header .toggle,
 [data-arrow-pos="right"] .smart-section-header .toggle,
 [data-arrow-pos="right"] .trash-section-header .toggle,
+[data-arrow-pos="right"] .tree-section-header .toggle,
 [data-arrow-pos="right"] .tags-section-header .toggle,
 [data-arrow-pos="right"] .tree-item.folder .toggle {
   order: 3;
@@ -389,6 +401,7 @@ html, body {
 [data-arrow-pos="right"] .pinned-section-header .count,
 [data-arrow-pos="right"] .smart-section-header .count,
 [data-arrow-pos="right"] .trash-section-header .count,
+[data-arrow-pos="right"] .tree-section-header .count,
 [data-arrow-pos="right"] .tags-section-header .count,
 [data-arrow-pos="right"] .tree-item.folder .count {
   order: 4; /* after the chevron (order 3): text › ......... count */
@@ -397,6 +410,7 @@ html, body {
 .pinned-section-header .icon,
 .smart-section-header .icon,
 .trash-section-header .icon,
+.tree-section-header .icon,
 .tags-section-header .icon {
   font-size: 12px;
   opacity: 0.85;
@@ -404,16 +418,22 @@ html, body {
 .pinned-section-header:hover,
 .smart-section-header:hover,
 .trash-section-header:hover,
+.tree-section-header:hover,
 .tags-section-header:hover {
-  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
+  /* Layered over the opaque base: the hover tint is translucent, and these
+   * headers are sticky, so tree rows would otherwise scroll through them. */
+  background:
+    linear-gradient(var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12)),
+                    var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12))),
+    var(--joplin-background-color, #1e1e1e);
 }
-/* The notebook tree has no header row - its wrapper draws the same
- * section-opening line as the headers do. */
+/* The notebooks section now has a real header (#31), which draws the
+ * section-opening line and the top gap - the wrapper must not repeat them. */
 #main-tree {
-  margin: var(--sec-gap, 5px) 4px 1px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(127, 127, 127, 0.22);
+  margin: 0 4px 1px;
+  padding-top: 2px;
 }
+#main-tree.collapsed { display: none; }
 /* #main-tree already carries the 4px side margins; zero the rows' own so
  * tree counts land on the same right edge as section header counts
  * (they were 4px further left - measured, not eyeballed). */

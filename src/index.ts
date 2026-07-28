@@ -393,7 +393,10 @@ function getNoteIcon(note: { is_todo?: number, todo_completed?: number }): strin
 function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet: { [id: string]: boolean }, level = 0, showFolderToggles = true, openFolderIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC2' }, closedFolderIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC1' }): string {
   let html = '';
   for (const node of nodes) {
-    const indent = 8 + level * 18;
+    // Base 26px, not 8: the notebooks section has its own header now (#31), so
+    // root notebooks sit one level in - matching the smart-folder rows (26px)
+    // under their header.
+    const indent = 26 + level * 18;
     if (node.type === 'folder') {
       const count = node.total_count || node.note_count || 0;
       const isCollapsed = collapsedSet[node.id] === true;
@@ -767,6 +770,7 @@ joplin.plugins.register({
     let tagsCollapsed = false;
     let trashCollapsed = true;
     let smartCollapsed = false;
+    let treeCollapsed = false;
     // Folders we've rendered at least once. Unseen folders default to
     // collapsed; when this set is missing from saved state (upgrade), the
     // first refresh grandfathers everything without collapsing.
@@ -801,6 +805,7 @@ joplin.plugins.register({
           if (typeof ui.pinnedCollapsed === 'boolean') pinnedCollapsed = ui.pinnedCollapsed;
           if (typeof ui.trashCollapsed === 'boolean') trashCollapsed = ui.trashCollapsed;
           if (typeof ui.smartCollapsed === 'boolean') smartCollapsed = ui.smartCollapsed;
+          if (typeof ui.treeCollapsed === 'boolean') treeCollapsed = ui.treeCollapsed;
           if (ui.seenFolders && typeof ui.seenFolders === 'object' && !Array.isArray(ui.seenFolders)) {
             seenFolders = ui.seenFolders;
             seedSeenFolders = false;
@@ -818,7 +823,7 @@ joplin.plugins.register({
       uiStateTimer = setTimeout(async () => {
         uiStateTimer = null;
         try {
-          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, smartCollapsed, seenFolders, collapseSnapshot }));
+          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, smartCollapsed, treeCollapsed, seenFolders, collapseSnapshot }));
         } catch (err) {
           console.error('Joplin Explorer: failed to save UI state', err);
         }
@@ -1241,7 +1246,18 @@ joplin.plugins.register({
         const sectionHtml: { [k: string]: string } = {
           pinned: pinnedHtml,
           smart: smartHtml,
-          tree: '<div id="main-tree">' + treeHtml + '</div>',
+          // Notebooks get a real section header like the others (#31) so it can
+          // stick to the top while scrolling, and the whole section can fold.
+          tree: '<div class="tree-section-header' + (treeCollapsed ? ' collapsed' : '') + '" id="tree-header">'
+            + (showToggleArrows ? '<span class="toggle">' + (treeCollapsed ? '▶' : '▼') + '</span>' : '')
+            + '<span class="icon">📚</span>'
+            + '<span class="label">' + t.notebooksSection + '</span>'
+            // Note count, not notebook count: every row below shows notes, so a
+            // notebook count here reads as inconsistent (44 notebooks above a
+            // row saying 270). Top-level rows now roughly sum to this.
+            + '<span class="count">' + tree.reduce((sum, n) => sum + (n.type === 'folder' ? (n.total_count || n.note_count || 0) : 1), 0) + '</span>'
+            + '</div>'
+            + '<div id="main-tree"' + (treeCollapsed ? ' class="collapsed"' : '') + '>' + treeHtml + '</div>',
           tags: tagsHtml,
           trash: trashHtml,
         };
@@ -2266,7 +2282,7 @@ joplin.plugins.register({
         for (const f of allFoldersCache) collapsedFolders[f.id] = true;
         if (Array.isArray(msg.prevCollapsed)) collapseSnapshot = msg.prevCollapsed.map(String);
         // collapseAllScope=allSections (#19): also fold the sections.
-        if (msg.sections) { pinnedCollapsed = true; smartCollapsed = true; tagsCollapsed = true; trashCollapsed = true; }
+        if (msg.sections) { pinnedCollapsed = true; smartCollapsed = true; tagsCollapsed = true; trashCollapsed = true; treeCollapsed = true; }
         saveUiState();
       } else if (msg.name === 'expandAll') {
         // Record-only, like collapseAll. Skeleton expand: the webview keeps
@@ -2276,7 +2292,7 @@ joplin.plugins.register({
           for (const cid of msg.collapsedIds) collapsedFolders[String(cid)] = true;
         }
         // Reopen the sections that Collapse All (allSections scope) folded.
-        if (msg.sections) { pinnedCollapsed = false; smartCollapsed = false; tagsCollapsed = false; trashCollapsed = false; }
+        if (msg.sections) { pinnedCollapsed = false; smartCollapsed = false; tagsCollapsed = false; trashCollapsed = false; treeCollapsed = false; }
         saveUiState();
       } else if (msg.name === 'panelReady') {
         // The webview was (re)created - e.g. after a settings roundtrip -
@@ -2384,6 +2400,9 @@ joplin.plugins.register({
       } else if (msg.name === 'toggleSmartSection') {
         // State bookkeeping only - the webview toggled the DOM locally.
         smartCollapsed = !smartCollapsed;
+        saveUiState();
+      } else if (msg.name === 'toggleTreeSection') {
+        treeCollapsed = !treeCollapsed;
         saveUiState();
       } else if (msg.name === 'smartFolderNotes') {
         try {

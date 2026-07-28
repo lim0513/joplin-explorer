@@ -111,6 +111,10 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **Light-theme colour fix** (v1.6.2)
 - The search-input focus border and the drag/drop zones (dashed outlines and text) used `--joplin-color2`, which is Joplin's **sidebar text colour** (white in light themes) — making them effectively invisible on light backgrounds. All now use `--joplin-url-color` as the accent, plus a focus ring on inputs — PR [#30](https://github.com/lim0513/joplin-explorer/pull/30), thanks [@bwat47](https://github.com/bwat47)
 
+**Sticky section headers** (v1.6.3)
+- Section headers (Pinned / Smart folders / Notebooks / Tags / Trash) stick to the top of the panel while scrolling, so every section stays visible and clickable even in a long tree — [#31](https://github.com/lim0513/joplin-explorer/issues/31), thanks [@CJeffyB](https://github.com/CJeffyB)
+- The notebooks area gained a real section header (📚 Notebooks + total note count): it folds as a unit, persists across restarts and participates in "Collapse all (with sections)". Root notebooks are indented one level accordingly, aligning with second-level rows in the other sections
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
