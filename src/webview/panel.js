@@ -716,6 +716,17 @@ document.addEventListener('click', function(e) {
       }
       break;
     }
+    case 'btn-reveal':
+      // Jump to the note that's open in the editor (#32). Exits search first
+      // so the tree is actually on screen to scroll.
+      if (_searchMode) {
+        var sInput = document.getElementById('search-input');
+        if (sInput) sInput.value = '';
+        exitSearchMode();
+      } else {
+        revealSelectedNote();
+      }
+      break;
     case 'btn-refresh': postMsg({ name: 'refreshView' }); break;
     case 'btn-sync':
       if (!btn.disabled) {
@@ -775,6 +786,7 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="newSubNotebook" data-id="' + id + '" data-type="folder">' + T('ctxNewSubNotebook') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameFolder" data-id="' + id + '" data-type="folder" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameFolder') + '</div>';
+    menuHtml += '<div class="ctx-item" data-action="copyFolderId" data-id="' + id + '" data-type="folder">' + T('ctxCopyFolderId') + '</div>';
     // Export drill-in (folders can't do PDF - that's a single-note command).
     menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExportFolder') + '<span class="ctx-sub-arrow">▶</span></div>';
     menuHtml += '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExportFolder') + '">'
@@ -1578,9 +1590,40 @@ function expandTagNotes(tagId, notes) {
   if (arrow) arrow.classList.add('expanded');
 }
 
+// Scroll the currently selected note into view in the main tree, expanding
+// its collapsed ancestors first. Shared by the auto-reveal on selection
+// change (#27), the exit-search path and the toolbar button (#32).
+function revealSelectedNote() {
+  var container = document.getElementById('tree-container');
+  var mainTree = document.getElementById('main-tree');
+  if (!container || !mainTree) return;
+  var noteEl = mainTree.querySelector('.tree-item.note.selected');
+  // Selection may only exist on a pinned/tag copy - map it back to the main
+  // tree row so we expand and scroll the real hierarchy.
+  if (!noteEl) {
+    var anySel = document.querySelector('.tree-item.note.selected');
+    if (anySel && anySel.dataset.id) {
+      noteEl = mainTree.querySelector('.tree-item.note[data-id="' + anySel.dataset.id + '"]');
+      if (noteEl) noteEl.classList.add('selected');
+    }
+  }
+  if (!noteEl) return;
+  var opened = expandAncestorsLocal(noteEl);
+  if (opened.length) postMsg({ name: 'revealNote', folderIds: opened });
+  // Defer past the scroll-restoring MutationObserver, then keep the restored
+  // value in sync so it can't yank us back.
+  requestAnimationFrame(function() {
+    noteEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+    _savedScrollTop = container.scrollTop;
+  });
+}
+
 function exitSearchMode() {
   _searchMode = false;
   showSearchContainer(false);
+  // Clearing the search used to dump the user at the top of the tree; bring
+  // the note they just opened from the results back into view (#32).
+  revealSelectedNote();
 }
 
 document.addEventListener('input', function(e) {

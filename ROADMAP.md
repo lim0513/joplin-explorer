@@ -104,6 +104,10 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Navigating to a note from outside the panel (e.g. "Go to anything") now scrolls the panel to reveal it (only when off-screen, centered) — [#27](https://github.com/lim0513/joplin-explorer/issues/27), thanks [@bwat47](https://github.com/bwat47)
 - Dropping a note into the editor no longer prepends internal JSON — just the clean `[title](:/id)` link (internal payload moved to a custom mime instead of text/plain) — [#21](https://github.com/lim0513/joplin-explorer/issues/21), thanks [@CJeffyB](https://github.com/CJeffyB)
 
+**Reveal enhancements & Copy notebook ID** (v1.6.1)
+- Notebooks get **Copy notebook ID** in their context menu (mirrors the native sidebar; useful for plugins like Templates that target a notebook by id) — [#29](https://github.com/lim0513/joplin-explorer/issues/29)
+- Clearing the search after opening a note from the results now expands and scrolls the tree to that note (it used to jump to the top); new toolbar button reveals the note currently open in the editor — [#32](https://github.com/lim0513/joplin-explorer/issues/32), thanks [@bwat47](https://github.com/bwat47)
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback

@@ -104,6 +104,10 @@
 - HTML 及其余格式交由 Joplin 原生导入处理（图片资源化、格式最全），不再自建导入
 - 下钻子菜单箭头改用纯几何 CSS 三角形，精确垂直居中（不再依赖字体字形）
 
+**定位增强与复制笔记本 ID**（v1.6.1）
+- 笔记本右键新增"复制笔记本 ID"（对齐原生侧边栏，供 Templates 等按 ID 指定笔记本的插件使用）——[#29](https://github.com/lim0513/joplin-explorer/issues/29)
+- 从搜索结果打开笔记后清空搜索，树会展开并定位到该笔记（原先会跳到顶部）；工具栏新增"定位当前笔记"按钮——[#32](https://github.com/lim0513/joplin-explorer/issues/32)，感谢 [@bwat47](https://github.com/bwat47)
+
 **其他**
 - Emoji / 自定义图片笔记本图标
 - 同步按钮带状态反馈

@@ -1263,6 +1263,7 @@ joplin.plugins.register({
           // collapseOnly (#19): the button never enters Expand state - it
           // stays a pure Collapse control.
           + '    <button id="btn-collapse-all" data-mode="' + ((allFoldersCollapsed && expandAllMode !== 'collapseOnly') ? 'expand' : 'collapse') + '" title="' + ((allFoldersCollapsed && expandAllMode !== 'collapseOnly') ? t.expandAll : t.collapseAll) + '">' + ((allFoldersCollapsed && expandAllMode !== 'collapseOnly') ? '\u25BC' : '\u25B2') + '</button>'
+          + '    <button id="btn-reveal" title="' + (t.revealNote || 'Reveal current note') + '">\u25CE</button>'
           + '    <button id="btn-refresh" title="' + t.refresh + '">\u21BB</button>'
           + '  </div>'
           + '  <div class="search-bar">'
@@ -1762,6 +1763,16 @@ joplin.plugins.register({
                   if (newFolderName && newFolderName.trim()) {
                     await joplin.data.put(['folders', id], null, { title: newFolderName.trim() });
                   }
+                }
+                break;
+              }
+              case 'copyFolderId': {
+                // Mirrors the native sidebar's "Copy notebook ID" (#29) -
+                // needed by plugins like Templates that target a notebook by id.
+                try {
+                  await (joplin as any).clipboard.writeText(id);
+                } catch (e) {
+                  await joplin.views.panels.postMessage(panel, { name: 'copyText', text: id });
                 }
                 break;
               }
