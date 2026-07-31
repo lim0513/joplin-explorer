@@ -4,7 +4,7 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 ---
 
-## ✅ Current Features (v1.5.x)
+## ✅ Current Features (v1.5 – v1.6)
 
 **Tree & navigation**
 - Unified tree view (notebooks + notes), auto-expand to current note
