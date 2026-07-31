@@ -66,6 +66,12 @@ npm run dev
 
 构建产物输出到 `publish/` 目录。本地测试时，在 Joplin 设置中将 `plugins.devPluginPaths` 指向 `publish/` 目录即可。
 
+## 特别感谢
+
+特别感谢 [@CJeffyB](https://github.com/CJeffyB)——他持续、高质量的问题反馈和功能建议塑造了 v1.5–v1.6 的大部分演进，还在 Ko-fi 上请项目喝了杯咖啡。☕
+
+同时感谢 [@bwat47](https://github.com/bwat47) 的 PR [#30](https://github.com/lim0513/joplin-explorer/pull/30) 与多个敏锐的问题报告。
+
 ## 许可
 
 MIT

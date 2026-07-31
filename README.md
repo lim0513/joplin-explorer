@@ -66,6 +66,12 @@ npm run dev
 
 The built plugin is output to the `publish/` directory. To test locally, set `plugins.devPluginPaths` in Joplin's settings to point to the `publish/` directory.
 
+## Acknowledgements
+
+Special thanks to [@CJeffyB](https://github.com/CJeffyB), whose steady stream of thoughtful bug reports and feature ideas shaped much of v1.5–v1.6 — and who generously bought the project a coffee on Ko-fi. ☕
+
+Thanks also to [@bwat47](https://github.com/bwat47) for PR [#30](https://github.com/lim0513/joplin-explorer/pull/30) and several sharp-eyed reports.
+
 ## License
 
 MIT
