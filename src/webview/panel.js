@@ -46,6 +46,7 @@ var _observer = new MutationObserver(function() {
   } else {
     container.scrollTop = _savedScrollTop;
   }
+  applyHeaderStacking();
 });
 _observer.observe(document.body, { childList: true, subtree: true });
 
@@ -191,6 +192,49 @@ function setSectionsCollapsed(collapsed) {
 function collapseScope() {
   var root = document.getElementById('notes-in-list-root');
   return root ? (root.dataset.collapseScope || 'notebooksOnly') : 'notebooksOnly';
+}
+
+// Stacked sticky section headers (#31/#36): each header gets a cumulative
+// top offset (headers passed stack under each other at the top) AND a
+// cumulative bottom offset (upcoming headers park at the bottom edge). With
+// both set, position:sticky produces the accordion effect natively - no
+// scroll listener. Recomputed after every render; heights are measured, so
+// spacing/font settings are respected. Opt-out via the stackSectionHeaders
+// setting (root data attribute), which falls back to the plain CSS sticky.
+// Toggling a section never re-renders (DOM-local), so re-derive the offsets
+// after any header click - heights are pinned by CSS now, but this keeps the
+// stack correct even if future changes let header sizes vary again.
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.closest && e.target.closest('.pinned-section-header, .smart-section-header, .tree-section-header, .tags-section-header, .trash-section-header')) {
+    requestAnimationFrame(applyHeaderStacking);
+  }
+});
+
+function applyHeaderStacking() {
+  var root = document.getElementById('notes-in-list-root');
+  var stacked = root && root.dataset.stackHeaders === '1';
+  var sel = '.pinned-section-header, .smart-section-header, .tree-section-header, .tags-section-header, .trash-section-header';
+  var headers = [];
+  document.querySelectorAll(sel).forEach(function(h) {
+    if (h.id === 'pinned-drop-ph') return; // drag placeholder shares the class
+    headers.push(h);
+  });
+  if (!stacked) {
+    headers.forEach(function(h) { h.style.top = ''; h.style.bottom = ''; });
+    return;
+  }
+  // Stacked mode zeroes the section margins (CSS), so flow spacing equals
+  // parked spacing and no gap compensation is needed - offsets are plain
+  // cumulative sums of the (uniform) header heights.
+  var heights = headers.map(function(h) { return h.offsetHeight; });
+  for (var i = 0; i < headers.length; i++) {
+    var above = 0;
+    for (var a = 0; a < i; a++) above += heights[a];
+    var below = 0;
+    for (var b = i + 1; b < headers.length; b++) below += heights[b];
+    headers[i].style.top = above + 'px';
+    headers[i].style.bottom = below + 'px';
+  }
 }
 
 // Skeleton expand: unfold the whole FOLDER hierarchy but keep leaf folders
@@ -437,13 +481,54 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  // Expanding a section scrolls it to its parked slot so the freshly opened
+  // content is actually on screen (clicking a bottom-stacked header used to
+  // expand somewhere far below the viewport). Works in flat mode too (slot 0).
+  function scrollSectionToStack(header) {
+    var container = document.getElementById('tree-container');
+    if (!container || !header) return;
+    var inset = parseInt(header.style.top || '', 10);
+    if (!isFinite(inset) || inset < 0) inset = 0;
+    // A parked sticky header's rect is its STUCK position, not its flow
+    // position - measuring it directly made the scroll a no-op (or land
+    // short) whenever the header was parked. Un-stick it for one synchronous
+    // measurement, then restore.
+    var prevPos = header.style.position;
+    header.style.position = 'static';
+    var flowTop = header.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+    header.style.position = prevPos;
+    var target = flowTop - inset;
+    var max = container.scrollHeight - container.clientHeight;
+    if (target > max) target = max;
+    if (target < 0) target = 0;
+    // Drive the animation ourselves: native smooth scrolling is silently
+    // cancelled by any direct scrollTop write - and lazy sections (trash,
+    // smart) re-render on expand, whose MutationObserver restore does exactly
+    // that mid-flight. Writing both scrollTop AND _savedScrollTop each frame
+    // makes the restore agree with us instead of undoing the jump.
+    var start = container.scrollTop;
+    var dist = target - start;
+    if (Math.abs(dist) < 2) return;
+    var t0 = performance.now();
+    var DUR = 260;
+    function step(now) {
+      var p = Math.min(1, (now - t0) / DUR);
+      var eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      var v = start + dist * eased;
+      container.scrollTop = v;
+      _savedScrollTop = v;
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
   // 5. Pinned section header -> local collapse toggle, backend records state.
   var pinnedHeader = e.target.closest('.pinned-section-header');
   if (pinnedHeader) {
     var pinnedCollapsed = pinnedHeader.classList.toggle('collapsed');
     var pinnedBody = document.getElementById('pinned-body');
     if (pinnedBody) pinnedBody.classList.toggle('collapsed', pinnedCollapsed);
-    if (!pinnedCollapsed) animateExpand(pinnedBody);
+    if (!pinnedCollapsed) { animateExpand(pinnedBody); scrollSectionToStack(pinnedHeader); }
     var pinnedToggle = pinnedHeader.querySelector('.toggle');
     if (pinnedToggle) pinnedToggle.textContent = pinnedCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'togglePinnedCollapse' });
@@ -456,7 +541,7 @@ document.addEventListener('click', function(e) {
     var tagsNowCollapsed = tagsHeader.classList.toggle('collapsed');
     var tagsBody = document.getElementById('tags-body');
     if (tagsBody) tagsBody.classList.toggle('collapsed', tagsNowCollapsed);
-    if (!tagsNowCollapsed) animateExpand(tagsBody);
+    if (!tagsNowCollapsed) { animateExpand(tagsBody); scrollSectionToStack(tagsHeader); }
     var tagsToggle = tagsHeader.querySelector('.toggle');
     if (tagsToggle) tagsToggle.textContent = tagsNowCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'toggleTagsSection' });
@@ -469,7 +554,7 @@ document.addEventListener('click', function(e) {
     var treeNowCollapsed = treeHeader.classList.toggle('collapsed');
     var treeBody = document.getElementById('main-tree');
     if (treeBody) treeBody.classList.toggle('collapsed', treeNowCollapsed);
-    if (!treeNowCollapsed) animateExpand(treeBody);
+    if (!treeNowCollapsed) { animateExpand(treeBody); scrollSectionToStack(treeHeader); }
     var treeToggle = treeHeader.querySelector('.toggle');
     if (treeToggle) treeToggle.textContent = treeNowCollapsed ? '▶' : '▼';
     postMsg({ name: 'toggleTreeSection' });
@@ -482,7 +567,7 @@ document.addEventListener('click', function(e) {
     var smartNowCollapsed = smartHeader.classList.toggle('collapsed');
     var smartBody = document.getElementById('smart-body');
     if (smartBody) smartBody.classList.toggle('collapsed', smartNowCollapsed);
-    if (!smartNowCollapsed) animateExpand(smartBody);
+    if (!smartNowCollapsed) { animateExpand(smartBody); scrollSectionToStack(smartHeader); }
     var smartToggle = smartHeader.querySelector('.toggle');
     if (smartToggle) smartToggle.textContent = smartNowCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'toggleSmartSection' });
@@ -511,7 +596,7 @@ document.addEventListener('click', function(e) {
     var trashNowCollapsed = trashHeader.classList.toggle('collapsed');
     var trashKids = document.getElementById('trash-children');
     if (trashKids) trashKids.classList.toggle('collapsed', trashNowCollapsed);
-    if (!trashNowCollapsed) animateExpand(trashKids);
+    if (!trashNowCollapsed) { animateExpand(trashKids); scrollSectionToStack(trashHeader); }
     var trashToggle = trashHeader.querySelector('.toggle');
     if (trashToggle) trashToggle.textContent = trashNowCollapsed ? '\u25B6' : '\u25BC';
     postMsg({ name: 'toggleTrashSection' });
@@ -1036,34 +1121,20 @@ webviewApi.onMessage(function(msg) {
     // Expand tag inline with its notes
     expandTagNotes(m.tagId, m.notes);
   } else if (m.name === 'scrollToFolder') {
-    setTimeout(function() {
-      var el = document.querySelector('.tree-item.folder:not(.pinned-item)[data-id="' + m.folderId + '"]');
-      if (el) {
-        expandAncestorsLocal(el);
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        el.classList.add('locate-flash');
-        setTimeout(function() { el.classList.remove('locate-flash'); }, 1500);
-      }
-    }, 80);
+    setTimeout(function() { locateFolderInTree(m.folderId); }, 80);
   } else if (m.name === 'exitSearch') {
     var input = document.getElementById('search-input');
     if (input) input.value = '';
+    syncSearchClear();
     if (_searchMode) exitSearchMode();
   } else if (m.name === 'exitSearchAndLocate') {
     var input2 = document.getElementById('search-input');
     if (input2) input2.value = '';
+    syncSearchClear();
     _searchMode = false;
     showSearchContainer(false);
-    // Scroll to the folder and flash-highlight it
-    setTimeout(function() {
-      var el = document.querySelector('.tree-item.folder[data-id="' + m.folderId + '"]');
-      if (el) {
-        expandAncestorsLocal(el);
-        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        el.classList.add('locate-flash');
-        setTimeout(function() { el.classList.remove('locate-flash'); }, 1500);
-      }
-    }, 80);
+    // Scroll to the folder and flash-highlight it (#33)
+    setTimeout(function() { locateFolderInTree(m.folderId); }, 80);
   } else if (m.name === 'copyText') {
     // Fallback clipboard copy via webview
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1089,6 +1160,7 @@ webviewApi.onMessage(function(msg) {
     if (!noteEl) noteEl = document.querySelector('.tree-item.note[data-id="' + m.id + '"]');
     if (noteEl) {
       noteEl.classList.add('selected');
+      if (mainTree && mainTree.contains(noteEl)) ensureTreeSectionExpanded(); // #35
       var opened = (mainTree && mainTree.contains(noteEl)) ? expandAncestorsLocal(noteEl) : [];
       // Auto-reveal (#27): scroll the selected note into view when it was
       // reached from outside the panel (e.g. "Go to anything"). Deferred to the
@@ -1102,9 +1174,12 @@ webviewApi.onMessage(function(msg) {
         var cRect = container.getBoundingClientRect();
         var nRect = noteEl.getBoundingClientRect();
         if (nRect.top < cRect.top || nRect.bottom > cRect.bottom) {
-          noteEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+          // Smooth: the scroll listener tracks _savedScrollTop during the
+          // animation, so the observer's restore follows rather than fights.
+          noteEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        } else {
+          _savedScrollTop = container.scrollTop;
         }
-        _savedScrollTop = container.scrollTop;
       });
       // Record the reveal so the next backend refresh doesn't re-collapse.
       if (opened.length) postMsg({ name: 'revealNote', folderIds: opened });
@@ -1627,10 +1702,43 @@ function expandTagNotes(tagId, notes) {
   if (arrow) arrow.classList.add('expanded');
 }
 
+// The Notebooks SECTION (v1.6.3) can be collapsed as a whole; every reveal
+// path must open it first or the reveal silently does nothing (#35). Records
+// the state flip with the backend when it actually changed.
+// Locate a notebook row in the MAIN tree and scroll to it, expanding the
+// Notebooks section and ancestors first (#33, #35). The lookup is scoped to
+// #main-tree so a pinned copy of the same folder can't shadow the real row.
+function locateFolderInTree(folderId) {
+  ensureTreeSectionExpanded();
+  var mainTree = document.getElementById('main-tree');
+  var el = mainTree ? mainTree.querySelector('.tree-item.folder[data-id="' + folderId + '"]') : null;
+  if (!el) return;
+  expandAncestorsLocal(el);
+  requestAnimationFrame(function() {
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('locate-flash');
+    setTimeout(function() { el.classList.remove('locate-flash'); }, 1500);
+  });
+}
+
+function ensureTreeSectionExpanded() {
+  var body = document.getElementById('main-tree');
+  if (!body || !body.classList.contains('collapsed')) return;
+  body.classList.remove('collapsed');
+  var hdr = document.getElementById('tree-header');
+  if (hdr) {
+    hdr.classList.remove('collapsed');
+    var tg = hdr.querySelector('.toggle');
+    if (tg) tg.textContent = '▼';
+  }
+  postMsg({ name: 'toggleTreeSection' });
+}
+
 // Scroll the currently selected note into view in the main tree, expanding
 // its collapsed ancestors first. Shared by the auto-reveal on selection
 // change (#27), the exit-search path and the toolbar button (#32).
 function revealSelectedNote() {
+  ensureTreeSectionExpanded();
   var container = document.getElementById('tree-container');
   var mainTree = document.getElementById('main-tree');
   if (!container || !mainTree) return;
@@ -1647,11 +1755,11 @@ function revealSelectedNote() {
   if (!noteEl) return;
   var opened = expandAncestorsLocal(noteEl);
   if (opened.length) postMsg({ name: 'revealNote', folderIds: opened });
-  // Defer past the scroll-restoring MutationObserver, then keep the restored
-  // value in sync so it can't yank us back.
+  // Defer past the scroll-restoring MutationObserver. Smooth scrolling: the
+  // continuous scroll listener keeps _savedScrollTop in sync throughout the
+  // animation, so the restore can't yank us back to the start.
   requestAnimationFrame(function() {
-    noteEl.scrollIntoView({ block: 'center', behavior: 'instant' });
-    _savedScrollTop = container.scrollTop;
+    noteEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
 }
 
@@ -1663,8 +1771,16 @@ function exitSearchMode() {
   revealSelectedNote();
 }
 
+// The ✕ clear button shows only while the box has text (#37).
+function syncSearchClear() {
+  var bar = document.querySelector('.search-bar');
+  var input = document.getElementById('search-input');
+  if (bar && input) bar.classList.toggle('has-text', !!input.value);
+}
+
 document.addEventListener('input', function(e) {
   if (e.target.id !== 'search-input') return;
+  syncSearchClear();
   var query = e.target.value.trim();
 
   if (_searchTimer) clearTimeout(_searchTimer);
@@ -1695,7 +1811,20 @@ document.addEventListener('keydown', function(e) {
     var input = document.getElementById('search-input');
     if (input && input.value) {
       input.value = '';
+      syncSearchClear();
       if (_searchMode) exitSearchMode();
     }
   }
+});
+
+// ✕ clear button (#37): clears, hides itself, refocuses the input.
+document.addEventListener('click', function(e) {
+  if (!e.target.closest || !e.target.closest('#search-clear')) return;
+  var input = document.getElementById('search-input');
+  if (input) {
+    input.value = '';
+    if (_searchMode) exitSearchMode();
+    input.focus();
+  }
+  syncSearchClear();
 });

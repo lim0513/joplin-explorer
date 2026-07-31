@@ -120,6 +120,12 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Parent badges show two numbers, `7 (10)`: the tag's own notes + the de-duplicated subtree total (collapsed to one number when equal), with an explanatory tooltip. De-duplication reuses the note ids already returned by the count probe — zero extra API calls
 - Ships `scripts/demo-nested-tags.js` to generate/clean a fixture covering the edge cases
 
+**Stacked headers & reveal fixes** (v1.6.5)
+- Stacked section headers (setting, on by default): while scrolling, headers of passed sections stack at the top and upcoming ones at the bottom — every section is one click away at all times; uniform header height, seam-free joints, and expanding a section smoothly scrolls it into place — the full form of [#31](https://github.com/lim0513/joplin-explorer/issues/31) / [#36](https://github.com/lim0513/joplin-explorer/issues/36), thanks [@CJeffyB](https://github.com/CJeffyB)
+- Reveal fixes: with the Notebooks section collapsed, auto-reveal / the reveal button / exiting search now expand the section first (v1.6.3 regression) — [#35](https://github.com/lim0513/joplin-explorer/issues/35); clicking a notebook in search results locates the actual tree row (no longer shadowed by a pinned copy) — [#33](https://github.com/lim0513/joplin-explorer/issues/33), thanks [@bwat47](https://github.com/bwat47); all reveal scrolling is now smooth
+- Search box gains a ✕ clear button (visible while it has text; clears and refocuses) — [#37](https://github.com/lim0513/joplin-explorer/issues/37)
+- Section order setting uses the notebooks key (legacy tree still accepted) — [#34](https://github.com/lim0513/joplin-explorer/issues/34)
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback

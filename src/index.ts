@@ -619,6 +619,14 @@ joplin.plugins.register({
           label: t.sShowTags,
           description: t.sShowTagsDesc,
         },
+        'stackSectionHeaders': {
+          section: 'joplinExplorer',
+          type: 3, // SettingItemType.Bool = 3
+          value: true,
+          public: true,
+          label: t.sStackHeaders,
+          description: t.sStackHeadersDesc,
+        },
         'tagNestSeparator': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
@@ -1402,7 +1410,8 @@ joplin.plugins.register({
           trash: trashHtml,
         };
         const orderKeys: string[] = [];
-        for (const k of String((await joplin.settings.value('sectionOrder')) || '').split(',').map((s) => s.trim().toLowerCase()).filter((s) => !!s)) {
+        for (let k of String((await joplin.settings.value('sectionOrder')) || '').split(',').map((s) => s.trim().toLowerCase()).filter((s) => !!s)) {
+          if (k === 'notebooks') k = 'tree'; // #34: public name; 'tree' stays as the legacy alias
           if (sectionHtml[k] !== undefined && orderKeys.indexOf(k) < 0) orderKeys.push(k);
         }
         for (const k of ['pinned', 'smart', 'tree', 'tags', 'trash']) {
@@ -1412,7 +1421,8 @@ joplin.plugins.register({
         let secGap = Number(await joplin.settings.value('sectionSpacing'));
         if (!isFinite(secGap) || secGap < 0) secGap = 5;
         if (secGap > 30) secGap = 30;
-        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        const stackHeaders = (await joplin.settings.value('stackSectionHeaders')) !== false ? '1' : '0';
+        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
@@ -1424,6 +1434,7 @@ joplin.plugins.register({
           + '  </div>'
           + '  <div class="search-bar">'
           + '    <input id="search-input" type="text" placeholder="\uD83D\uDD0D ' + t.search + '" />'
+          + '    <button id="search-clear" title="' + (t.clearSearch || 'Clear') + '" aria-label="' + (t.clearSearch || 'Clear') + '">\u2715</button>'
           + '  </div>'
           + '  <div id="tree-container">' + sectionsJoined
           + '    <div id="drop-zone-empty" class="drop-zone-empty">+ ' + t.dropCreateNotebook + '</div>'
@@ -1501,6 +1512,7 @@ joplin.plugins.register({
         || event.keys.indexOf('collapseAllScope') >= 0
         || event.keys.indexOf('showTagsSection') >= 0
         || event.keys.indexOf('tagNestSeparator') >= 0
+        || event.keys.indexOf('stackSectionHeaders') >= 0
         || event.keys.indexOf('sectionOrder') >= 0
         || event.keys.indexOf('sectionSpacing') >= 0
         || event.keys.indexOf('showFolderToggles') >= 0

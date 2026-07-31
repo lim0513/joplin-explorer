@@ -134,6 +134,12 @@ Verified 2026-07-28 against a live Joplin (test profile), correcting an earlier 
 - Per-folder pairing completes the global open/close pair: `getFolderIcon` currently returns the same native emoji for both states (line ~380) — the user_data open-variant overrides the open state only.
 - Rejected alternatives (kept for the record): title-leading-emoji convention and frontmatter `icon:` (both pollute user content; frontmatter parse would have been free since getAllNotes already fetches body); plugin-settings map + config-note sync (doesn't sync natively / extra machinery).
 
+## Stacked sticky headers (v1.6.5, #31)
+
+- Accordion stacking is pure sticky CSS: each header gets inline `top` = sum of header heights above it, `bottom` = sum below (`applyHeaderStacking`, recomputed on render + header clicks). Requires: uniform forced header height (31px — ANY per-header variance opens seams), zeroed section margins in stacked mode (or spacing visibly compresses at park time), zero container top/bottom padding (content leaks through it past the parked headers), opaque `color-mix` divider + square corners (the translucent border/rounded corners leak scrolling rows at the seams).
+- **A parked sticky element's `getBoundingClientRect()`/`offsetTop` is its STUCK position, not its flow position.** To measure flow, set `style.position='static'`, read the rect (forces sync layout), restore.
+- **Native `scrollTo({behavior:'smooth'})` is silently cancelled by any direct `scrollTop` write.** Lazy sections re-render on expand and the MutationObserver's scroll-restore does exactly that mid-animation. For scrolls that must survive, drive the animation manually per rAF frame, writing BOTH `scrollTop` and `_savedScrollTop` so the restore agrees instead of undoing it.
+
 ## Panel scrolling & reveal
 
 - A `MutationObserver` restores `_savedScrollTop` after every `setHtml`. **Any programmatic scroll must run after it** (`requestAnimationFrame`) *and* update `_savedScrollTop` afterwards, or the restore silently undoes it. This is why the original auto-reveal appeared to do nothing.

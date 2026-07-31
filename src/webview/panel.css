@@ -58,7 +58,32 @@ html, body {
   padding: 4px 8px;
   border-bottom: 1px solid var(--joplin-divider-color, #ddd);
   flex-shrink: 0;
+  position: relative; /* anchors the ✕ clear button (#37) */
 }
+
+/* ✕ clear button: only visible while the box has text (#37) */
+#search-clear {
+  display: none;
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  padding: 2px 5px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--joplin-color-faded, #888);
+  cursor: pointer;
+  border-radius: 3px;
+}
+#search-clear:hover {
+  color: var(--joplin-color, #ccc);
+  background: var(--joplin-background-color-hover3, rgba(100, 100, 100, 0.12));
+}
+.search-bar.has-text #search-clear { display: block; }
+/* keep typed text clear of the button */
+.search-bar.has-text #search-input { padding-right: 26px; }
 
 #search-input {
   width: 100%;
@@ -82,6 +107,41 @@ html, body {
   flex: 1;
   overflow-y: scroll;
   padding: 4px 0;
+}
+/* Stacked headers (#31): parked headers sit at the scrollport's inner edges,
+ * but content scrolls through the container's top/bottom padding and peeks
+ * out beyond them - drop both paddings while stacking is on. */
+[data-stack-headers="1"] #tree-container {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+/* Stacked headers sit flush against each other; two things leak scrolling
+ * content through the seam: the semi-transparent divider border, and the
+ * 3px rounded bottom corners. Make the divider an OPAQUE mix of the same
+ * shade, and square the corners, while stacking is on. */
+[data-stack-headers="1"] .pinned-section-header,
+[data-stack-headers="1"] .smart-section-header,
+[data-stack-headers="1"] .tree-section-header,
+[data-stack-headers="1"] .tags-section-header,
+[data-stack-headers="1"] .trash-section-header {
+  border-top-color: color-mix(in srgb, var(--joplin-color, #888) 22%, var(--joplin-background-color, #1e1e1e));
+  border-radius: 0;
+  /* Uniform height: stacking offsets are cumulative sums of header heights,
+   * so ANY per-header variation (e.g. the pinned header swapping open/closed
+   * icons of slightly different metrics) opens a seam between parked headers.
+   * Pin the box height and clip overflow - offsets become exact. */
+  box-sizing: border-box;
+  height: 31px;
+  min-height: 31px;
+  overflow: hidden;
+  /* Zero the section spacing: in flow, headers carried a --sec-gap top
+   * margin that vanishes once parked, so spacing visibly "compressed"
+   * during the transition and read as the header changing height. With
+   * identical spacing in both states nothing shifts while scrolling.
+   * A crisp 1px bottom hairline makes rows read as sliding UNDER. */
+  margin-top: 0;
+  margin-bottom: 0;
+  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--joplin-color, #888) 14%, var(--joplin-background-color, #1e1e1e));
 }
 
 #tree-container::-webkit-scrollbar {

@@ -120,6 +120,12 @@
 - 父节点徽标显示双数字 `7 (10)`：自身笔记数 +（去重后的）子树总数，两数相同则只显示一个；悬停有说明。去重所需的笔记 id 复用计数请求的返回，零额外 API 调用
 - 附 `scripts/demo-nested-tags.js`：一键生成/清理覆盖各边界情况的测试数据
 
+**分区标题堆叠与定位修复**（v1.6.5）
+- 分区标题常驻堆叠（设置项，默认开）：滚动时已经过的分区标题堆叠在面板顶部、未到达的堆叠在底部，五个分区任意时刻一键可达；统一标题高度、贴合处无缝、展开分区时平滑滚动到该分区——[#31](https://github.com/lim0513/joplin-explorer/issues/31) 完整形态 / [#36](https://github.com/lim0513/joplin-explorer/issues/36)，感谢 [@CJeffyB](https://github.com/CJeffyB)
+- 定位修复：笔记本分区折叠时，自动定位/定位按钮/退出搜索现在会先展开分区再滚动（v1.6.3 回归）——[#35](https://github.com/lim0513/joplin-explorer/issues/35)；搜索结果点笔记本正确定位到树中该笔记本（不再被收藏夹副本抢占）——[#33](https://github.com/lim0513/joplin-explorer/issues/33)，感谢 [@bwat47](https://github.com/bwat47)；定位滚动全部改为平滑滚动
+- 搜索框内置 ✕ 清空按钮（有文字时显示，点击清空并重新聚焦）——[#37](https://github.com/lim0513/joplin-explorer/issues/37)
+- "分区顺序"设置改用 notebooks 键（旧键 tree 继续兼容）——[#34](https://github.com/lim0513/joplin-explorer/issues/34)
+
 **其他**
 - Emoji / 自定义图片笔记本图标
 - 同步按钮带状态反馈
