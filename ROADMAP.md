@@ -134,6 +134,9 @@ This document outlines the current state and long-term direction of **Joplin Exp
 **New-notebook dialog fix** (v1.6.7)
 - Newer Joplin requires `parentId` on `openFolderDialog` (empty string for root) and fails silently without it — the toolbar's New notebook and drag-to-bottom-zone were affected; both fixed. Drag-to-create now uses the native dialog (with icon picker) and moves the dragged item into the new notebook automatically
 
+**Tag-change auto refresh** (v1.6.8)
+- Tagging/untagging the open note, and creating/renaming/deleting tags anywhere, now show up in the Tags section within one auto-refresh cycle (5 s) — no manual refresh. Implemented as two lightweight fingerprints (the selected note's tag set + the tags table) on the existing autoRefresh poll; Joplin's events feed doesn't cover tags, so fingerprint polling is the only route
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback

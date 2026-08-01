@@ -2798,12 +2798,51 @@ joplin.plugins.register({
       return changed;
     }
 
+    // Tag changes have NO events (the /events feed tracks notes only, and
+    // note_tag associations don't touch the note row), so the auto-refresh
+    // poll fingerprints two cheap things instead:
+    // 1. the SELECTED note's tag ids - tagging/untagging happens on the open
+    //    note in practice, and it's one request;
+    // 2. the tags table (id/title/updated_time) - create/rename/delete from
+    //    anywhere, one request per 100 tags.
+    let selTagNote = '';
+    let selTagIds: string | null = null;
+    let tagsTableSig: string | null = null;
+    async function tagsChanged(): Promise<boolean> {
+      let changed = false;
+      try {
+        if (selectedNoteId) {
+          const r = await joplin.data.get(['notes', selectedNoteId, 'tags'], { fields: ['id'], limit: 100 });
+          const ids = (r.items || []).map((x: any) => x.id).sort().join(',');
+          // Only a change on the SAME note counts - switching notes just reseeds.
+          if (selectedNoteId === selTagNote && selTagIds !== null && selTagIds !== ids) changed = true;
+          selTagNote = selectedNoteId;
+          selTagIds = ids;
+        }
+      } catch (_) { /* ignore */ }
+      try {
+        let sig = '';
+        let tp = 1;
+        let tMore = true;
+        while (tMore && tp <= 5) {
+          const r = await joplin.data.get(['tags'], { fields: ['id', 'title', 'updated_time'], page: tp, limit: 100 });
+          for (const tg of (r.items || [])) sig += tg.id + (tg.title || '') + tg.updated_time + ';';
+          tMore = r.has_more;
+          tp++;
+        }
+        if (tagsTableSig !== null && tagsTableSig !== sig) changed = true;
+        tagsTableSig = sig;
+      } catch (_) { /* ignore */ }
+      return changed;
+    }
+
     async function pollEvents(): Promise<void> {
       try {
         if (!eventsCursor) {
           const init = await joplin.data.get(['events']);
           eventsCursor = String(init.cursor || '');
           await foldersChanged(); // seed the folder signature
+          await tagsChanged();    // seed the tag signatures
           return;
         }
         let relevant = false;
@@ -2820,6 +2859,7 @@ joplin.plugins.register({
           if (!r.has_more) break;
         }
         if (!relevant && await foldersChanged()) relevant = true;
+        if (!relevant && await tagsChanged()) relevant = true;
         if (relevant) scheduleRefreshPanel(300);
       } catch (err) {
         // Events API unavailable (older Joplin) - disable quietly.
