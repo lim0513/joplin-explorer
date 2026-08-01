@@ -1194,16 +1194,19 @@ joplin.plugins.register({
         );
         if (pinnedItems.length !== before) await savePinned();
 
+        // The section renders even when EMPTY (#38): with stacked headers every
+        // section is a navigation anchor, and a permanent header doubles as the
+        // drag-to-pin target - retiring the injected placeholder hack (#13).
         let pinnedHtml = '';
         const pinnedCount = pinnedItems.length;
-        if (pinnedCount > 0) {
+        {
           const pinnedArrow = pinnedCollapsed ? '\u25B6' : '\u25BC';
           pinnedHtml += '<div class="pinned-section-header' + (pinnedCollapsed ? ' collapsed' : '') + '" id="pinned-header">';
           if (showToggleArrows) pinnedHtml += '<span class="toggle">' + pinnedArrow + '</span>';
           pinnedHtml += renderIconHtml(openPinnedIcon, 'icon-when-open')
             + renderIconHtml(closedPinnedIcon, 'icon-when-collapsed')
             + '<span class="label">' + t.pinned + '</span>'
-            + '<span class="count">' + pinnedCount + '</span>'
+            + (pinnedCount ? '<span class="count">' + pinnedCount + '</span>' : '')
             + '</div>';
           pinnedHtml += '<div class="pinned-section-body' + (pinnedCollapsed ? ' collapsed' : '') + '" id="pinned-body">';
           for (const p of pinnedItems) {
@@ -1235,14 +1238,16 @@ joplin.plugins.register({
 
         // Tags section: each tag is a collapsible folder row; children are
         // filled lazily by the webview via tagFolderNotes.
+        // Rendered even with zero tags (#38); the whole section is hidden only
+        // via the showTagsSection setting (the semantically-correct way).
         let tagsHtml = '';
-        if (allTagsCache.length > 0) {
+        if (showTagsSection) {
           const tagsArrow = tagsCollapsed ? '\u25B6' : '\u25BC';
           tagsHtml += '<div class="tags-section-header' + (tagsCollapsed ? ' collapsed' : '') + '" id="tags-header">';
           if (showToggleArrows) tagsHtml += '<span class="toggle">' + tagsArrow + '</span>';
           tagsHtml += '<span class="icon">\uD83C\uDFF7\uFE0F</span>'
             + '<span class="label">' + t.tags + '</span>'
-            + '<span class="count">' + allTagsCache.length + '</span>'
+            + (allTagsCache.length ? '<span class="count">' + allTagsCache.length + '</span>' : '')
             + '</div>';
           tagsHtml += '<div class="tags-section-body' + (tagsCollapsed ? ' collapsed' : '') + '" id="tags-body">';
           const tagSep = String((await joplin.settings.value('tagNestSeparator')) || '');
@@ -1296,13 +1301,15 @@ joplin.plugins.register({
             trashCount++;
           }
           if (tnItems.length === 100 && tnItems[99].deleted_time > 0) trashMore = true;
-          if (trashCount > 0 || trashMore) {
+          // Rendered even when EMPTY (#38) - matches Joplin's own sidebar,
+          // where Trash is always present.
+          {
             const trashArrow = trashCollapsed ? '\u25B6' : '\u25BC';
             trashHtml += '<div class="trash-section-header' + (trashCollapsed ? ' collapsed' : '') + '" id="trash-header">';
             if (showToggleArrows) trashHtml += '<span class="toggle">' + trashArrow + '</span>';
             trashHtml += '<span class="icon">\uD83D\uDDD1\uFE0F</span>'
               + '<span class="label">' + t.trash + '</span>'
-              + '<span class="count">' + trashCount + (trashMore ? '+' : '') + '</span>'
+              + ((trashCount > 0 || trashMore) ? '<span class="count">' + trashCount + (trashMore ? '+' : '') + '</span>' : '')
               + '</div>';
             trashHtml += '<div class="trash-children' + (trashCollapsed ? ' collapsed' : '') + '" id="trash-children"></div>';
           }
@@ -2656,6 +2663,27 @@ joplin.plugins.register({
         } catch (err) {
           console.error('Joplin Explorer: locatePinnedFolder error', err);
         }
+      } else if (msg.name === 'pinItemAt') {
+        // Drop a NON-pinned item anywhere in the pinned body: pin it at that
+        // exact position (before/after the hovered pinned row, or appended
+        // when dropped on empty space). An already-pinned id just moves.
+        try {
+          const paId = String(msg.dragId || '');
+          if (paId) {
+            const paType = msg.dragType === 'folder' ? 'folder' : 'note';
+            pinnedItems = pinnedItems.filter(p => p.id !== paId);
+            let paIdx = pinnedItems.length;
+            if (msg.targetId) {
+              const ti = pinnedItems.findIndex(p => p.id === msg.targetId);
+              if (ti >= 0) paIdx = ti + (msg.position === 'after' ? 1 : 0);
+            }
+            pinnedItems.splice(paIdx, 0, { id: paId, type: paType });
+            await savePinned();
+            await refreshPanel();
+          }
+        } catch (err) {
+          console.error('Joplin Explorer: pinItemAt error', err);
+        }
       } else if (msg.name === 'reorderPinned') {
         try {
           const dragId = msg.dragId;
@@ -2699,6 +2727,11 @@ joplin.plugins.register({
       } else if (msg.name === 'dragDrop') {
         await handleDragDrop(msg);
       } else if (msg.name === 'dragToEmpty') {
+        // NOTE: switching this to the native openFolderDialog (#16 parity) is
+        // ON HOLD - the dragToEmpty message inexplicably never reaches this
+        // handler when that build is loaded (frontend confirms postMessage
+        // fired; nothing arrives host-side; all other messages flow). Custom
+        // input dialog retained until that transport mystery is solved.
         try {
           const dragId = msg.dragId;
           const dragType = msg.dragType;
@@ -2716,7 +2749,7 @@ joplin.plugins.register({
           }
           await refreshPanel();
         } catch (err) {
-          console.error('Notes In List: drag to empty error', err);
+          console.error('Joplin Explorer: drag to empty error', err);
         }
       }
     });

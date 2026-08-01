@@ -126,6 +126,11 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - Search box gains a ✕ clear button (visible while it has text; clears and refocuses) — [#37](https://github.com/lim0513/joplin-explorer/issues/37)
 - Section order setting uses the notebooks key (legacy tree still accepted) — [#34](https://github.com/lim0513/joplin-explorer/issues/34)
 
+**Persistent empty sections & drag enhancements** (v1.6.6)
+- Pinned / Tags / Trash sections **no longer vanish when empty**: headers always render (count badge hidden at zero), honouring the stacked-header promise that every section stays reachable; Trash now matches Joplin's own always-present sidebar entry — [#38](https://github.com/lim0513/joplin-explorer/issues/38), thanks [@CJeffyB](https://github.com/CJeffyB). With the pinned header permanent, the injected drop-placeholder from #13 is retired
+- **Spring-loaded expand**: hovering a collapsed folder (drop-into zone), the pinned header, or the Notebooks/Tags section headers for 2 s during a drag auto-expands it — drill as deep as needed
+- **Pin anywhere**: drop any note/notebook anywhere in the pinned body to pin it at that exact spot (upper/lower half of a pinned row inserts before/after; empty space appends); dragging an already-pinned id just moves it
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback

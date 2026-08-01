@@ -216,7 +216,6 @@ function applyHeaderStacking() {
   var sel = '.pinned-section-header, .smart-section-header, .tree-section-header, .tags-section-header, .trash-section-header';
   var headers = [];
   document.querySelectorAll(sel).forEach(function(h) {
-    if (h.id === 'pinned-drop-ph') return; // drag placeholder shares the class
     headers.push(h);
   });
   if (!stacked) {
@@ -1246,28 +1245,12 @@ document.addEventListener('dragstart', function(e) {
   }
   e.dataTransfer.effectAllowed = 'move';
   item.classList.add('dragging');
-  // Show drop zones during drag (not for pinned items)
+  // Show drop zones during drag (not for pinned items). The pinned header is
+  // always rendered now (#38), so it IS the permanent drag-to-pin target -
+  // the injected-placeholder hack from #13 is retired.
   if (!isPinned) {
     var tc = document.getElementById('tree-container');
-    if (tc) {
-      tc.classList.add('dragging-active');
-      // Empty pinned section renders no header, so drag-to-pin had no
-      // landing spot for the FIRST pin (#13). Inject a temporary target -
-      // DEFERRED: mutating the DOM synchronously inside dragstart makes
-      // Chromium cancel the whole drag (the reflow moves the drag source).
-      // After the handler returns the drag snapshot exists and it's safe.
-      if (!document.getElementById('pinned-header')) {
-        setTimeout(function () {
-          if (!document.querySelector('.tree-item.dragging')) return; // drag already over
-          if (document.getElementById('pinned-header') || document.getElementById('pinned-drop-ph')) return;
-          var ph = document.createElement('div');
-          ph.id = 'pinned-drop-ph';
-          ph.className = 'pinned-section-header';
-          ph.textContent = '📌 ' + T('pinned');
-          tc.insertBefore(ph, tc.firstChild);
-        }, 0);
-      }
-    }
+    if (tc) tc.classList.add('dragging-active');
   }
 });
 
@@ -1315,11 +1298,11 @@ function clearDropIndicators() {
 
 function endDrag() {
   _dragScrollDir = 0;
+  springCancel();
+  _dragHoverEl = null;
   clearDropIndicators();
   var tc = document.getElementById('tree-container');
   if (tc) tc.classList.remove('dragging-active');
-  var ph = document.getElementById('pinned-drop-ph');
-  if (ph) ph.remove();
 }
 
 document.addEventListener('dragend', function(e) {
@@ -1331,12 +1314,40 @@ document.addEventListener('dragend', function(e) {
   endDrag();
 });
 
+// Spring-loaded expand: hovering a collapsed folder's "drop into" zone (or
+// the collapsed pinned header) during a drag auto-expands it after a delay,
+// so deep drops don't require pre-arranging the tree.
+var SPRING_EXPAND_MS = 2000;
+var _springEl = null;
+var _springTimer = null;
+var _dragHoverEl = null;
+function springCancel() {
+  if (_springTimer) clearTimeout(_springTimer);
+  _springTimer = null;
+  _springEl = null;
+}
+function springSchedule(el, fn) {
+  if (_springEl === el) return; // already counting down on this target
+  springCancel();
+  _springEl = el;
+  _springTimer = setTimeout(function() {
+    // Fire only if the drag is still running AND the cursor is still on the
+    // target (:hover is unreliable mid-drag, so track dragover's element).
+    var ok = document.querySelector('.tree-item.dragging')
+      && document.contains(el)
+      && _dragHoverEl && el.contains(_dragHoverEl);
+    springCancel();
+    if (ok) fn();
+  }, SPRING_EXPAND_MS);
+}
+
 document.addEventListener('dragover', function(e) {
   // Auto-scroll when the cursor nears the top/bottom edge of the tree.
   if (document.querySelector('.tree-item.dragging')) updateDragScroll(e.clientY);
   var el = e.target;
   if (el && el.nodeType === 3) el = el.parentElement; // text node -> parent element
   if (!el) return;
+  _dragHoverEl = el;
   var target = el.closest('.tree-item');
   var treeContainer = document.getElementById('tree-container');
 
@@ -1357,13 +1368,25 @@ document.addEventListener('dragover', function(e) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     clearDropIndicators();
+    // Spring-expand the collapsed pinned section while hovering it.
+    if (onPinnedHeader.classList.contains('collapsed')) {
+      springSchedule(onPinnedHeader, function() {
+        onPinnedHeader.classList.remove('collapsed');
+        var pb = document.getElementById('pinned-body');
+        if (pb) pb.classList.remove('collapsed');
+        var ptg = onPinnedHeader.querySelector('.toggle');
+        if (ptg) ptg.textContent = '▼';
+        postMsg({ name: 'togglePinnedCollapse' });
+      });
+    }
     return;
   }
 
-  // Pinned body — only accept reorder from other pinned items
+  // Pinned body — reorder for pinned items, pin-at-position for anything else
   var onPinnedBody = el.closest('.pinned-section-body');
   if (onPinnedBody) {
     var draggingPinned = document.querySelector('.tree-item.dragging.pinned-item');
+    var draggingAny = document.querySelector('.tree-item.dragging');
     if (draggingPinned && target && target.classList.contains('pinned-item')) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
@@ -1374,6 +1397,16 @@ document.addEventListener('dragover', function(e) {
         target.classList.add('drop-above');
       } else {
         target.classList.add('drop-below');
+      }
+    } else if (draggingAny && !draggingPinned) {
+      // Non-pinned drag anywhere over the body: dropping pins it right there.
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      clearDropIndicators();
+      if (target && target.classList.contains('pinned-item')) {
+        var rect3 = target.getBoundingClientRect();
+        if (e.clientY - rect3.top < rect3.height * 0.5) target.classList.add('drop-above');
+        else target.classList.add('drop-below');
       }
     }
     return;
@@ -1393,6 +1426,23 @@ document.addEventListener('dragover', function(e) {
     }
     return;
   }
+  // Collapsed Notebooks / Tags section headers spring-open on hover during a
+  // drag - they're not drop targets themselves, but what's INSIDE them is
+  // (folders / tag rows), so the drag needs a way in.
+  var springSecHdr = el.closest('.tree-section-header, .tags-section-header');
+  if (springSecHdr && springSecHdr.classList.contains('collapsed')) {
+    springSchedule(springSecHdr, function() {
+      var isTree = springSecHdr.classList.contains('tree-section-header');
+      var body = document.getElementById(isTree ? 'main-tree' : 'tags-body');
+      springSecHdr.classList.remove('collapsed');
+      if (body) body.classList.remove('collapsed');
+      var stg = springSecHdr.querySelector('.toggle');
+      if (stg) stg.textContent = '▼';
+      postMsg({ name: isTree ? 'toggleTreeSection' : 'toggleTagsSection' });
+    });
+    return;
+  }
+
   // Anywhere else inside the tags/trash/smart sections is not a drop target.
   if (el.closest('.tags-section-body') || el.closest('.tags-section-header')
     || el.closest('.trash-children') || el.closest('.trash-section-header')
@@ -1420,10 +1470,19 @@ document.addEventListener('dragover', function(e) {
     // Top 25%: drop above, middle 50%: drop into, bottom 25%: drop below
     if (y < height * 0.25) {
       target.classList.add('drop-above');
+      springCancel(); // edge zones mean reorder intent, not "open this"
     } else if (y > height * 0.75) {
       target.classList.add('drop-below');
+      springCancel();
     } else {
       target.classList.add('drop-target');
+      // Spring-expand collapsed folders in the "into" zone.
+      if (target.classList.contains('collapsed') && target !== draggingEl) {
+        springSchedule(target, function() {
+          toggleFolderLocal(target, target.dataset.id);
+          postMsg({ name: 'toggleFolder', id: target.dataset.id });
+        });
+      }
     }
   } else {
     // Note target: split above/below only makes sense in manual sort mode.
@@ -1491,15 +1550,27 @@ document.addEventListener('drop', function(e) {
     return;
   }
 
-  // Drop on pinned body -> reorder (only from pinned items)
+  // Drop on pinned body -> reorder for pinned drags, pin-at-position otherwise
   var onPinnedB2 = el0 ? el0.closest('.pinned-section-body') : null;
-  if (onPinnedB2 && isDragFromPinned) {
+  if (onPinnedB2) {
     var pinnedTarget = target && target.classList.contains('pinned-item') ? target : null;
-    if (pinnedTarget && pinnedTarget.dataset.id !== dragId) {
-      var rect2 = pinnedTarget.getBoundingClientRect();
-      var y2 = e.clientY - rect2.top;
-      var pos2 = y2 < rect2.height * 0.5 ? 'before' : 'after';
-      postMsg({ name: 'reorderPinned', dragId: dragId, dragType: dragType, targetId: pinnedTarget.dataset.id, position: pos2 });
+    if (isDragFromPinned) {
+      if (pinnedTarget && pinnedTarget.dataset.id !== dragId) {
+        var rect2 = pinnedTarget.getBoundingClientRect();
+        var y2 = e.clientY - rect2.top;
+        var pos2 = y2 < rect2.height * 0.5 ? 'before' : 'after';
+        postMsg({ name: 'reorderPinned', dragId: dragId, dragType: dragType, targetId: pinnedTarget.dataset.id, position: pos2 });
+      }
+    } else {
+      // Anywhere in the body pins the item at that spot (#38 follow-up):
+      // before/after the hovered pinned row, or appended on empty space.
+      var paMsg = { name: 'pinItemAt', dragId: dragId, dragType: dragType };
+      if (pinnedTarget && pinnedTarget.dataset.id !== dragId) {
+        var rect4 = pinnedTarget.getBoundingClientRect();
+        paMsg.targetId = pinnedTarget.dataset.id;
+        paMsg.position = (e.clientY - rect4.top) < rect4.height * 0.5 ? 'before' : 'after';
+      }
+      postMsg(paMsg);
     }
     endDrag();
     return;
