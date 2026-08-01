@@ -134,6 +134,17 @@ Verified 2026-07-28 against a live Joplin (test profile), correcting an earlier 
 - Per-folder pairing completes the global open/close pair: `getFolderIcon` currently returns the same native emoji for both states (line ~380) — the user_data open-variant overrides the open state only.
 - Rejected alternatives (kept for the record): title-leading-emoji convention and frontmatter `icon:` (both pollute user content; frontmatter parse would have been free since getAllNotes already fetches body); plugin-settings map + config-note sync (doesn't sync natively / extra machinery).
 
+## UNSOLVED: dragToEmpty message vanishes in transit (parked 2026-07-31)
+
+Attempting to switch dragToEmpty to the native `openFolderDialog` (#16 parity), the message stopped arriving. Evidence gathered before parking (v1.6.6 shipped with the custom dialog instead):
+
+- Webview side CONFIRMED: drop hits `#drop-zone-empty`, `text/x-je-item` payload intact, `postMsg({name:'dragToEmpty',...})` executes (probe directly after it printed).
+- Host side CONFIRMED NOTHING arrives: probes at the dragToEmpty branch AND a log-all probe at the very top of `panels.onMessage` printed nothing for it (console.error level, which is known to reach devtools — the info-level probes before that were blind, don't repeat that mistake).
+- No `panelReady` after the drop → the webview did NOT reload; the queue wasn't wiped by a navigation.
+- All other messages flow normally in the same session.
+
+Next bisections when resuming: (1) do other DROP-time messages (`dragDrop`, `pinItemAt`) arrive? (2) rename the message (`dragToEmpty2`) — if it arrives, something name-specific; (3) defer the send with `setTimeout(0)` out of the drop event; (4) check whether the HOST build actually contained the new handler when testing (installed release vs dev-path both claim the same version — disable the installed copy first).
+
 ## Stacked sticky headers (v1.6.5, #31)
 
 - Accordion stacking is pure sticky CSS: each header gets inline `top` = sum of header heights above it, `bottom` = sum below (`applyHeaderStacking`, recomputed on render + header clicks). Requires: uniform forced header height (31px — ANY per-header variance opens seams), zeroed section margins in stacked mode (or spacing visibly compresses at park time), zero container top/bottom padding (content leaks through it past the parked headers), opaque `color-mix` divider + square corners (the translucent border/rounded corners leak scrolling rows at the seams).
