@@ -134,16 +134,14 @@ Verified 2026-07-28 against a live Joplin (test profile), correcting an earlier 
 - Per-folder pairing completes the global open/close pair: `getFolderIcon` currently returns the same native emoji for both states (line ~380) — the user_data open-variant overrides the open state only.
 - Rejected alternatives (kept for the record): title-leading-emoji convention and frontmatter `icon:` (both pollute user content; frontmatter parse would have been free since getAllNotes already fetches body); plugin-settings map + config-note sync (doesn't sync natively / extra machinery).
 
-## UNSOLVED: dragToEmpty message vanishes in transit (parked 2026-07-31)
+## SOLVED: the "vanishing dragToEmpty message" (2026-07-31, fixed in v1.6.7)
 
-Attempting to switch dragToEmpty to the native `openFolderDialog` (#16 parity), the message stopped arriving. Evidence gathered before parking (v1.6.6 shipped with the custom dialog instead):
+The message never vanished. Two compounding facts created a phantom transport bug and burned a whole debugging session:
 
-- Webview side CONFIRMED: drop hits `#drop-zone-empty`, `text/x-je-item` payload intact, `postMsg({name:'dragToEmpty',...})` executes (probe directly after it printed).
-- Host side CONFIRMED NOTHING arrives: probes at the dragToEmpty branch AND a log-all probe at the very top of `panels.onMessage` printed nothing for it (console.error level, which is known to reach devtools — the info-level probes before that were blind, don't repeat that mistake).
-- No `panelReady` after the drop → the webview did NOT reload; the queue wasn't wiped by a navigation.
-- All other messages flow normally in the same session.
+1. **Plugin-HOST console output (info AND error alike) is INVISIBLE in the window devtools.** Only webview console output shows there. Every host-side probe was blind, which made "handler never runs" look proven when the handler was running and throwing. **When debugging host-side code, use `showNativeInfo` dialogs (or write to a file) — never console.**
+2. **Newer Joplin requires `parentId` on `openFolderDialog` even with `isNew: true`** (`''` = root). Without it the command throws `parentId must be specified when creating a new folder` — invisibly, per fact 1. The toolbar's newNotebook (#16) had been silently broken by the same Joplin upgrade; nobody noticed for the same reason.
 
-Next bisections when resuming: (1) do other DROP-time messages (`dragDrop`, `pinItemAt`) arrive? (2) rename the message (`dragToEmpty2`) — if it arrives, something name-specific; (3) defer the send with `setTimeout(0)` out of the drop event; (4) check whether the HOST build actually contained the new handler when testing (installed release vs dev-path both claim the same version — disable the installed copy first).
+Every `openFolderDialog` call must pass `parentId` (all three call sites do now). The decisive experiment was replacing console probes with `showNativeInfo` dialogs — console-free, cannot be invisible; do that FIRST next time a host-side handler "isn't running".
 
 ## Stacked sticky headers (v1.6.5, #31)
 

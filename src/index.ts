@@ -2488,8 +2488,9 @@ joplin.plugins.register({
         await refreshPanel();
       } else if (msg.name === 'newNotebook') {
         // Native "Create notebook" dialog (name focus + icon picker), #16.
+        // parentId REQUIRED on newer Joplin even for root ('' = top level).
         try {
-          await joplin.commands.execute('openFolderDialog', { isNew: true });
+          await joplin.commands.execute('openFolderDialog', { isNew: true, parentId: '' });
           watchNewFolder();
         } catch (e) {
           console.error('Joplin Explorer: newNotebook error', e);
@@ -2727,27 +2728,39 @@ joplin.plugins.register({
       } else if (msg.name === 'dragDrop') {
         await handleDragDrop(msg);
       } else if (msg.name === 'dragToEmpty') {
-        // NOTE: switching this to the native openFolderDialog (#16 parity) is
-        // ON HOLD - the dragToEmpty message inexplicably never reaches this
-        // handler when that build is loaded (frontend confirms postMessage
-        // fired; nothing arrives host-side; all other messages flow). Custom
-        // input dialog retained until that transport mystery is solved.
         try {
           const dragId = msg.dragId;
           const dragType = msg.dragType;
-          const name = await showNativeInput(t.promptNewNotebookName, '');
-          if (!name || !name.trim()) return;
-          const newFolder = await joplin.data.post(['folders'], null, { title: name.trim() });
-          seenFolders[newFolder.id] = true; // panel-created: keep it expanded
-          delete collapsedFolders[newFolder.id];
-          if (dragType === 'note') {
-            await joplin.data.put(['notes', dragId], null, { parent_id: newFolder.id });
-          } else if (dragType === 'folder') {
-            if (dragId !== newFolder.id) {
-              await joplin.data.put(['folders', dragId], null, { parent_id: newFolder.id });
+          // Native New-notebook dialog (#16 parity). NOTE: newer Joplin
+          // REQUIRES parentId even with isNew (empty string = root) - without
+          // it the command throws and, since plugin-host console output is
+          // invisible in the window devtools, the failure looks like
+          // "nothing happened". That cost a whole debugging session.
+          // The dialog doesn't report the created folder, so snapshot ids
+          // and poll for the newcomer, then move the dragged item into it.
+          const beforeIds = new Set((await getAllFolders()).map((f: any) => f.id));
+          await joplin.commands.execute('openFolderDialog', { isNew: true, parentId: '' });
+          void (async () => {
+            for (let i = 0; i < 240; i++) {
+              await new Promise((res) => setTimeout(res, 500));
+              try {
+                const now = await getAllFolders();
+                const created = now.find((f: any) => !beforeIds.has(f.id));
+                if (created) {
+                  seenFolders[created.id] = true; // panel-created: keep it expanded
+                  delete collapsedFolders[created.id];
+                  if (dragType === 'note') {
+                    await joplin.data.put(['notes', dragId], null, { parent_id: created.id });
+                  } else if (dragType === 'folder' && dragId !== created.id) {
+                    await joplin.data.put(['folders', dragId], null, { parent_id: created.id });
+                  }
+                  saveUiState();
+                  await refreshPanel();
+                  return;
+                }
+              } catch (_) { return; }
             }
-          }
-          await refreshPanel();
+          })();
         } catch (err) {
           console.error('Joplin Explorer: drag to empty error', err);
         }

@@ -131,6 +131,9 @@ This document outlines the current state and long-term direction of **Joplin Exp
 - **Spring-loaded expand**: hovering a collapsed folder (drop-into zone), the pinned header, or the Notebooks/Tags section headers for 2 s during a drag auto-expands it — drill as deep as needed
 - **Pin anywhere**: drop any note/notebook anywhere in the pinned body to pin it at that exact spot (upper/lower half of a pinned row inserts before/after; empty space appends); dragging an already-pinned id just moves it
 
+**New-notebook dialog fix** (v1.6.7)
+- Newer Joplin requires `parentId` on `openFolderDialog` (empty string for root) and fails silently without it — the toolbar's New notebook and drag-to-bottom-zone were affected; both fixed. Drag-to-create now uses the native dialog (with icon picker) and moves the dragged item into the new notebook automatically
+
 **Misc**
 - Emoji / custom image notebook icons
 - Sync button with status feedback
