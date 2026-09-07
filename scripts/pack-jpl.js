@@ -1,6 +1,11 @@
 const fs = require('fs');
 const path = require('path');
-const zlib = require('zlib');
+
+// A .jpl is a PLAIN, UNCOMPRESSED tar - that is what Joplin's own generator
+// produces (tar.create with no gzip option). Do not compress it: desktop
+// Joplin happens to sniff gzip and extract it anyway, but the mobile and web
+// apps use a reader that does not, and a gzipped .jpl fails there with
+// "Invalid tar header. Maybe the tar is corrupted or it needs to be gunzipped?"
 
 const publishDir = path.resolve(__dirname, '..', 'publish');
 const outPath = path.join(publishDir, 'plugin.jpl');
@@ -69,8 +74,7 @@ for (const f of files) {
 chunks.push(Buffer.alloc(1024));
 
 const tar = Buffer.concat(chunks);
-const gz = zlib.gzipSync(tar);
-fs.writeFileSync(outPath, gz);
+fs.writeFileSync(outPath, tar);
 
 const manifest = JSON.parse(fs.readFileSync(path.join(publishDir, 'manifest.json'), 'utf8'));
-console.log(`Packed ${outPath} (${gz.length} bytes, v${manifest.version}, ${files.length} files)`);
+console.log(`Packed ${outPath} (${tar.length} bytes, v${manifest.version}, ${files.length} files)`);
