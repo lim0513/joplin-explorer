@@ -282,8 +282,21 @@ html, body {
   opacity: 0.7;
 }
 
-.bottom-bar button:disabled,
+.bottom-bar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* .syncing is the CANCEL state, not a disabled one, so it must look
+   clickable. It used to share the :disabled rule above, which made the cancel
+   button read as greyed out and unusable. */
 .bottom-bar button.syncing {
+  opacity: 1;
+  cursor: pointer;
+}
+
+/* Except right after the cancel is requested, when it really is disabled. */
+.bottom-bar button.syncing:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -926,3 +939,4 @@ mark.search-highlight {
   color: inherit;
   background: rgba(127, 127, 127, 0.25);
 }
+

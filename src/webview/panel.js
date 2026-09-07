@@ -840,10 +840,16 @@ document.addEventListener('click', function(e) {
       break;
     case 'btn-refresh': postMsg({ name: 'refreshView' }); break;
     case 'btn-sync':
-      if (!btn.disabled) {
+      // While a sync is running this button is Cancel, exactly as in Joplin's
+      // own sidebar. It used to disable itself here, which is why there was no
+      // way to cancel: the capability was always there, just unreachable.
+      if (btn.classList.contains('syncing')) {
         btn.disabled = true;
+        btn.textContent = T('syncCancelling');
+        postMsg({ name: 'syncCancel' });
+      } else if (!btn.disabled) {
         btn.classList.add('syncing');
-        btn.textContent = '\uD83D\uDD04 ' + T('syncing');
+        btn.textContent = '\u2715 ' + T('syncCancel');
         postMsg({ name: 'sync' });
       }
       break;
@@ -989,10 +995,11 @@ webviewApi.onMessage(function(msg) {
     var syncBtn = document.getElementById('btn-sync');
     if (!syncBtn) return;
     if (m.state === 'syncing') {
-      syncBtn.disabled = true;
+      // NOT disabled: this is the cancel affordance while the sync runs.
+      syncBtn.disabled = false;
       syncBtn.classList.remove('sync-done', 'sync-error');
       syncBtn.classList.add('syncing');
-      syncBtn.textContent = '\uD83D\uDD04 ' + T('syncing');
+      syncBtn.textContent = '\u2715 ' + T('syncCancel');
     } else if (m.state === 'done') {
       syncBtn.classList.remove('syncing', 'sync-error');
       syncBtn.classList.add('sync-done');

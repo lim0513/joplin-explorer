@@ -1448,7 +1448,7 @@ joplin.plugins.register({
           + '  </div>'
           + '  <div id="search-results" style="display:none;"></div>'
           + '  <div class="bottom-bar">'
-          + '    <button id="btn-sync" title="' + t.sync + '">\uD83D\uDD04 ' + t.sync + '</button>'
+          + '    <button id="btn-sync" title="' + escapeHtml(t.syncTip || t.sync) + '">\uD83D\uDD04 ' + t.sync + '</button>'
           + '  </div>'
           + '</div>';
 
@@ -2714,9 +2714,20 @@ joplin.plugins.register({
         currentSort = sortModes[(idx + 1) % sortModes.length];
         try { await joplin.settings.setValue('noteSortMode', currentSort); } catch (_) { /* non-fatal */ }
         await refreshPanel();
+      } else if (msg.name === 'syncCancel') {
+        // Same call Joplin's own sidebar button makes while a sync is running.
+        // execute('synchronize', true) takes the cancel branch (sync.cancel());
+        // false schedules a new sync. Passing NOTHING makes the command read
+        // state.syncStarted and toggle - which is what this plugin used to do,
+        // and why the button could silently cancel instead of starting.
+        try {
+          await joplin.commands.execute('synchronize', true);
+        } catch (e: any) {
+          console.error('Joplin Explorer: sync cancel failed', e);
+        }
       } else if (msg.name === 'sync') {
         try {
-          await joplin.commands.execute('synchronize');
+          await joplin.commands.execute('synchronize', false);
         } catch (e: any) {
           console.error('Joplin Explorer: sync command failed', e);
           await joplin.views.panels.postMessage(panel, { name: 'syncState', state: 'error' });
@@ -2932,8 +2943,26 @@ joplin.plugins.register({
       else scheduleRefreshPanel();
     });
 
+    // One user-visible "sync" can be SEVERAL Synchronizer rounds: after
+    // emitting SyncComplete, Joplin checks for items that still need syncing
+    // and schedules another round if there are any (15s later on desktop).
+    // Reporting the first SyncComplete as finished is what made this button
+    // disagree with Joplin's own status. Completion is therefore held back
+    // briefly, and a SyncStart arriving inside the window cancels it. The
+    // window is short on purpose: it absorbs rounds that re-fire immediately,
+    // and it deliberately does NOT try to cover the 15s follow-up - waiting
+    // that long would freeze the button after every ordinary single-round
+    // sync, which is worse than the flicker it would prevent.
+    //
+    // This CANNOT be made exact: attachment downloads and decryption run
+    // outside the Synchronizer and emit no plugin events at all. The panel
+    // only ever speaks for the rounds it can see - hence t.syncTip.
+    const SYNC_SETTLE_MS = 800;
+    let syncSettleTimer: any = null;
+
     try {
       await joplin.workspace.onSyncStart(async () => {
+        if (syncSettleTimer) { clearTimeout(syncSettleTimer); syncSettleTimer = null; }
         await joplin.views.panels.postMessage(panel, { name: 'syncState', state: 'syncing' });
       });
     } catch (err) {
@@ -2944,10 +2973,14 @@ joplin.plugins.register({
       await joplin.workspace.onSyncComplete(async (event: any) => {
         const withErrors = !!(event && event.withErrors);
         await refreshPanel();
-        await joplin.views.panels.postMessage(panel, {
-          name: 'syncState',
-          state: withErrors ? 'error' : 'done',
-        });
+        if (syncSettleTimer) clearTimeout(syncSettleTimer);
+        syncSettleTimer = setTimeout(() => {
+          syncSettleTimer = null;
+          void joplin.views.panels.postMessage(panel, {
+            name: 'syncState',
+            state: withErrors ? 'error' : 'done',
+          });
+        }, SYNC_SETTLE_MS);
         if (withErrors) {
           await showNativeInfo(t.syncFailed,
             'Joplin reported errors during synchronisation. Open the Synchronisation Status screen (Tools → Synchronisation Status) to see the details.');
