@@ -761,6 +761,26 @@ joplin.plugins.register({
           label: t.sNoteIcon,
           description: t.sNoteIconDesc,
         },
+        'rowFontSize': {
+          section: 'joplinExplorer',
+          type: 1, // SettingItemType.Int = 1
+          value: 13,
+          minimum: 10,
+          maximum: 16,
+          public: true,
+          label: t.sRowFontSize,
+          description: t.sRowFontSizeDesc,
+        },
+        'rowHeight': {
+          section: 'joplinExplorer',
+          type: 1, // SettingItemType.Int = 1
+          value: 24,
+          minimum: 18,
+          maximum: 32,
+          public: true,
+          label: t.sRowHeight,
+          description: t.sRowHeightDesc,
+        },
         'showFolderToggles': {
           section: 'joplinExplorer',
           type: 3, // SettingItemType.Bool = 3
@@ -1428,8 +1448,14 @@ joplin.plugins.register({
         let secGap = Number(await joplin.settings.value('sectionSpacing'));
         if (!isFinite(secGap) || secGap < 0) secGap = 5;
         if (secGap > 30) secGap = 30;
+        let rowFontSize = Number(await joplin.settings.value('rowFontSize'));
+        if (!isFinite(rowFontSize) || rowFontSize < 10) rowFontSize = 13;
+        if (rowFontSize > 16) rowFontSize = 16;
+        let rowHeight = Number(await joplin.settings.value('rowHeight'));
+        if (!isFinite(rowHeight) || rowHeight < 18) rowHeight = 24;
+        if (rowHeight > 32) rowHeight = 32;
         const stackHeaders = (await joplin.settings.value('stackSectionHeaders')) !== false ? '1' : '0';
-        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px;--row-font-size:' + rowFontSize + 'px;--row-min-height:' + rowHeight + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
@@ -1522,6 +1548,8 @@ joplin.plugins.register({
         || event.keys.indexOf('stackSectionHeaders') >= 0
         || event.keys.indexOf('sectionOrder') >= 0
         || event.keys.indexOf('sectionSpacing') >= 0
+        || event.keys.indexOf('rowFontSize') >= 0
+        || event.keys.indexOf('rowHeight') >= 0
         || event.keys.indexOf('showFolderToggles') >= 0
         || event.keys.indexOf('openFolderIcon') >= 0
         || event.keys.indexOf('closedFolderIcon') >= 0

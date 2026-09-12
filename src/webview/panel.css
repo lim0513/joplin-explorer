@@ -170,7 +170,8 @@ html, body {
   gap: 5px;
   border-radius: 3px;
   margin: 1px 4px;
-  min-height: 24px;
+  /* rowHeight setting (#density) - defaults to today's fixed 24px */
+  min-height: var(--row-min-height, 24px);
 }
 
 .tree-item:hover {
@@ -213,6 +214,8 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* rowFontSize setting (#density) - defaults to today's fixed 13px */
+  font-size: var(--row-font-size, 13px);
 }
 
 /* Note count badge */
