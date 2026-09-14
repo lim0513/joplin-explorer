@@ -53,6 +53,15 @@ Between v1.2.0 and v1.2.3 nothing refreshed `publish/plugin.jpl`. The outer mani
 - `npm unpublish` is only allowed within 24h. After that, the broken version stays forever — bump and move on, optionally `npm deprecate`.
 - Default to one-shot tokens: generate → publish → delete.
 - The token lives in `D:\repos\.npm-publish-token.txt` (one level above the repos, so it is never git-tracked). That file is a **memo**, not a bare token — extract the value with a regex (`npm_[A-Za-z0-9]+`) before writing `.npmrc`. Dumping the whole file in makes `npm publish` fail with a misleading **404** (npm masks auth failures as 404).
+- **npm STAGES a publish before it lands, and the CLI lies about it.** The first `npm publish` uploads the tarball into a staging queue for malware scanning; the version is NOT live yet. Publishing again while the scan runs fails with `E409 Cannot publish over previously staged version`. Nothing is broken and nothing needs clearing - wait a few minutes and publish again. Do NOT bump the version to escape it, and do NOT go hunting for a way to discard the stage: `npm stage list` reports "No staged versions" the whole time, because a package still being scanned is invisible to it.
+- **Never filter the output of `npm publish`.** It prints `+ package@version` BEFORE the upload is accepted, so grepping for that line reports success on a failed publish. Read the whole output, and confirm against the registry itself:
+
+  ```
+  curl -s https://registry.npmjs.org/<pkg> | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const j=JSON.parse(d);console.log(j['dist-tags'].latest)})"
+  ```
+
+  `npm view <pkg> version` is cached and can report the OLD version for a while after a successful publish, so disagreement between the two means "check again", not "it failed".
+- `npm stage` (list / approve / reject) needs a newer CLI than 11.11. Run it with `npx npm@latest stage ...` rather than upgrading npm globally.
 
 ---
 
