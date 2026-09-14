@@ -576,6 +576,41 @@ joplin.plugins.register({
     await joplin.views.panels.setHtml(panel, '<div id="notes-in-list-root"><p style="padding:12px;">' + t.loading + '</p></div>');
     await joplin.views.panels.show(panel, true);
 
+    // #42: without this the only way to reclaim the space was to disable the
+    // plugin and restart Joplin. Registering it as a command (rather than
+    // wiring the button directly) also puts it in Joplin's keyboard shortcut
+    // screen and the command palette for free.
+    await joplin.commands.register({
+      name: 'toggleExplorerPanel',
+      label: t.cToggle,
+      // Joplin bundles Font Awesome 5.15.4, NOT 6. An icon that only exists
+      // in FA6 (fa-folder-tree was the first attempt) renders as a blank button
+      // with no error anywhere - verified against the installed app.asar.
+      // Three tokens on purpose: Joplin treats an iconName as Font Awesome
+      // only when it is exactly two, so this renders a <span> carrying all
+      // three classes. chrome.css masks our own mark over it, and if that
+      // file never loads the fa-sitemap glyph still shows - an unknown class
+      // alone would give a blank button, which is what FA6's fa-folder-tree
+      // did here.
+      iconName: 'fas fa-sitemap jop-explorer-icon',
+      execute: async () => {
+        const visible = await joplin.views.panels.visible(panel);
+        await joplin.views.panels.show(panel, !visible);
+      },
+    });
+    await joplin.views.toolbarButtons.create('explorerPanelButton', 'toggleExplorerPanel', 'noteToolbar');
+    await joplin.views.menuItems.create('explorerPanelMenuItem', 'toggleExplorerPanel', 'view' as any);
+
+    // Paints the plugin's own mark on that button. Guarded: joplin.window
+    // arrived long after this plugin's app_min_version (2.6.0), and the path
+    // must be absolute - loadChromeCssFile does no resolution of its own.
+    try {
+      const pluginDir = await joplin.plugins.installationDir();
+      await (joplin as any).window.loadChromeCssFile(pluginDir + '/webview/chrome.css');
+    } catch (err) {
+      console.info('Joplin Explorer: custom toolbar icon unavailable, falling back to the Font Awesome glyph', err);
+    }
+
     // Register settings for pinned items persistence
     try {
       await joplin.settings.registerSection('joplinExplorer', { label: 'Joplin Explorer', iconName: 'fas fa-columns' });
@@ -752,6 +787,28 @@ joplin.plugins.register({
           public: true,
           label: t.sSectionGap,
           description: t.sSectionGapDesc,
+        },
+        'rowFontSize': {
+          section: 'joplinExplorer',
+          type: 1, // SettingItemType.Int = 1
+          value: 13,
+          minimum: 9,
+          maximum: 18,
+          public: true,
+          advanced: true,
+          label: t.sRowFont,
+          description: t.sRowFontDesc,
+        },
+        'rowHeight': {
+          section: 'joplinExplorer',
+          type: 1, // SettingItemType.Int = 1
+          value: 24,
+          minimum: 16,
+          maximum: 40,
+          public: true,
+          advanced: true,
+          label: t.sRowHeight,
+          description: t.sRowHeightDesc,
         },
         'noteIcon': {
           section: 'joplinExplorer',
@@ -1429,7 +1486,13 @@ joplin.plugins.register({
         if (!isFinite(secGap) || secGap < 0) secGap = 5;
         if (secGap > 30) secGap = 30;
         const stackHeaders = (await joplin.settings.value('stackSectionHeaders')) !== false ? '1' : '0';
-        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        let rowFont = Number(await joplin.settings.value('rowFontSize'));
+        if (!isFinite(rowFont) || rowFont < 9) rowFont = 13;
+        if (rowFont > 18) rowFont = 18;
+        let rowH = Number(await joplin.settings.value('rowHeight'));
+        if (!isFinite(rowH) || rowH < 16) rowH = 24;
+        if (rowH > 40) rowH = 40;
+        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px;--row-font:' + rowFont + 'px;--row-h:' + rowH + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
@@ -1522,6 +1585,8 @@ joplin.plugins.register({
         || event.keys.indexOf('stackSectionHeaders') >= 0
         || event.keys.indexOf('sectionOrder') >= 0
         || event.keys.indexOf('sectionSpacing') >= 0
+        || event.keys.indexOf('rowFontSize') >= 0
+        || event.keys.indexOf('rowHeight') >= 0
         || event.keys.indexOf('showFolderToggles') >= 0
         || event.keys.indexOf('openFolderIcon') >= 0
         || event.keys.indexOf('closedFolderIcon') >= 0

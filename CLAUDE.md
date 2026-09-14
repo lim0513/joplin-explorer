@@ -4,6 +4,17 @@ Things that aren't obvious from the code or the Joplin docs. If you're about to 
 
 ---
 
+## Toolbar / command icons
+
+Joplin desktop bundles `@fortawesome/fontawesome-free@5.15.4` - **Font Awesome 5, not 6**. An `iconName` that only exists in FA6 (e.g. `fa-folder-tree`) produces a button that is present and clickable but renders NO glyph, with no warning in the console. Check a candidate against the installed app before shipping:
+```
+grep -a -c "fa-sitemap:before" "$LOCALAPPDATA/Programs/Joplin/resources/app.asar"
+```
+
+Confirmed present in 5.15.4: `fa-sitemap`, `fa-folder-open`, `fa-columns`, `fa-stream`. Absent: `fa-folder-tree`.
+
+---
+
 ## Workflow with the user (IMPORTANT)
 
 - **Do not publish eagerly.** Default loop while iterating: edit → `npx webpack --env production` → `node scripts/pack-jpl.js` → tell the user it's in `publish/`, and let them test. Only bump the version, tag, GitHub-release and `npm publish` **when the user says 发布 / "release"**.

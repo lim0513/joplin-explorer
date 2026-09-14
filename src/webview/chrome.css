@@ -1,0 +1,21 @@
+/* Chrome CSS: applies to Joplin's app UI (not the note viewer), loaded via
+ * joplin.window.loadChromeCssFile(). Currently one job - the toolbar button.
+ *
+ * The mark is the plugin's own logo silhouette (sidebar rail + list rows),
+ * painted as a MASK filled with currentColor rather than a coloured image.
+ * That way it inherits the toolbar's colour and its hover / active / disabled
+ * states exactly like Joplin's built-in icons; a full-colour tile would look
+ * pasted on and would fight both the light and dark themes.
+ *
+ * The command keeps "fas fa-sitemap" as the first two class tokens, so if this
+ * file ever fails to load the button still shows a real glyph instead of
+ * nothing. */
+.toolbar-icon.jop-explorer-icon::before {
+  content: "";
+  display: block;
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='4' width='3' height='16' rx='1.5'/%3E%3Crect x='9.5' y='4' width='8' height='2.4' rx='1.2'/%3E%3Crect x='9.5' y='8.53' width='11.5' height='2.4' rx='1.2'/%3E%3Crect x='9.5' y='13.07' width='9.5' height='2.4' rx='1.2'/%3E%3Crect x='9.5' y='17.6' width='11.5' height='2.4' rx='1.2'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='4' width='3' height='16' rx='1.5'/%3E%3Crect x='9.5' y='4' width='8' height='2.4' rx='1.2'/%3E%3Crect x='9.5' y='8.53' width='11.5' height='2.4' rx='1.2'/%3E%3Crect x='9.5' y='13.07' width='9.5' height='2.4' rx='1.2'/%3E%3Crect x='9.5' y='17.6' width='11.5' height='2.4' rx='1.2'/%3E%3C/svg%3E") center / contain no-repeat;
+}

@@ -23,7 +23,9 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
   - Notebooks: pin/unpin, new note, new to-do, new sub-notebook, rename, export, delete
   - Notes: pin/unpin, open, open in new window, copy Markdown link, duplicate, switch note/to-do type, toggle completed, rename, view properties, delete
 - **Drag & Drop** — Move notes between notebooks, reorganize folder hierarchy; drag to empty area to create a new notebook; drag to pinned section to pin
-- **Sync Button** — Trigger synchronization with status feedback (syncing → done)
+- **Sidebar Toggle** — A toolbar button, a **View** menu entry and an assignable keyboard shortcut hide and show the panel, so you can reclaim the width without disabling the plugin
+- **Row Density** — Row font size and row height are adjustable (Advanced settings), for fitting more of a large tree on screen
+- **Sync Button** — Trigger synchronization with status feedback (syncing → done); becomes **Cancel** while a sync is running
 - **Auto Expand** — Automatically expands to the currently selected note on startup
 - **Collapse All** — One-click collapse all notebooks
 - **Scroll Position** — Preserved when navigating between notes
@@ -49,7 +51,8 @@ After installation, the Explorer panel appears on the side of the editor. You ca
 - **Drag** notes or notebooks to reorganize; drag to the bottom zone to create a new notebook; drag to the pinned section to pin
 - Use the **toolbar** at the top for quick actions (new notebook/note/to-do, sort, collapse all)
 - Use the **search bar** to search notes, notebooks, and tags
-- Click **Sync** at the bottom to trigger synchronization
+- Click **Sync** at the bottom to trigger synchronization, or click it again while syncing to cancel
+- Toggle the whole panel with the toolbar button, **View → Toggle Explorer sidebar**, or a shortcut you assign in Joplin's keyboard settings
 
 ## Development
 
