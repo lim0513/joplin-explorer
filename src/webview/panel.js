@@ -872,6 +872,17 @@ document.addEventListener('contextmenu', function(e) {
   var existingMenu = document.getElementById('ctx-menu');
   if (existingMenu) existingMenu.remove();
 
+  // Smart folder section header: open the manager (#43).
+  var smartHdr = e.target.closest('.smart-section-header');
+  if (smartHdr) {
+    e.preventDefault();
+    document.body.insertAdjacentHTML('beforeend',
+      '<div id="ctx-menu" class="context-menu" style="left:' + e.pageX + 'px;top:' + e.pageY + 'px;">'
+      + '<div class="ctx-item" data-msg="manageSmartFolders">' + T('smartManage') + '</div>'
+      + '</div>');
+    return;
+  }
+
   // Trash section header: single "empty trash" action.
   var trashHdr = e.target.closest('.trash-section-header');
   if (trashHdr) {
@@ -905,6 +916,7 @@ document.addEventListener('contextmenu', function(e) {
         + '<div class="ctx-sep"></div>'
         + '<div class="ctx-item ctx-danger" data-action="smartDelete" data-id="' + smId + '" data-type="smart">' + T('ctxSmartDelete') + '</div>';
     }
+    smMenu += '<div class="ctx-sep"></div><div class="ctx-item" data-msg="manageSmartFolders">' + T('smartManage') + '</div>';
     smMenu += '</div>';
     document.body.insertAdjacentHTML('beforeend', smMenu);
     var smEl = document.getElementById('ctx-menu');

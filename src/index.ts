@@ -600,6 +600,14 @@ joplin.plugins.register({
     });
     await joplin.views.toolbarButtons.create('explorerPanelButton', 'toggleExplorerPanel', 'noteToolbar');
     await joplin.views.menuItems.create('explorerPanelMenuItem', 'toggleExplorerPanel', 'view' as any);
+    // Also reachable from the smart folder section's right-click menu; the
+    // Tools menu entry is the discoverable path the settings text points to.
+    await joplin.commands.register({
+      name: 'explorerManageSmartFolders',
+      label: t.smartManage,
+      execute: async () => { await manageSmartFolders(); },
+    });
+    await joplin.views.menuItems.create('explorerManageSmartMenuItem', 'explorerManageSmartFolders', 'tools' as any);
 
     // Paints the plugin's own mark on that button. Guarded: joplin.window
     // arrived long after this plugin's app_min_version (2.6.0), and the path
@@ -694,11 +702,14 @@ joplin.plugins.register({
           label: t.sShowSmart,
           description: t.sShowSmartDesc,
         },
+        // Raw storage for the manager dialog (Tools > Manage smart folders).
+        // Kept editable under Advanced for pasting a whole list at once.
         'smartFolderRules': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
           value: '',
           public: true,
+          advanced: true,
           label: t.sSmartRules,
           description: t.sSmartRulesDesc,
         },
@@ -876,6 +887,20 @@ joplin.plugins.register({
     const inputDialog = await joplin.views.dialogs.create('explorerInputDialog');
     const confirmDialog = await joplin.views.dialogs.create('explorerConfirmDialog');
     const infoDialog = await joplin.views.dialogs.create('explorerInfoDialog');
+    // Smart folder manager (#43): Joplin's settings screen has no list or
+    // multi-line input, so the rules string is edited as a list here.
+    const smartDialog = await joplin.views.dialogs.create('explorerSmartDialog');
+    await joplin.views.dialogs.addScript(smartDialog, 'webview/smart-dialog.css');
+    await joplin.views.dialogs.addScript(smartDialog, 'webview/smart-dialog.js');
+    // Live match counts for the rows, capped at 100 like the tree's badges.
+    await joplin.views.panels.onMessage(smartDialog, async (msg: any) => {
+      if (!msg || msg.name !== 'smartCount') return null;
+      try {
+        return await countSearch(String(msg.query || ''));
+      } catch (err) {
+        return { error: String((err && (err as any).message) || err) };
+      }
+    });
 
     async function showNativeConfirm(message: string): Promise<boolean> {
       await joplin.views.dialogs.setHtml(confirmDialog,
@@ -997,6 +1022,68 @@ joplin.plugins.register({
       smartCollapsed = false;
       await writeSmartRuleParts(parts);
       await refreshPanel();
+    }
+
+    async function countSearch(query: string): Promise<{ count: number, more: boolean }> {
+      let count = 0;
+      let page = 1;
+      let more = true;
+      while (more && count <= 100) {
+        const r = await joplin.data.get(['search'], { query, fields: ['id'], page, limit: 100 });
+        count += (r.items || []).length;
+        more = r.has_more;
+        page++;
+      }
+      return { count: Math.min(count, 100), more: count > 100 };
+    }
+
+    // Open the manager. On OK the rows are validated as a whole; if anything
+    // is wrong the dialog reopens with the user's edits and the problems
+    // listed, instead of saving half a list or silently dropping rows.
+    async function manageSmartFolders(): Promise<void> {
+      let rows: { name: string, query: string }[] = (await readSmartRuleParts())
+        .filter((p) => p.trim())
+        .map((p) => parseSmartRule(p) || { name: '', query: p.trim() });
+      let error = '';
+      const strings: any = {};
+      for (const k of ['smartColName', 'smartColQuery', 'smartMoveUp', 'smartMoveDown', 'smartRemove',
+        'smartEmptyList', 'smartCountTip', 'smartInvalidName', 'smartInvalidQuery']) strings[k] = t[k];
+      for (;;) {
+        await joplin.views.dialogs.setHtml(smartDialog,
+          '<form name="smartForm"><div id="smart-dialog" data-rules="' + escapeHtml(JSON.stringify(rows)) + '" data-i18n="' + escapeHtml(JSON.stringify(strings)) + '">'
+          + '<div class="sd-title">' + escapeHtml(t.smartManage) + '</div>'
+          + '<div class="sd-hint">' + escapeHtml(t.smartManageHint) + '</div>'
+          + (error ? '<div class="sd-error">' + escapeHtml(error) + '</div>' : '')
+          + '<div class="sd-head"><span>' + escapeHtml(t.smartColName) + '</span><span>' + escapeHtml(t.smartColQuery) + '</span><span></span><span></span><span></span><span></span></div>'
+          + '<div class="sd-list"></div>'
+          + '<button type="button" class="sd-add">+ ' + escapeHtml(t.smartAdd) + '</button>'
+          + '<input type="hidden" id="smart-rules-json" name="rules" value="' + escapeHtml(JSON.stringify(rows)) + '" />'
+          + '</div></form>');
+        await joplin.views.dialogs.setButtons(smartDialog, [
+          { id: 'ok', title: 'OK' },
+          { id: 'cancel', title: t.cancel || 'Cancel' },
+        ]);
+        const result: any = await joplin.views.dialogs.open(smartDialog);
+        if (result.id !== 'ok') return;
+        let submitted: any[] = [];
+        try { submitted = JSON.parse((result.formData && result.formData.smartForm && result.formData.smartForm.rules) || '[]'); } catch (_) { return; }
+        rows = (Array.isArray(submitted) ? submitted : [])
+          .map((r: any) => ({ name: String((r && r.name) || '').trim(), query: String((r && r.query) || '').trim() }))
+          .filter((r) => r.name || r.query);
+        const problems: string[] = [];
+        const seen: { [n: string]: boolean } = {};
+        rows.forEach((r, i) => {
+          const err = smartRuleError(r.name, r.query);
+          if (err) problems.push(fmtName(t.smartRowError, String(i + 1)).split('{err}').join(err));
+          else if (seen[r.name]) problems.push(fmtName(t.smartDupName, r.name));
+          seen[r.name] = true;
+        });
+        if (problems.length) { error = problems.join('\n'); continue; }
+        await writeSmartRuleParts(rows.map((r) => r.name + ':' + r.query));
+        if (rows.length) { await joplin.settings.setValue('showSmartFolders', true); smartCollapsed = false; }
+        await refreshPanel();
+        return;
+      }
     }
 
     let selectedNoteId = '';
@@ -2657,6 +2744,8 @@ joplin.plugins.register({
         const nt = await joplin.workspace.selectedNote();
         if (nt) { selectedNoteId = nt.id; expandToFolder(nt.parent_id); }
         await refreshPanel();
+      } else if (msg.name === 'manageSmartFolders') {
+        await manageSmartFolders();
       } else if (msg.name === 'saveSmartFolder') {
         await saveSearchAsSmartFolder(msg.query, msg.defaultName);
       } else if (msg.name === 'search') {

@@ -1,0 +1,88 @@
+/* Smart folder manager dialog. Joplin's dialog webview exposes the theme as
+   --joplin-* variables; fallbacks keep it readable if one is missing. */
+#smart-dialog {
+  box-sizing: border-box;
+  width: 620px;
+  max-width: 100%;
+  padding: 10px 12px 4px;
+  font-size: 13px;
+  color: var(--joplin-color, inherit);
+}
+
+#smart-dialog .sd-title { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+#smart-dialog .sd-hint { font-size: 11.5px; line-height: 1.5; opacity: 0.75; margin-bottom: 10px; }
+#smart-dialog .sd-error {
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  color: var(--joplin-color-error, #c0392b);
+  background: rgba(192, 57, 43, 0.1);
+}
+
+#smart-dialog .sd-head,
+#smart-dialog .sd-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 44px 26px 26px 26px;
+  gap: 5px;
+  align-items: center;
+}
+
+#smart-dialog .sd-head { font-size: 11px; opacity: 0.6; margin-bottom: 3px; padding: 0 2px; }
+#smart-dialog .sd-list { max-height: 50vh; overflow-y: auto; }
+#smart-dialog .sd-row { margin-bottom: 5px; }
+
+#smart-dialog input[type="text"] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 5px 7px;
+  font-size: 12.5px;
+  border: 1px solid var(--joplin-divider-color, #ccc);
+  border-radius: 4px;
+  background: var(--joplin-background-color, #fff);
+  color: var(--joplin-color, inherit);
+}
+
+#smart-dialog .sd-query { font-family: var(--joplin-font-family-monospace, Consolas, monospace); }
+#smart-dialog .sd-bad input { border-color: var(--joplin-color-error, #c0392b); }
+
+#smart-dialog .sd-count {
+  text-align: center;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  border-radius: 9px;
+  padding: 1px 0;
+  background: rgba(127, 127, 127, 0.15);
+}
+
+#smart-dialog .sd-count:empty { background: none; }
+#smart-dialog .sd-count.sd-dim { opacity: 0.5; }
+
+#smart-dialog .sd-btn {
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--joplin-divider-color, #ccc);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--joplin-color, inherit);
+  cursor: pointer;
+}
+
+#smart-dialog .sd-btn:hover:not([disabled]) { background: rgba(127, 127, 127, 0.15); }
+#smart-dialog .sd-btn[disabled] { opacity: 0.3; cursor: default; }
+#smart-dialog .sd-del:hover { color: var(--joplin-color-error, #c0392b); }
+
+#smart-dialog .sd-add {
+  margin-top: 4px;
+  padding: 4px 12px;
+  border: 1px dashed var(--joplin-divider-color, #bbb);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--joplin-color, inherit);
+  cursor: pointer;
+}
+
+#smart-dialog .sd-add:hover { background: rgba(127, 127, 127, 0.12); }
+#smart-dialog .sd-empty { font-size: 12px; opacity: 0.6; padding: 8px 2px; }
