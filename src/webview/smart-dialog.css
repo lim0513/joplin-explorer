@@ -1,9 +1,19 @@
 /* Smart folder manager dialog. Joplin's dialog webview exposes the theme as
    --joplin-* variables; fallbacks keep it readable if one is missing. */
+
+/* How a "fit to content" dialog gets its size: Joplin measures the
+   getBoundingClientRect() of its own #joplin-plugin-content and sizes the
+   iframe to that. That element is a block, so it is exactly as wide as the
+   iframe already is (about 300px to start with) and a wider child never
+   makes it grow - the list was squeezed into 300px and scrolled sideways.
+   Shrink-to-fit makes the measured width the dialog's real width. */
+#joplin-plugin-content { width: max-content; }
+
 #smart-dialog {
   box-sizing: border-box;
-  width: 620px;
-  max-width: 100%;
+  /* Fixed, and deliberately no max-width:100% - relative to the ~300px
+     starting iframe that is what collapsed the layout. */
+  width: 580px;
   padding: 10px 12px 4px;
   font-size: 13px;
   color: var(--joplin-color, inherit);
@@ -25,18 +35,22 @@
 #smart-dialog .sd-head,
 #smart-dialog .sd-row {
   display: grid;
-  grid-template-columns: 150px 1fr 44px 26px 26px 26px;
+  /* minmax(0, ...) so a narrow frame shrinks the inputs instead of pushing
+     the row past the list edge (a 1fr track will not go below the input's
+     intrinsic width otherwise). */
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr) 44px 26px 26px 26px;
   gap: 5px;
   align-items: center;
 }
 
 #smart-dialog .sd-head { font-size: 11px; opacity: 0.6; margin-bottom: 3px; padding: 0 2px; }
-#smart-dialog .sd-list { max-height: 50vh; overflow-y: auto; }
+#smart-dialog .sd-list { max-height: 50vh; overflow-y: auto; overflow-x: hidden; }
 #smart-dialog .sd-row { margin-bottom: 5px; }
 
 #smart-dialog input[type="text"] {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   padding: 5px 7px;
   font-size: 12.5px;
   border: 1px solid var(--joplin-divider-color, #ccc);
@@ -68,6 +82,9 @@
   background: transparent;
   color: var(--joplin-color, inherit);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #smart-dialog .sd-btn:hover:not([disabled]) { background: rgba(127, 127, 127, 0.15); }

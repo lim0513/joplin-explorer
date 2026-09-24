@@ -1051,7 +1051,7 @@ joplin.plugins.register({
       for (;;) {
         await joplin.views.dialogs.setHtml(smartDialog,
           '<form name="smartForm"><div id="smart-dialog" data-rules="' + escapeHtml(JSON.stringify(rows)) + '" data-i18n="' + escapeHtml(JSON.stringify(strings)) + '">'
-          + '<div class="sd-title">' + escapeHtml(t.smartManage) + '</div>'
+          + '<div class="sd-title">' + escapeHtml(String(t.smartManage).replace(/(\.\.\.|…)$/, '')) + '</div>'
           + '<div class="sd-hint">' + escapeHtml(t.smartManageHint) + '</div>'
           + (error ? '<div class="sd-error">' + escapeHtml(error) + '</div>' : '')
           + '<div class="sd-head"><span>' + escapeHtml(t.smartColName) + '</span><span>' + escapeHtml(t.smartColQuery) + '</span><span></span><span></span><span></span><span></span></div>'

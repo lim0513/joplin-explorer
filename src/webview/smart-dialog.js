@@ -22,6 +22,14 @@
 
   function t(key) { return T[key] || key; }
 
+  // currentColor SVG, not the ↑ ↓ ✕ characters: those fall back to a colour
+  // emoji font on some systems (see CLAUDE.md, "Icons and glyphs").
+  var ICON = {
+    up: '<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2.5L2.5 7h7z" fill="currentColor"/></svg>',
+    down: '<svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 9.5L2.5 5h7z" fill="currentColor"/></svg>',
+    del: '<svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  };
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
@@ -54,9 +62,9 @@
           + '<input class="sd-name" data-f="name" type="text" value="' + esc(rows[i].name) + '" placeholder="' + esc(t('smartColName')) + '" />'
           + '<input class="sd-query" data-f="query" type="text" value="' + esc(rows[i].query) + '" placeholder="' + esc(t('smartColQuery')) + '" />'
           + '<span class="sd-count" title="' + esc(err || t('smartCountTip')) + '"></span>'
-          + '<button type="button" class="sd-btn" data-act="up" title="' + esc(t('smartMoveUp')) + '"' + (i === 0 ? ' disabled' : '') + '>↑</button>'
-          + '<button type="button" class="sd-btn" data-act="down" title="' + esc(t('smartMoveDown')) + '"' + (i === rows.length - 1 ? ' disabled' : '') + '>↓</button>'
-          + '<button type="button" class="sd-btn sd-del" data-act="del" title="' + esc(t('smartRemove')) + '">✕</button>'
+          + '<button type="button" class="sd-btn" data-act="up" title="' + esc(t('smartMoveUp')) + '"' + (i === 0 ? ' disabled' : '') + '>' + ICON.up + '</button>'
+          + '<button type="button" class="sd-btn" data-act="down" title="' + esc(t('smartMoveDown')) + '"' + (i === rows.length - 1 ? ' disabled' : '') + '>' + ICON.down + '</button>'
+          + '<button type="button" class="sd-btn sd-del" data-act="del" title="' + esc(t('smartRemove')) + '">' + ICON.del + '</button>'
           + '</div>';
       }
       list.innerHTML = html;
@@ -149,8 +157,10 @@
     countCache = {};
     el.addEventListener('input', onInput);
     el.addEventListener('click', onClick);
-    // Enter inside an input must not submit the form: Joplin would read that
-    // as neither OK nor Cancel.
+    // Joplin's own dialog script treats Enter in a text input as OK (it posts
+    // form-submit from a document keydown listener). That is fine - OK
+    // validates the whole list and reopens on errors. The native submit event
+    // is still blocked so it never navigates the dialog page.
     var form = el.closest('form');
     if (form) form.addEventListener('submit', function (e) { e.preventDefault(); });
     // An empty manager opens on a blank row ready for typing.
