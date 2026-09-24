@@ -701,6 +701,28 @@ html, body {
   border-bottom: 1px solid var(--joplin-divider-color, #eee);
 }
 
+/* Count on the left, "Save as smart folder" on the right (#43). */
+.search-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.search-save-smart {
+  flex: none;
+  border: 1px solid var(--joplin-divider-color, #ccc);
+  background: transparent;
+  color: var(--joplin-color, inherit);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.search-save-smart:hover { background: var(--joplin-background-color-hover3, rgba(127, 127, 127, 0.15)); }
+
 .search-result-item {
   display: flex;
   align-items: flex-start;

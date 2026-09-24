@@ -47,6 +47,7 @@ var _observer = new MutationObserver(function() {
     container.scrollTop = _savedScrollTop;
   }
   applyHeaderStacking();
+  restoreSearchAfterRefresh();
 });
 _observer.observe(document.body, { childList: true, subtree: true });
 
@@ -409,6 +410,15 @@ document.addEventListener('click', function(e) {
   // 1. Context menu item: act, close menu, done.
   var ctxItem = e.target.closest('.ctx-item');
   if (ctxItem) {
+    if (ctxItem.dataset.smartOpen) {
+      var om = document.getElementById('ctx-menu');
+      if (om) om.remove();
+      // Only a custom rule's name is offered back when saving: re-saving under
+      // it replaces the rule, which is the edit round trip. A built-in's name
+      // would just create a same-named custom folder.
+      runSearch(ctxItem.dataset.query || '', ctxItem.dataset.custom === '1' ? (ctxItem.dataset.title || '') : '');
+      return;
+    }
     // Toolbar dropdown entries post their message name directly.
     if (ctxItem.dataset.msg) {
       postMsg({ name: ctxItem.dataset.msg });
@@ -880,9 +890,29 @@ document.addEventListener('contextmenu', function(e) {
 
   var type = item.dataset.type;
   var id = item.dataset.id;
-  // Virtual rows (smart folders) have no real item behind them - no menu,
-  // and the browser default stays suppressed.
-  if (type === 'smart') return;
+  // Smart folder rows (#43): they are saved searches, so the menu is about
+  // the search - open it in the search bar to see and tweak it, or edit,
+  // rename, delete the rule. Built-ins have no rule behind them and only get
+  // "open in search bar".
+  if (type === 'smart') {
+    var smMenu = '<div id="ctx-menu" class="context-menu" style="left:' + e.pageX + 'px;top:' + e.pageY + 'px;">'
+      + '<div class="ctx-item" data-smart-open="1" data-query="' + escapeHtml(item.dataset.query || '') + '" data-title="' + escapeHtml(item.dataset.title || '') + '" data-custom="' + (item.dataset.custom || '0') + '">' + T('ctxSmartOpenSearch') + '</div>';
+    if (item.dataset.custom === '1') {
+      var smId = item.dataset.smartId;
+      smMenu += '<div class="ctx-sep"></div>'
+        + '<div class="ctx-item" data-action="smartEditQuery" data-id="' + smId + '" data-type="smart">' + T('ctxSmartEditQuery') + '</div>'
+        + '<div class="ctx-item" data-action="smartRename" data-id="' + smId + '" data-type="smart">' + T('ctxSmartRename') + '</div>'
+        + '<div class="ctx-sep"></div>'
+        + '<div class="ctx-item ctx-danger" data-action="smartDelete" data-id="' + smId + '" data-type="smart">' + T('ctxSmartDelete') + '</div>';
+    }
+    smMenu += '</div>';
+    document.body.insertAdjacentHTML('beforeend', smMenu);
+    var smEl = document.getElementById('ctx-menu');
+    var smRect = smEl.getBoundingClientRect();
+    if (smRect.right > window.innerWidth) smEl.style.left = (window.innerWidth - smRect.width - 4) + 'px';
+    if (smRect.bottom > window.innerHeight) smEl.style.top = (window.innerHeight - smRect.height - 4) + 'px';
+    return;
+  }
   var title = '';
   var labelEl = item.querySelector('.label');
   if (labelEl) title = labelEl.textContent;
@@ -1691,13 +1721,14 @@ function renderSearchResults(notes, tags, folders, query) {
   showSearchContainer(true);
 
   var totalCount = notes.length + tags.length + folders.length;
+  var saveBtn = '<button class="search-save-smart" title="' + escapeHtml(T('smartSaveSearch')) + '">\uD83D\uDCBE ' + escapeHtml(T('smartSaveSearch')) + '</button>';
   if (totalCount === 0) {
-    container.innerHTML = '<div class="search-status">' + T('searchNoResult') + '</div>';
+    container.innerHTML = '<div class="search-status search-status-row"><span>' + T('searchNoResult') + '</span>' + saveBtn + '</div>';
     return;
   }
 
   var countText = T('searchResultCount').replace('{count}', totalCount);
-  var html = '<div class="search-status">' + countText + '</div>';
+  var html = '<div class="search-status search-status-row"><span>' + countText + '</span>' + saveBtn + '</div>';
 
   function sectionHeader(icon, label, count, sectionId) {
     return '<div class="search-section-header" data-section="' + sectionId + '">'
@@ -1841,8 +1872,55 @@ function revealSelectedNote() {
   });
 }
 
+// The query currently shown in search mode, and the custom smart folder it
+// came from (its name is the default when saving it back, see #43).
+var _lastQuery = '';
+var _searchFromSmart = '';
+
+// Fill the search box and run the search now, as if typed.
+function runSearch(query, fromSmartName) {
+  var input = document.getElementById('search-input');
+  if (!input) return;
+  input.value = query;
+  syncSearchClear();
+  _searchFromSmart = fromSmartName || '';
+  startSearch(query, 0);
+  input.focus();
+}
+
+function startSearch(query, delay) {
+  if (_searchTimer) clearTimeout(_searchTimer);
+  _searchId++;
+  var currentSearchId = _searchId;
+  _lastQuery = query;
+  _searchMode = true;
+  var searchContainer = document.getElementById('search-results');
+  if (searchContainer) {
+    searchContainer.innerHTML = '<div class="search-status">' + T('searching') + '</div>';
+  }
+  showSearchContainer(true);
+  _searchTimer = setTimeout(function() {
+    postMsg({ name: 'search', query: query, searchId: currentSearchId });
+  }, delay);
+}
+
+// A full refresh (setHtml) rebuilds the search box empty and hides the
+// results while _searchMode stays set, so a background refresh used to wipe
+// the search the user was looking at. Put it back and re-run it. Only when
+// the new box is empty, so this cannot loop on its own mutations.
+function restoreSearchAfterRefresh() {
+  if (!_searchMode || !_lastQuery) return;
+  var input = document.getElementById('search-input');
+  if (!input || input.value) return;
+  input.value = _lastQuery;
+  syncSearchClear();
+  startSearch(_lastQuery, 0);
+}
+
 function exitSearchMode() {
   _searchMode = false;
+  _lastQuery = '';
+  _searchFromSmart = '';
   showSearchContainer(false);
   // Clearing the search used to dump the user at the top of the tree; bring
   // the note they just opened from the results back into view (#32).
@@ -1861,26 +1939,24 @@ document.addEventListener('input', function(e) {
   syncSearchClear();
   var query = e.target.value.trim();
 
-  if (_searchTimer) clearTimeout(_searchTimer);
-  _searchId++;
-  var currentSearchId = _searchId;
-
   if (!query) {
+    if (_searchTimer) clearTimeout(_searchTimer);
+    _searchId++;
     if (_searchMode) exitSearchMode();
     return;
   }
 
-  _searchMode = true;
-  var searchContainer = document.getElementById('search-results');
-  if (searchContainer) {
-    searchContainer.innerHTML = '<div class="search-status">' + T('searching') + '</div>';
-  }
-  showSearchContainer(true);
-
   // Debounce: wait 400ms after typing stops
-  _searchTimer = setTimeout(function() {
-    postMsg({ name: 'search', query: query, searchId: currentSearchId });
-  }, 400);
+  startSearch(query, 400);
+});
+
+// "Save as smart folder" in the result status line (#43).
+document.addEventListener('click', function(e) {
+  if (!e.target.closest || !e.target.closest('.search-save-smart')) return;
+  var input = document.getElementById('search-input');
+  var q = input ? input.value.trim() : _lastQuery;
+  if (!q) return;
+  postMsg({ name: 'saveSmartFolder', query: q, defaultName: _searchFromSmart });
 });
 
 // Handle Escape key to clear search

@@ -941,6 +941,64 @@ joplin.plugins.register({
       return null;
     }
 
+    /* ---------- smart folder rules (#43) ----------
+     * The rules live in ONE string setting, "Name:query;Name:query". Rows are
+     * addressed as 'rule<i>' where i indexes the raw ";" split (empty and
+     * malformed segments included) - the same split refreshPanel renders from,
+     * so an edit touches exactly the segment the user right-clicked and every
+     * other segment keeps its original spelling and spacing. */
+    function fmtName(template: string, name: string): string {
+      return String(template || '').split('{name}').join(name);
+    }
+
+    async function readSmartRuleParts(): Promise<string[]> {
+      const raw = String((await joplin.settings.value('smartFolderRules')) || '');
+      return raw.trim() ? raw.split(';') : [];
+    }
+
+    async function writeSmartRuleParts(parts: string[]): Promise<void> {
+      const kept = parts.map((p) => p.trim()).filter((p) => !!p);
+      await joplin.settings.setValue('smartFolderRules', kept.join(';'));
+    }
+
+    function parseSmartRule(part: string): { name: string, query: string } | null {
+      const seg = String(part || '').trim();
+      const ci = seg.indexOf(':');
+      if (ci <= 0) return null;
+      return { name: seg.slice(0, ci).trim(), query: seg.slice(ci + 1).trim() };
+    }
+
+    // ":" ends the name and ";" ends the rule, so neither may appear where it
+    // would be misread. Returns the error text, or '' when valid.
+    function smartRuleError(name: string, query: string): string {
+      if (!name || name.indexOf(':') >= 0 || name.indexOf(';') >= 0) return t.smartInvalidName;
+      if (!query || query.indexOf(';') >= 0) return t.smartInvalidQuery;
+      return '';
+    }
+
+    // "Save as smart folder" from the search bar. Re-saving under an existing
+    // name replaces that rule's query in place (after a confirm), which is the
+    // round trip for "open in search bar, fix the query, save".
+    async function saveSearchAsSmartFolder(query: string, defaultName: string): Promise<void> {
+      query = String(query || '').trim();
+      const name = ((await showNativeInput(t.smartSaveName, defaultName || '')) || '').trim();
+      if (!name) return;
+      const err = smartRuleError(name, query);
+      if (err) { await showNativeInfo(t.smartInvalidTitle, err); return; }
+      const parts = await readSmartRuleParts();
+      const existing = parts.findIndex((p) => { const r = parseSmartRule(p); return !!r && r.name === name; });
+      if (existing >= 0) {
+        if (!(await showNativeConfirm(fmtName(t.smartConfirmReplace, name)))) return;
+        parts[existing] = name + ':' + query;
+      } else {
+        parts.push(name + ':' + query);
+      }
+      await joplin.settings.setValue('showSmartFolders', true);
+      smartCollapsed = false;
+      await writeSmartRuleParts(parts);
+      await refreshPanel();
+    }
+
     let selectedNoteId = '';
     let collapsedFolders: { [id: string]: boolean } = {};
     let currentSort = 'updated_desc';
@@ -1425,7 +1483,7 @@ joplin.plugins.register({
               }
             } catch (_) {}
             const sdHasResults = sdCount > 0;
-            smartHtml += '<div class="tree-item folder smart-folder collapsed' + (sdHasResults ? '' : ' smart-empty') + '" style="padding-left:26px" data-smart-id="' + sd.id + '" data-query="' + escapeHtml(sd.query) + '" data-type="smart">'
+            smartHtml += '<div class="tree-item folder smart-folder collapsed' + (sdHasResults ? '' : ' smart-empty') + '" style="padding-left:26px" data-smart-id="' + sd.id + '" data-query="' + escapeHtml(sd.query) + '" data-title="' + escapeHtml(sd.title) + '" data-custom="' + (sd.id.indexOf('rule') === 0 ? '1' : '0') + '" data-type="smart">'
               + '<span class="toggle">\u25B6</span>'
               + '<span class="icon">\uD83D\uDD0D</span>'
               + '<span class="label">' + escapeHtml(sd.title) + '</span>'
@@ -2199,6 +2257,35 @@ joplin.plugins.register({
                 break;
               }
             }
+          } else if (itemType === 'smart') {
+            // Built-ins ('recent', 'todos') are not in the setting; the panel
+            // only offers "open in search bar" for them, which never gets here.
+            const m = /^rule(\d+)$/.exec(String(id || ''));
+            const parts = await readSmartRuleParts();
+            const idx = m ? Number(m[1]) : -1;
+            const rule = idx >= 0 && idx < parts.length ? parseSmartRule(parts[idx]) : null;
+            if (rule) {
+              if (action === 'smartEditQuery') {
+                const q = await showNativeInput(fmtName(t.smartEditQueryLabel, rule.name), rule.query);
+                if (q !== null && q.trim() !== rule.query) {
+                  const err = smartRuleError(rule.name, q.trim());
+                  if (err) await showNativeInfo(t.smartInvalidTitle, err);
+                  else { parts[idx] = rule.name + ':' + q.trim(); await writeSmartRuleParts(parts); }
+                }
+              } else if (action === 'smartRename') {
+                const n = await showNativeInput(t.smartSaveName, rule.name);
+                if (n !== null && n.trim() !== rule.name) {
+                  const err = smartRuleError(n.trim(), rule.query);
+                  if (err) await showNativeInfo(t.smartInvalidTitle, err);
+                  else { parts[idx] = n.trim() + ':' + rule.query; await writeSmartRuleParts(parts); }
+                }
+              } else if (action === 'smartDelete') {
+                if (await showNativeConfirm(fmtName(t.smartConfirmDelete, rule.name))) {
+                  parts.splice(idx, 1);
+                  await writeSmartRuleParts(parts);
+                }
+              }
+            }
           } else if (itemType === 'tag') {
             switch (action) {
               case 'renameTag': {
@@ -2570,6 +2657,8 @@ joplin.plugins.register({
         const nt = await joplin.workspace.selectedNote();
         if (nt) { selectedNoteId = nt.id; expandToFolder(nt.parent_id); }
         await refreshPanel();
+      } else if (msg.name === 'saveSmartFolder') {
+        await saveSearchAsSmartFolder(msg.query, msg.defaultName);
       } else if (msg.name === 'search') {
         await handleSearch(msg);
       } else if (msg.name === 'loadTagNotes') {
