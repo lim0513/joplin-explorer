@@ -52,7 +52,7 @@ Between v1.2.0 and v1.2.3 nothing refreshed `publish/plugin.jpl`. The outer mani
 - For security-key users, the token MUST have **"Bypass 2FA when publishing"** checked. Without it, `npm publish` errors with `EOTP` and a security-key user cannot satisfy the prompt.
 - `npm unpublish` is only allowed within 24h. After that, the broken version stays forever — bump and move on, optionally `npm deprecate`.
 - Default to one-shot tokens: generate → publish → delete.
-- The token lives in `D:\repos\.npm-publish-token.txt` (one level above the repos, so it is never git-tracked). That file is a **memo**, not a bare token — extract the value with a regex (`npm_[A-Za-z0-9]+`) before writing `.npmrc`. Dumping the whole file in makes `npm publish` fail with a misleading **404** (npm masks auth failures as 404).
+- The token lives in `C:\Users\user\source\repos\.npm-publish-token.txt` (one level above the repos, so it is never git-tracked). That file is a **memo**, not a bare token — extract the value with a regex (`npm_[A-Za-z0-9]+`) before writing `.npmrc`. Dumping the whole file in makes `npm publish` fail with a misleading **404** (npm masks auth failures as 404).
 - **npm STAGES a publish before it lands, and the CLI lies about it.** The first `npm publish` uploads the tarball into a staging queue for malware scanning; the version is NOT live yet. Publishing again while the scan runs fails with `E409 Cannot publish over previously staged version`. Nothing is broken and nothing needs clearing - wait a few minutes and publish again. Do NOT bump the version to escape it, and do NOT go hunting for a way to discard the stage: `npm stage list` reports "No staged versions" the whole time, because a package still being scanned is invisible to it.
 - **Never filter the output of `npm publish`.** It prints `+ package@version` BEFORE the upload is accepted, so grepping for that line reports success on a failed publish. Read the whole output, and confirm against the registry itself:
 
@@ -198,5 +198,5 @@ npm 安全策略收紧（github.blog changelog 2026-07-08）：
 - 2026-08 起：绕过 2FA 的 token 不能再做账号/包管理操作（本仓库只用它 publish，无影响）
 - **2027-01 起：绕过 2FA 的 token 不能再直接 npm publish —— 当前发布流程会失效**
 - 届时迁移到 trusted publishing（OIDC）：GitHub Actions 打 tag 触发构建+发布，npm 包与仓库绑定，无需长期 token
-- 当前流程：发布时写临时 .npmrc + Automation token（token 位置见 D:\repos\.npm-publish-token.txt，短期有效，过期找用户要新的）
+- 当前流程：发布时写临时 .npmrc + Automation token（token 位置见 C:\Users\user\source\repos\.npm-publish-token.txt，短期有效，过期找用户要新的）
 - 另：npm v12 起 install 默认禁用依赖的 postinstall/git/remote —— 升级 npm 后构建异常先查这个（npm approve-scripts）
