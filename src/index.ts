@@ -1267,6 +1267,22 @@ joplin.plugins.register({
       })();
     }
 
+    // Note Tabs (joplin.plugin.note.tabs) is a separate plugin; only offer
+    // "Pin to Note Tabs" when it is actually installed and enabled. Joplin
+    // records every installed plugin's state in plugins.states, which is not a
+    // secure setting, so globalValue can read it. Read on every render: it is
+    // cheap, and installing or disabling a plugin needs a restart anyway.
+    async function noteTabsAvailable(): Promise<boolean> {
+      try {
+        let states: any = await joplin.settings.globalValue('plugins.states');
+        if (typeof states === 'string') states = JSON.parse(states);
+        const st = states && states['joplin.plugin.note.tabs'];
+        return !!st && st.enabled !== false && !st.deleted;
+      } catch (_) {
+        return false;
+      }
+    }
+
     async function refreshPanel(): Promise<void> {
       try {
         const folders = await getAllFolders();
@@ -1637,7 +1653,7 @@ joplin.plugins.register({
         let rowH = Number(await joplin.settings.value('rowHeight'));
         if (!isFinite(rowH) || rowH < 16) rowH = 24;
         if (rowH > 40) rowH = 40;
-        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px;--row-font:' + rowFont + 'px;--row-h:' + rowH + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px;--row-font:' + rowFont + 'px;--row-h:' + rowH + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-note-tabs="' + ((await noteTabsAvailable()) ? '1' : '0') + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
@@ -2223,15 +2239,57 @@ joplin.plugins.register({
                 break;
               }
               case 'duplicateNote': {
-                const srcNote = await joplin.data.get(['notes', id], { fields: ['title', 'body', 'parent_id', 'is_todo'] });
-                const dupNote = await joplin.data.post(['notes'], null, {
-                  title: srcNote.title + ' (copy)', body: srcNote.body,
-                  parent_id: srcNote.parent_id, is_todo: srcNote.is_todo,
-                });
-                await joplin.commands.execute('openNote', dupNote.id);
-                selectedNoteId = dupNote.id;
+                // #44: go through Joplin's own "duplicateNote" command - the one
+                // the native note list's Duplicate uses - so the copy is exactly
+                // what Joplin makes: every field (to-do due date and state,
+                // source URL, location, author, markup language...), the TAGS,
+                // and the localised "%s - Copy" title. The hand-rolled version
+                // copied four fields and silently dropped everything else.
+                const dupSrc = await joplin.data.get(['notes', id], { fields: ['parent_id'] });
+                const dupStarted = Date.now();
+                let dupId = '';
+                try {
+                  await joplin.commands.execute('duplicateNote', [id]);
+                  // The command returns nothing. The copy is the newest note
+                  // created in the same notebook since we started.
+                  const recent = await joplin.data.get(['folders', dupSrc.parent_id, 'notes'], {
+                    fields: ['id', 'created_time'], order_by: 'created_time', order_dir: 'DESC', limit: 5,
+                  });
+                  const hit = (recent.items || []).find((r: any) => r.id !== id && r.created_time >= dupStarted - 50);
+                  if (hit) dupId = hit.id;
+                } catch (dupErr) {
+                  // Older builds without the command: copy the fields Joplin's
+                  // duplicate would, then re-apply the tags.
+                  const full = await joplin.data.get(['notes', id], {
+                    fields: ['title', 'body', 'parent_id', 'is_todo', 'todo_due', 'todo_completed', 'source_url',
+                      'author', 'latitude', 'longitude', 'altitude', 'markup_language'],
+                  });
+                  const copy = await joplin.data.post(['notes'], null, Object.assign({}, full, { title: full.title + ' - Copy' }));
+                  dupId = copy.id;
+                  try {
+                    let tp = 1;
+                    let tMore = true;
+                    while (tMore) {
+                      const tr = await joplin.data.get(['notes', id, 'tags'], { fields: ['id'], page: tp, limit: 100 });
+                      for (const tg of (tr.items || [])) await joplin.data.post(['tags', tg.id, 'notes'], null, { id: dupId });
+                      tMore = tr.has_more;
+                      tp++;
+                    }
+                  } catch (_) { /* the note itself is safe; tags are best-effort here */ }
+                }
+                if (dupId) {
+                  await joplin.commands.execute('openNote', dupId);
+                  selectedNoteId = dupId;
+                }
                 break;
               }
+              case 'pinToTabs':
+                // #45: hand the note to the Note Tabs plugin. The menu item is
+                // only offered when that plugin is installed and enabled (see
+                // noteTabsAvailable), but it can still be disabled underneath
+                // us, so a failure is swallowed rather than surfaced as an error.
+                try { await joplin.commands.execute('tabsPinNote', [id]); } catch (_) {}
+                break;
               case 'switchNoteType': {
                 const sn = await joplin.data.get(['notes', id], { fields: ['is_todo'] });
                 await joplin.data.put(['notes', id], null, { is_todo: sn.is_todo ? 0 : 1 });

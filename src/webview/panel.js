@@ -962,6 +962,12 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="openNote" data-id="' + id + '" data-type="note">' + T('ctxOpenNote') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="openInNewWindow" data-id="' + id + '" data-type="note">' + T('ctxOpenInNewWindow') + '</div>';
+    // #45: only when the Note Tabs plugin is installed and enabled - the
+    // backend checks plugins.states and stamps data-note-tabs on the root.
+    var ntRoot = document.getElementById('notes-in-list-root');
+    if (ntRoot && ntRoot.dataset.noteTabs === '1') {
+      menuHtml += '<div class="ctx-item" data-action="pinToTabs" data-id="' + id + '" data-type="note">' + T('ctxPinToTabs') + '</div>';
+    }
     menuHtml += '<div class="ctx-item" data-action="editExternally" data-id="' + id + '" data-type="note">' + T('ctxEditExternally') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     // Native-menu order: tags, type switch, move, duplicate...
