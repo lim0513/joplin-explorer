@@ -372,12 +372,34 @@ function buildTree(folders: FolderItem[], notesByFolder: { [id: string]: NoteIte
   return roots;
 }
 
-function getFolderIcon(node: TreeNode, isCollapsed = true, openIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC2' }, closedIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC1' }): IconRenderData {
-  let iconData: any = node.icon;
-  if (iconData && typeof iconData === 'string') {
-    try { iconData = JSON.parse(iconData); } catch (e) { iconData = null; }
+// A notebook's own icon, as set in Joplin's notebook dialog. Stored as JSON
+// with a type discriminator - FolderIconType: Emoji=1, DataUrl=2,
+// FontAwesome=3. Only the emoji branch used to be read, so a notebook given a
+// custom IMAGE silently fell back to the default folder glyph.
+// FontAwesome is deliberately not rendered: it needs Joplin's icon font, which
+// the panel webview does not load, so it keeps the default glyph as before.
+function parseFolderIcon(raw: any): IconRenderData | null {
+  let ic = raw;
+  if (ic && typeof ic === 'string') {
+    try { ic = JSON.parse(ic); } catch (_) { return null; }
   }
-  if (iconData && iconData.emoji) return { type: 'text', value: String(iconData.emoji) };
+  if (!ic || typeof ic !== 'object') return null;
+  // Joplin only ever writes data: URLs here; refuse anything else so a stray
+  // value can never become an arbitrary <img src>.
+  const dataUrl = (typeof ic.dataUrl === 'string' && ic.dataUrl.toLowerCase().indexOf('data:image/') === 0) ? ic.dataUrl : '';
+  const emoji = ic.emoji ? String(ic.emoji) : '';
+  if (ic.type === 2) return dataUrl ? { type: 'image', value: dataUrl } : null;
+  if (ic.type === 1) return emoji ? { type: 'text', value: emoji } : null;
+  if (ic.type === 3) return null;
+  // No type field: fall back to whichever payload is present.
+  if (dataUrl) return { type: 'image', value: dataUrl };
+  if (emoji) return { type: 'text', value: emoji };
+  return null;
+}
+
+function getFolderIcon(node: TreeNode, isCollapsed = true, openIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC2' }, closedIcon: IconRenderData = { type: 'text', value: '\uD83D\uDCC1' }): IconRenderData {
+  const own = parseFolderIcon(node.icon);
+  if (own) return own;
   return isCollapsed ? closedIcon : openIcon;
 }
 
@@ -1858,17 +1880,9 @@ joplin.plugins.register({
           const folderItems = [] as any[];
           for (const f of allFoldersCache) {
             if ((f.title || '').toLowerCase().indexOf(lowerQuery) >= 0) {
-              // f.icon is a JSON STRING from the data API - parse it here so the
-              // webview gets a ready-to-render emoji (it used to read .emoji off
-              // the raw string, which never worked).
-              let iconEmoji = '';
-              if (f.icon && typeof f.icon === 'string') {
-                try {
-                  const parsedIcon = JSON.parse(f.icon);
-                  if (parsedIcon && parsedIcon.emoji) iconEmoji = String(parsedIcon.emoji);
-                } catch (_) { /* not JSON - ignore */ }
-              }
-              folderItems.push({ id: f.id, title: f.title, parent_id: f.parent_id, iconEmoji });
+              // Same resolution as the tree (emoji OR custom image), so a
+              // notebook looks identical in search results.
+              folderItems.push({ id: f.id, title: f.title, parent_id: f.parent_id, icon: parseFolderIcon(f.icon) });
             }
           }
 

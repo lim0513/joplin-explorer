@@ -18,12 +18,12 @@ Confirmed present in 5.15.4: `fa-sitemap`, `fa-folder-open`, `fa-columns`, `fa-s
 ## Workflow with the user (IMPORTANT)
 
 - **Do not publish eagerly.** Default loop while iterating: edit → `npx webpack --env production` → `node scripts/pack-jpl.js` → tell the user it's in `publish/`, and let them test. Only bump the version, tag, GitHub-release and `npm publish` **when the user says 发布 / "release"**.
-- The user tests via **Development plugins** pointed at the repo root (`D:\repos\Joplin-explorer`), so a rebuild + Joplin restart is enough — no "install from file" needed. Note a dev-loaded plugin conflicts with the store-installed copy (same id); one must be disabled.
+- If testing through **Development plugins**: a dev-loaded plugin conflicts with the store-installed copy (same id); one must be disabled.
 - Commit locally during development; push together with the release.
 
 ## Release pipeline (CRITICAL)
 
-`publish/plugin.jpl` is a **gzipped tar archive** containing its own copy of `manifest.json`. Joplin uses the **outer** manifest (or the npm registry metadata) to decide whether an update is available, but reads the version actually installed from the **inner** manifest inside the `.jpl`.
+`publish/plugin.jpl` is a **plain, UNCOMPRESSED tar archive** (never gzip it - Joplin mobile/web reject a gzipped .jpl with "Invalid tar header"; desktop only tolerates it because its reader sniffs for gzip) containing its own copy of `manifest.json`. Joplin uses the **outer** manifest (or the npm registry metadata) to decide whether an update is available, but reads the version actually installed from the **inner** manifest inside the `.jpl`.
 
 If these disagree, Joplin gets stuck in an update loop: it sees a newer outer version, downloads and installs the `.jpl`, the inner manifest still reports the old version, on next restart Joplin prompts again — forever.
 
@@ -33,7 +33,7 @@ If these disagree, Joplin gets stuck in an update loop: it sees a newer outer ve
 2. Run `npm run dist` — this MUST regenerate `publish/plugin.jpl` so the inner manifest matches.
 3. Verify the inner manifest:
    ```
-   tar -xzf publish/plugin.jpl -C /tmp/check && cat /tmp/check/manifest.json
+   tar -xf publish/plugin.jpl -C /tmp/check && cat /tmp/check/manifest.json
    ```
    Inner version MUST equal `src/manifest.json`'s version.
 4. Only then `npm publish` and upload `publish/plugin.jpl` to the GitHub release.
@@ -187,7 +187,7 @@ Every `openFolderDialog` call must pass `parentId` (all three call sites do now)
 - `publish/index.js` — webpack-bundled plugin host code
 - `publish/manifest.json` — copied from `src/manifest.json` by webpack
 - `publish/webview/` — copied from `src/webview/` by webpack
-- `publish/plugin.jpl` — gzipped tar of the three above, produced by `scripts/pack-jpl.js`
+- `publish/plugin.jpl` — plain (uncompressed) tar of the three above, produced by `scripts/pack-jpl.js`
 
 The `files` field in `package.json` includes the whole `publish/` directory — anything in there ships to npm.
 

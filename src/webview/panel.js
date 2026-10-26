@@ -1761,9 +1761,14 @@ function renderSearchResults(notes, tags, folders, query) {
     html += '<div class="search-section-body" id="search-section-folders">';
     for (var f = 0; f < folders.length; f++) {
       var folder = folders[f];
-      var folderIcon = folder.iconEmoji || '\uD83D\uDCC1';
+      // Emoji or the notebook's custom image, resolved by the backend. Both go
+      // through escapeHtml - this used to splice the emoji in raw.
+      var fIcon = folder.icon;
+      var folderIconHtml = (fIcon && fIcon.type === 'image')
+        ? '<img class="custom-icon" src="' + escapeHtml(fIcon.value) + '" />'
+        : escapeHtml((fIcon && fIcon.value) || '\uD83D\uDCC1');
       html += '<div class="search-result-item search-folder-item" data-folder-id="' + folder.id + '">';
-      html += '<span class="icon">' + folderIcon + '</span>';
+      html += '<span class="icon">' + folderIconHtml + '</span>';
       html += '<div class="search-result-content">';
       html += '<div class="search-result-title">' + highlightText(folder.title, query) + '</div>';
       html += '</div></div>';
