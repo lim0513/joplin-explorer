@@ -123,7 +123,8 @@ html, body {
 [data-stack-headers="1"] .smart-section-header,
 [data-stack-headers="1"] .tree-section-header,
 [data-stack-headers="1"] .tags-section-header,
-[data-stack-headers="1"] .trash-section-header {
+[data-stack-headers="1"] .trash-section-header,
+[data-stack-headers="1"] .conflicts-section-header {
   border-top-color: color-mix(in srgb, var(--joplin-color, #888) 22%, var(--joplin-background-color, #1e1e1e));
   border-radius: 0;
   /* Uniform height: stacking offsets are cumulative sums of header heights,
@@ -419,6 +420,7 @@ html, body {
 .pinned-section-header,
 .smart-section-header,
 .trash-section-header,
+.conflicts-section-header,
 .tree-section-header,
 .tags-section-header {
   display: flex;
@@ -454,6 +456,7 @@ html, body {
 [data-arrow-pos="right"] .pinned-section-header .label,
 [data-arrow-pos="right"] .smart-section-header .label,
 [data-arrow-pos="right"] .trash-section-header .label,
+[data-arrow-pos="right"] .conflicts-section-header .label,
 [data-arrow-pos="right"] .tree-section-header .label,
 [data-arrow-pos="right"] .tags-section-header .label,
 [data-arrow-pos="right"] .tree-item.folder .label {
@@ -462,6 +465,7 @@ html, body {
 [data-arrow-pos="right"] .pinned-section-header .toggle,
 [data-arrow-pos="right"] .smart-section-header .toggle,
 [data-arrow-pos="right"] .trash-section-header .toggle,
+[data-arrow-pos="right"] .conflicts-section-header .toggle,
 [data-arrow-pos="right"] .tree-section-header .toggle,
 [data-arrow-pos="right"] .tags-section-header .toggle,
 [data-arrow-pos="right"] .tree-item.folder .toggle {
@@ -474,6 +478,7 @@ html, body {
 [data-arrow-pos="right"] .pinned-section-header .count,
 [data-arrow-pos="right"] .smart-section-header .count,
 [data-arrow-pos="right"] .trash-section-header .count,
+[data-arrow-pos="right"] .conflicts-section-header .count,
 [data-arrow-pos="right"] .tree-section-header .count,
 [data-arrow-pos="right"] .tags-section-header .count,
 [data-arrow-pos="right"] .tree-item.folder .count {
@@ -483,6 +488,7 @@ html, body {
 .pinned-section-header .icon,
 .smart-section-header .icon,
 .trash-section-header .icon,
+.conflicts-section-header .icon,
 .tree-section-header .icon,
 .tags-section-header .icon {
   font-size: 12px;
@@ -491,6 +497,7 @@ html, body {
 .pinned-section-header:hover,
 .smart-section-header:hover,
 .trash-section-header:hover,
+.conflicts-section-header:hover,
 .tree-section-header:hover,
 .tags-section-header:hover {
   /* Layered over the opaque base: the hover tint is translucent, and these
@@ -568,6 +575,7 @@ html, body {
 .smart-folder.smart-empty:hover { background: none; cursor: default; }
 .smart-children.collapsed { display: none; }
 .trash-children.collapsed { display: none; }
+.conflict-children.collapsed { display: none; }
 /* Rows swept out of view when an ancestor trash folder is collapsed */
 .trash-hidden { display: none; }
 /* Rows carry inline padding (depth-based); containers only need hide/show */

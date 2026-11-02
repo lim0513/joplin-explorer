@@ -163,6 +163,27 @@ The message never vanished. Two compounding facts created a phantom transport bu
 
 Every `openFolderDialog` call must pass `parentId` (all three call sites do now). The decisive experiment was replacing console probes with `showNativeInfo` dialogs — console-free, cannot be invisible; do that FIRST next time a host-side handler "isn't running".
 
+## Conflicts section (#46)
+
+- Conflicts is a **virtual notebook**: no folders row, fixed id `c04f1c7c04f1c7c04f1c7c04f1c7c04f`. `GET /notes` hides `is_conflict = 1` unless `include_conflicts=1`, and the API cannot filter on it, so they are fetched inside `getAllNotes` and split out in `refreshPanel`. The trash queries need the same flag or a deleted conflict appears nowhere.
+- **Opening one is the hard part** - measured in a real instance. `openNote` resolves `parent_id`, so the list shows the original notebook (the note opens, but the editor toolbar is greyed because it is not in that list), and it throws if the notebook is gone. That is not rare: `Folder.markNotesAsConflict` makes conflicts of a remotely deleted notebook's notes. `openFolder` on the virtual id does NOT select the clicked note. `openNoteInNewWindow` works with a missing parent (WINDOW_OPEN never loads the folder). `revealInNotebook` is exact but newer than Joplin as installed here, so that first step of the chain is untested.
+- `POST /notes` drops `is_conflict`; `PUT` accepts it. That is how to make test conflicts.
+
+## Keyboard shortcuts
+
+- F2, F5 and Delete are plain keydown listeners in the panel document, so they only fire while focus is in Explorer. Clicking a row leaves focus in the panel iframe (measured with real input events), and Joplin's F1/F6/F10/F11 are menu accelerators that keep working.
+- **Folders have no selected state**, so the target is the row last pressed, stored as attributes because a re-render replaces every row. A press outside any row clears it on purpose: Delete must not reach a row the user has moved away from. There is deliberately no fallback to the selected note.
+
+## Testing in a real Joplin
+
+A second instance runs beside the user's own and shares nothing with it:
+
+```
+Joplin.exe --profile <empty dir> --remote-debugging-port=9333
+```
+
+Put `api.token` and `clipperServer.autoStart` in that profile's settings.json and the `.jpl` in its plugins/. The API lands on the next free port (41185); a token of its own means a request sent to the user's 41184 by mistake is rejected. Over CDP (Node's global WebSocket is enough): `joplin.*` works in the `plugin_index.html?pluginId=...` target, the panel is a same-origin iframe of the main page (`#plugin-view-com.github.joplin-explorer-notesInListPanel`), and `Browser.close` stops only this instance. Never close it by process name - that kills the user's Joplin.
+
 ## Stacked sticky headers (v1.6.5, #31)
 
 - Accordion stacking is pure sticky CSS: each header gets inline `top` = sum of header heights above it, `bottom` = sum below (`applyHeaderStacking`, recomputed on render + header clicks). Requires: uniform forced header height (31px — ANY per-header variance opens seams), zeroed section margins in stacked mode (or spacing visibly compresses at park time), zero container top/bottom padding (content leaks through it past the parked headers), opaque `color-mix` divider + square corners (the translucent border/rounded corners leak scrolling rows at the seams).

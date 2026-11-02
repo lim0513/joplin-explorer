@@ -175,6 +175,7 @@ function setSectionsCollapsed(collapsed) {
     ['tree-header', 'main-tree'],
     ['tags-header', 'tags-body'],
     ['trash-header', 'trash-children'],
+    ['conflicts-header', 'conflict-children'],
   ];
   var any = false;
   for (var i = 0; i < pairs.length; i++) {
@@ -206,7 +207,7 @@ function collapseScope() {
 // after any header click - heights are pinned by CSS now, but this keeps the
 // stack correct even if future changes let header sizes vary again.
 document.addEventListener('click', function(e) {
-  if (e.target && e.target.closest && e.target.closest('.pinned-section-header, .smart-section-header, .tree-section-header, .tags-section-header, .trash-section-header')) {
+  if (e.target && e.target.closest && e.target.closest('.pinned-section-header, .smart-section-header, .tree-section-header, .tags-section-header, .trash-section-header, .conflicts-section-header')) {
     requestAnimationFrame(applyHeaderStacking);
   }
 });
@@ -214,7 +215,7 @@ document.addEventListener('click', function(e) {
 function applyHeaderStacking() {
   var root = document.getElementById('notes-in-list-root');
   var stacked = root && root.dataset.stackHeaders === '1';
-  var sel = '.pinned-section-header, .smart-section-header, .tree-section-header, .tags-section-header, .trash-section-header';
+  var sel = '.pinned-section-header, .smart-section-header, .tree-section-header, .tags-section-header, .trash-section-header, .conflicts-section-header';
   var headers = [];
   document.querySelectorAll(sel).forEach(function(h) {
     headers.push(h);
@@ -599,6 +600,19 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  // 5b1. Conflicts section header -> local toggle (rows are already rendered).
+  var conflictsHeader = e.target.closest('.conflicts-section-header');
+  if (conflictsHeader) {
+    var conflictsNowCollapsed = conflictsHeader.classList.toggle('collapsed');
+    var conflictKids = document.getElementById('conflict-children');
+    if (conflictKids) conflictKids.classList.toggle('collapsed', conflictsNowCollapsed);
+    if (!conflictsNowCollapsed) { animateExpand(conflictKids); scrollSectionToStack(conflictsHeader); }
+    var conflictsToggle = conflictsHeader.querySelector('.toggle');
+    if (conflictsToggle) conflictsToggle.textContent = conflictsNowCollapsed ? '\u25B6' : '\u25BC';
+    postMsg({ name: 'toggleConflictsSection' });
+    return;
+  }
+
   // 5b2. Trash section header -> local toggle; first expand fetches notes.
   var trashHeader = e.target.closest('.trash-section-header');
   if (trashHeader) {
@@ -659,6 +673,14 @@ document.addEventListener('click', function(e) {
   // 7. Tree item: open note / toggle folder.
   var item = e.target.closest('.tree-item');
   if (item) {
+    if (item.dataset.conflict === '1') {
+      document.querySelectorAll('.tree-item.note.selected').forEach(function(el) {
+        el.classList.remove('selected');
+      });
+      item.classList.add('selected');
+      postMsg({ name: 'openConflictNote', id: item.dataset.id });
+      return;
+    }
     if (item.dataset.trash === '1') {
       // Deleted notebooks expand to show their notes; deleted notes open
       // read-only like in Joplin's own trash; manage via the context menu.
@@ -936,6 +958,10 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="restoreItem" data-id="' + id + '" data-type="' + trashType + '">' + T('ctxRestoreNote') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="permanentDeleteItem" data-id="' + id + '" data-type="' + trashType + '">' + T('ctxPermanentDelete') + '</div>';
+  } else if (item.dataset.conflict === '1') {
+    menuHtml += '<div class="ctx-item" data-action="openConflict" data-id="' + id + '" data-type="note">' + T('ctxOpenNote') + '</div>';
+    menuHtml += '<div class="ctx-sep"></div>';
+    menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteNote" data-id="' + id + '" data-type="note">' + T('ctxDeleteNote') + '</div>';
   } else if (type === 'folder') {
     var isFolderPinned = isPinned(id);
     menuHtml += '<div class="ctx-item" data-action="' + (isFolderPinned ? 'unpinFolder' : 'pinFolder') + '" data-id="' + id + '" data-type="folder">' + (isFolderPinned ? T('ctxUnpin') : T('ctxPin')) + '</div>';
@@ -1259,7 +1285,7 @@ document.addEventListener('dblclick', function(e) {
   var t = e.target;
   if (t && t.closest && (t.closest('#ctx-menu') || t.closest('#note-preview'))) return;
   var item = t.closest ? t.closest('.tree-item.note') : null;
-  if (!item || item.dataset.trash === '1' || !item.dataset.id) return;
+  if (!item || item.dataset.trash === '1' || item.dataset.conflict === '1' || !item.dataset.id) return;
   postMsg({ name: 'contextMenu', action: 'openInNewWindow', id: item.dataset.id, itemType: 'note' });
 });
 
@@ -1277,7 +1303,7 @@ document.addEventListener('dragstart', function(e) {
   // Virtual rows never drag: anything in the trash, the whole smart
   // section (rows included), and tag folder rows. Notes listed INSIDE a
   // tag stay draggable (drag out = move / assign another tag).
-  if (item.closest('.trash-children') || item.closest('.smart-section-body')
+  if (item.closest('.trash-children') || item.closest('.conflict-children') || item.closest('.smart-section-body')
     || item.classList.contains('tag-folder')) { e.preventDefault(); return; }
   var isPinned = item.classList.contains('pinned-item');
   // Internal payload lives on a CUSTOM mime, never text/plain (#21). Putting
@@ -1501,6 +1527,7 @@ document.addEventListener('dragover', function(e) {
   // Anywhere else inside the tags/trash/smart sections is not a drop target.
   if (el.closest('.tags-section-body') || el.closest('.tags-section-header')
     || el.closest('.trash-children') || el.closest('.trash-section-header')
+    || el.closest('.conflict-children') || el.closest('.conflicts-section-header')
     || el.closest('.smart-section-body') || el.closest('.smart-section-header')) return;
 
   // Normal tree-item not found — ignore
@@ -1642,6 +1669,7 @@ document.addEventListener('drop', function(e) {
   }
   if (el0 && (el0.closest('.tags-section-body') || el0.closest('.tags-section-header')
     || el0.closest('.trash-children') || el0.closest('.trash-section-header')
+    || el0.closest('.conflict-children') || el0.closest('.conflicts-section-header')
     || el0.closest('.smart-section-body') || el0.closest('.smart-section-header'))) { endDrag(); return; }
 
   // Pinned items can only be reordered within pinned section
@@ -1992,6 +2020,75 @@ document.addEventListener('keydown', function(e) {
       if (_searchMode) exitSearchMode();
     }
   }
+});
+
+// ======================== Keyboard shortcuts ========================
+// F2 rename, F5 refresh, Delete delete - the same actions as the context menu
+// and the toolbar, so confirmations and dialogs are the existing ones. These
+// are document-level inside the panel iframe, so they only fire while focus is
+// in Explorer and never compete with the editor. Joplin's own F1/F6/F10/F11
+// are menu accelerators and keep working.
+//
+// Folders have no selected state, so the target is the row last pressed, kept
+// as attributes rather than an element: a re-render replaces every row. A press
+// anywhere else clears it, so Delete can never hit a row the user moved away from.
+var _kbRow = null;
+
+document.addEventListener('mousedown', function(e) {
+  var row = e.target.closest ? e.target.closest('.tree-item') : null;
+  if (!row) {
+    // Using a context menu or dialog is not moving away from the row.
+    if (e.target.closest && e.target.closest('#ctx-menu')) return;
+    _kbRow = null;
+    return;
+  }
+  _kbRow = { id: row.dataset.id, type: row.dataset.type, tagId: row.dataset.tagId };
+}, true);
+
+function keyboardTargetRow() {
+  if (!_kbRow) return null;
+  var selector = _kbRow.type === 'tag'
+    ? '.tree-item[data-tag-id="' + _kbRow.tagId + '"]'
+    : '.tree-item[data-id="' + _kbRow.id + '"][data-type="' + _kbRow.type + '"]';
+  return document.querySelector(selector);
+}
+
+// Action per key for a row, or nothing. Mirrors what the context menu offers:
+// trash rows, smart folders and virtual tag prefixes have no rename or delete
+// here, and a conflict note can be deleted but not renamed.
+function keyboardAction(key, row) {
+  var type = row.dataset.type;
+  if (row.dataset.trash === '1') return null;
+  if (type === 'tag') {
+    if (!row.dataset.tagId) return null;
+    return { action: key === 'F2' ? 'renameTag' : 'deleteTag', id: row.dataset.tagId, itemType: 'tag' };
+  }
+  if (type === 'note') {
+    if (key === 'F2' && row.dataset.conflict === '1') return null;
+    return { action: key === 'F2' ? 'renameNote' : 'deleteNote', id: row.dataset.id, itemType: 'note' };
+  }
+  if (type === 'folder') {
+    return { action: key === 'F2' ? 'renameFolder' : 'deleteFolder', id: row.dataset.id, itemType: 'folder' };
+  }
+  return null;
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'F2' && e.key !== 'F5' && e.key !== 'Delete') return;
+  if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey || e.repeat) return;
+  // Delete has to keep editing text in the search box and inline prompts.
+  var el = e.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+  if (e.key === 'F5') {
+    e.preventDefault();
+    postMsg({ name: 'refreshView' });
+    return;
+  }
+  var row = keyboardTargetRow();
+  var act = row ? keyboardAction(e.key, row) : null;
+  if (!act) return;
+  e.preventDefault();
+  postMsg({ name: 'contextMenu', action: act.action, id: act.id, itemType: act.itemType });
 });
 
 // ✕ clear button (#37): clears, hides itself, refocuses the input.

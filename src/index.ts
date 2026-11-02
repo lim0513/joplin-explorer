@@ -24,6 +24,10 @@ interface FolderItem {
   order?: number;
 }
 
+// Joplin's Conflicts notebook is virtual: no row in the folders table, always
+// this id (lib/models/utils/getConflictFolderId).
+const CONFLICT_FOLDER_ID = 'c04f1c7c04f1c7c04f1c7c04f1c7c04f';
+
 interface NoteItem {
   id: string;
   title: string;
@@ -36,6 +40,7 @@ interface NoteItem {
   is_shared?: number;
   cb_total?: number; // markdown checkboxes in the body...
   cb_done?: number;  // ...and how many are ticked
+  is_conflict?: number;
 }
 
 interface TreeNode {
@@ -279,7 +284,12 @@ async function getAllNotes(): Promise<NoteItem[]> {
   let hasMore = true;
   while (hasMore) {
     const result = await joplin.data.get(['notes'], {
-      fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time', 'order', 'is_shared', 'body'],
+      fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'updated_time', 'user_updated_time', 'order', 'is_shared', 'is_conflict', 'body'],
+      // /notes leaves conflicts out unless asked. Fetched here rather than in a
+      // second query because the API cannot filter on is_conflict - a separate
+      // lookup would have to page through every note again. refreshPanel
+      // splits them out, so they never reach the notebook tree.
+      include_conflicts: '1',
       page, limit: 100,
     });
     // Count checkboxes, then drop the body right away - only the two small
@@ -806,7 +816,7 @@ joplin.plugins.register({
         'sectionOrder': {
           section: 'joplinExplorer',
           type: 2, // SettingItemType.String = 2
-          value: 'pinned,smart,tree,tags,trash',
+          value: 'pinned,smart,tree,tags,trash,conflicts',
           public: true,
           label: t.sSectionOrder,
           description: t.sSectionOrderDesc,
@@ -1123,6 +1133,7 @@ joplin.plugins.register({
     let pinnedCollapsed = false;
     let tagsCollapsed = false;
     let trashCollapsed = true;
+    let conflictsCollapsed = false;
     let smartCollapsed = false;
     let treeCollapsed = false;
     // Folders we've rendered at least once. Unseen folders default to
@@ -1158,6 +1169,7 @@ joplin.plugins.register({
           if (typeof ui.tagsCollapsed === 'boolean') tagsCollapsed = ui.tagsCollapsed;
           if (typeof ui.pinnedCollapsed === 'boolean') pinnedCollapsed = ui.pinnedCollapsed;
           if (typeof ui.trashCollapsed === 'boolean') trashCollapsed = ui.trashCollapsed;
+          if (typeof ui.conflictsCollapsed === 'boolean') conflictsCollapsed = ui.conflictsCollapsed;
           if (typeof ui.smartCollapsed === 'boolean') smartCollapsed = ui.smartCollapsed;
           if (typeof ui.treeCollapsed === 'boolean') treeCollapsed = ui.treeCollapsed;
           if (ui.seenFolders && typeof ui.seenFolders === 'object' && !Array.isArray(ui.seenFolders)) {
@@ -1177,7 +1189,7 @@ joplin.plugins.register({
       uiStateTimer = setTimeout(async () => {
         uiStateTimer = null;
         try {
-          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, smartCollapsed, treeCollapsed, seenFolders, collapseSnapshot }));
+          await joplin.settings.setValue('uiState', JSON.stringify({ collapsedFolders, tagsCollapsed, pinnedCollapsed, trashCollapsed, conflictsCollapsed, smartCollapsed, treeCollapsed, seenFolders, collapseSnapshot }));
         } catch (err) {
           console.error('Joplin Explorer: failed to save UI state', err);
         }
@@ -1350,8 +1362,10 @@ joplin.plugins.register({
         const fetchedNotes = await getAllNotes();
         const notesByFolder: { [id: string]: NoteItem[] } = {};
         for (const f of folders) notesByFolder[f.id] = [];
+        const conflictNotes: NoteItem[] = [];
         for (const n of fetchedNotes) {
-          if (notesByFolder[n.parent_id]) notesByFolder[n.parent_id].push(n);
+          if (n.is_conflict) conflictNotes.push(n);
+          else if (notesByFolder[n.parent_id]) notesByFolder[n.parent_id].push(n);
         }
         for (const fid of Object.keys(notesByFolder)) {
           notesByFolder[fid] = sortNotes(notesByFolder[fid], currentSort);
@@ -1532,7 +1546,7 @@ joplin.plugins.register({
           }
           const tnp = await joplin.data.get(['notes'], {
             fields: ['id', 'parent_id', 'deleted_time'],
-            include_deleted: '1', order_by: 'deleted_time', order_dir: 'DESC', limit: 100,
+            include_deleted: '1', include_conflicts: '1', order_by: 'deleted_time', order_dir: 'DESC', limit: 100,
           });
           const tnItems = tnp.items || [];
           for (const tn of tnItems) {
@@ -1554,6 +1568,28 @@ joplin.plugins.register({
             trashHtml += '<div class="trash-children' + (trashCollapsed ? ' collapsed' : '') + '" id="trash-children"></div>';
           }
         } catch (_) { /* include_deleted unsupported - no trash section */ }
+
+        // Conflicts section (#46): only while there are conflicts, like the
+        // native sidebar. Rows are rendered up front - the notes are already
+        // in hand from getAllNotes, so there is nothing to lazy-load.
+        let conflictsHtml = '';
+        if (conflictNotes.length > 0) {
+          const conflictsArrow = conflictsCollapsed ? '\u25B6' : '\u25BC';
+          conflictsHtml += '<div class="conflicts-section-header' + (conflictsCollapsed ? ' collapsed' : '') + '" id="conflicts-header">';
+          if (showToggleArrows) conflictsHtml += '<span class="toggle">' + conflictsArrow + '</span>';
+          conflictsHtml += '<span class="icon">\u26A0\uFE0F</span>'
+            + '<span class="label">' + t.conflicts + '</span>'
+            + '<span class="count">' + conflictNotes.length + '</span>'
+            + '</div>';
+          conflictsHtml += '<div class="conflict-children' + (conflictsCollapsed ? ' collapsed' : '') + '" id="conflict-children">';
+          for (const n of conflictNotes.slice().sort((a, b) => b.updated_time - a.updated_time)) {
+            conflictsHtml += '<div class="tree-item note" style="padding-left:34px" data-id="' + escapeHtml(n.id) + '" data-type="note" data-conflict="1">'
+              + renderIconHtml({ type: 'text', value: getNoteIcon(n) }, '')
+              + '<span class="label">' + escapeHtml(n.title || '(untitled)') + '</span>'
+              + '</div>';
+          }
+          conflictsHtml += '</div>';
+        }
 
         // Smart folders: built-ins + user rules, results load lazily via
         // the search API when a row is expanded.
@@ -1655,13 +1691,14 @@ joplin.plugins.register({
             + '<div id="main-tree"' + (treeCollapsed ? ' class="collapsed"' : '') + '>' + treeHtml + '</div>',
           tags: tagsHtml,
           trash: trashHtml,
+          conflicts: conflictsHtml,
         };
         const orderKeys: string[] = [];
         for (let k of String((await joplin.settings.value('sectionOrder')) || '').split(',').map((s) => s.trim().toLowerCase()).filter((s) => !!s)) {
           if (k === 'notebooks') k = 'tree'; // #34: public name; 'tree' stays as the legacy alias
           if (sectionHtml[k] !== undefined && orderKeys.indexOf(k) < 0) orderKeys.push(k);
         }
-        for (const k of ['pinned', 'smart', 'tree', 'tags', 'trash']) {
+        for (const k of ['pinned', 'smart', 'tree', 'tags', 'trash', 'conflicts']) {
           if (orderKeys.indexOf(k) < 0) orderKeys.push(k);
         }
         const sectionsJoined = orderKeys.map((k) => sectionHtml[k]).join('');
@@ -1924,6 +1961,34 @@ joplin.plugins.register({
     // deleted notebook are omitted - restoring the notebook restores them
     // (native restoreItems handles descendants). Deleted notes sort first
     // under order_by deleted_time DESC, so only the deleted prefix is paged.
+    // A conflict note cannot simply go through openNote, which resolves
+    // parent_id: the note list then shows the original notebook, where the
+    // conflict is not listed, and openNote THROWS if that notebook is gone -
+    // which is not rare, Joplin turns the notes of a notebook deleted elsewhere
+    // into conflicts (Folder.markNotesAsConflict). Plugins cannot dispatch
+    // FOLDER_AND_NOTE_SELECT themselves, so best available first:
+    //  1. revealInNotebook: newer Joplin, selects the Conflicts view + this note.
+    //  2. openNote: this exact note, in the original notebook's list.
+    //  3. openNoteInNewWindow: this exact note. WINDOW_OPEN never loads the
+    //     folder, so it survives a missing parent.
+    //  4. openFolder on the virtual id: right view, but NOT this note - it keeps
+    //     whichever note that view last had. Last resort only.
+    async function openConflictNote(id: string): Promise<void> {
+      selectedNoteId = id;
+      const attempts: any[][] = [
+        ['revealInNotebook', id],
+        ['openNote', id],
+        ['openNoteInNewWindow', id],
+        ['openFolder', CONFLICT_FOLDER_ID],
+      ];
+      for (const attempt of attempts) {
+        try {
+          await joplin.commands.execute(attempt[0], attempt[1]);
+          return;
+        } catch (_) { /* command missing or refused - try the next one */ }
+      }
+    }
+
     async function fetchTrashItems(): Promise<{ folders: any[], notes: any[] }> {
       const rawFolders: any[] = [];
       const deletedFolderIds: { [id: string]: boolean } = {};
@@ -1977,7 +2042,9 @@ joplin.plugins.register({
       while (more && notes.length < 200) {
         const r = await joplin.data.get(['notes'], {
           fields: ['id', 'title', 'parent_id', 'is_todo', 'todo_completed', 'deleted_time'],
-          include_deleted: '1', order_by: 'deleted_time', order_dir: 'DESC',
+          // A deleted conflict lives in the trash; without this it would leave
+          // the Conflicts section and then appear nowhere in Explorer.
+          include_deleted: '1', include_conflicts: '1', order_by: 'deleted_time', order_dir: 'DESC',
           page: p, limit: 50,
         });
         let hitLive = false;
@@ -2223,6 +2290,9 @@ joplin.plugins.register({
             }
           } else if (itemType === 'note') {
             switch (action) {
+              case 'openConflict':
+                await openConflictNote(id);
+                break;
               case 'openNote':
                 await joplin.commands.execute('openNote', id);
                 selectedNoteId = id;
@@ -2726,7 +2796,9 @@ joplin.plugins.register({
     }
 
     await joplin.views.panels.onMessage(panel, async (msg: any) => {
-      if (msg.name === 'openNote') {
+      if (msg.name === 'openConflictNote') {
+        await openConflictNote(msg.id);
+      } else if (msg.name === 'openNote') {
         selectedNoteId = msg.id;
         await joplin.commands.execute('openNote', msg.id);
         // Locate it in the main tree. We set selectedNoteId above, so the
@@ -2753,7 +2825,7 @@ joplin.plugins.register({
         for (const f of allFoldersCache) collapsedFolders[f.id] = true;
         if (Array.isArray(msg.prevCollapsed)) collapseSnapshot = msg.prevCollapsed.map(String);
         // collapseAllScope=allSections (#19): also fold the sections.
-        if (msg.sections) { pinnedCollapsed = true; smartCollapsed = true; tagsCollapsed = true; trashCollapsed = true; treeCollapsed = true; }
+        if (msg.sections) { pinnedCollapsed = true; smartCollapsed = true; tagsCollapsed = true; trashCollapsed = true; conflictsCollapsed = true; treeCollapsed = true; }
         saveUiState();
       } else if (msg.name === 'expandAll') {
         // Record-only, like collapseAll. Skeleton expand: the webview keeps
@@ -2763,7 +2835,7 @@ joplin.plugins.register({
           for (const cid of msg.collapsedIds) collapsedFolders[String(cid)] = true;
         }
         // Reopen the sections that Collapse All (allSections scope) folded.
-        if (msg.sections) { pinnedCollapsed = false; smartCollapsed = false; tagsCollapsed = false; trashCollapsed = false; treeCollapsed = false; }
+        if (msg.sections) { pinnedCollapsed = false; smartCollapsed = false; tagsCollapsed = false; trashCollapsed = false; conflictsCollapsed = false; treeCollapsed = false; }
         saveUiState();
       } else if (msg.name === 'panelReady') {
         // The webview was (re)created - e.g. after a settings roundtrip -
@@ -2916,6 +2988,10 @@ joplin.plugins.register({
         } catch (err) {
           console.error('Joplin Explorer: smartFolderNotes error', err);
         }
+      } else if (msg.name === 'toggleConflictsSection') {
+        // State bookkeeping only - the webview toggled the DOM locally.
+        conflictsCollapsed = !conflictsCollapsed;
+        saveUiState();
       } else if (msg.name === 'toggleTrashSection') {
         // State bookkeeping only - the webview toggled the DOM locally.
         trashCollapsed = !trashCollapsed;

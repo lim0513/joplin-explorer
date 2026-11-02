@@ -26,6 +26,8 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 - **Drag & Drop** — Move notes between notebooks, reorganize folder hierarchy; drag to empty area to create a new notebook; drag to pinned section to pin
 - **Sidebar Toggle** — A toolbar button, a **View** menu entry and an assignable keyboard shortcut hide and show the panel, so you can reclaim the width without disabling the plugin
 - **Row Density** — Row font size and row height are adjustable (Advanced settings), for fitting more of a large tree on screen
+- **Conflicts** — Sync conflicts are listed in their own section, which only appears while there are any
+- **Keyboard Shortcuts** — With focus in the panel: **F2** renames the row you last clicked, **F5** refreshes, **Delete** deletes (after confirming)
 - **Sync Button** — Trigger synchronization with status feedback (syncing → done); becomes **Cancel** while a sync is running
 - **Auto Expand** — Automatically expands to the currently selected note on startup
 - **Collapse All** — One-click collapse all notebooks
