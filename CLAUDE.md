@@ -169,6 +169,13 @@ Every `openFolderDialog` call must pass `parentId` (all three call sites do now)
 - **Opening one is the hard part** - measured in a real instance. `openNote` resolves `parent_id`, so the list shows the original notebook (the note opens, but the editor toolbar is greyed because it is not in that list), and it throws if the notebook is gone. That is not rare: `Folder.markNotesAsConflict` makes conflicts of a remotely deleted notebook's notes. `openFolder` on the virtual id does NOT select the clicked note. `openNoteInNewWindow` works with a missing parent (WINDOW_OPEN never loads the folder). `revealInNotebook` is exact but newer than Joplin as installed here, so that first step of the chain is untested.
 - `POST /notes` drops `is_conflict`; `PUT` accepts it. That is how to make test conflicts.
 
+## Export
+
+- `exportNotes(noteIds, format, dir)` hardwires a **directory** target, so it can only run directory formats (md, md_frontmatter, html, raw). JEX is a file format: a note's JEX is its `raw` export tarred by `writeTarFromDir` (files at the archive root, like Joplin's own exporter). Verified by re-importing with `importFrom` in a test instance, attachment included.
+- `exportFolders(folderIds, format, path)` switches to a file target when `path` is not a directory, and refuses a directory for JEX. Hence `jexPathIn`: the plugin API has a folder picker but no save dialog, so the archive is written as "<title>.jex" inside the chosen folder.
+- #48: formats added by other plugins (docx exporters) cannot be offered. The plugin API can register an exporter but not list them, and a file-target exporter could not be reached through `exportNotes` anyway.
+- The folder picker is a native dialog CDP cannot answer. To test exports, pack a copy of `publish/` whose `showOpenDialog({properties:["openDirectory"]})` calls are replaced by a fixed path; overriding `joplin.views.dialogs` from DevTools does nothing (every access returns a fresh proxy).
+
 ## Keyboard shortcuts
 
 - Every key is a plain keydown listener in the panel document, so it only fires while focus is in Explorer. Clicking a row leaves focus in the panel iframe (measured with real input events), and Joplin's F1/F6/F10/F11 are menu accelerators that keep working.

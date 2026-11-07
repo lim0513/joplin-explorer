@@ -7,6 +7,7 @@ declare const joplin: any;
 const nodeFs = require('fs');
 const nodePath = require('path');
 const nodeCrypto = require('crypto');
+const nodeOs = require('os');
 
 import { I18nStrings, getI18n } from './i18n';
 
@@ -165,6 +166,57 @@ function noteBadgesHtml(n: { is_shared?: number; cb_total?: number; cb_done?: nu
   if (n.is_shared) html += sharedBadgeHtml();
   if (n.cb_total) html += todoPieHtml(n.cb_done || 0, n.cb_total);
   return html;
+}
+
+/* ======================== JEX export ======================== */
+// JEX can only be written to a file, and the plugin API has a folder picker
+// but no save dialog: the archive goes into the chosen folder as
+// "<title>.jex", numbered when that name is taken.
+async function jexPathIn(dir: string, title: string): Promise<string> {
+  const base = String(title || '').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim().slice(0, 100) || 'Untitled';
+  for (let n = 1; ; n++) {
+    const p = nodePath.join(dir, base + (n > 1 ? ' (' + n + ')' : '') + '.jex');
+    try { await nodeFs.promises.access(p); } catch (_) { return p; }
+  }
+}
+
+// A JEX archive is the raw export directory as a plain tar, files at the root
+// (the same shape Joplin's own exporter writes). exportNotes is hardwired to a
+// directory target, so a note's JEX is built from its raw export.
+async function writeTarFromDir(srcDir: string, destFile: string): Promise<void> {
+  const header = (name: string, size: number, mtime: number) => {
+    const buf = Buffer.alloc(512);
+    buf.write(name, 0, 100, 'utf8');
+    buf.write('0000644\0', 100);
+    buf.write('0000000\0', 108);
+    buf.write('0000000\0', 116);
+    buf.write(size.toString(8).padStart(11, '0') + '\0', 124);
+    buf.write(Math.floor(mtime / 1000).toString(8).padStart(11, '0') + '\0', 136);
+    buf.write('        ', 148);
+    buf.write('0', 156);
+    buf.write('ustar\0', 257);
+    buf.write('00', 263);
+    let sum = 0;
+    for (let i = 0; i < 512; i++) sum += buf[i];
+    buf.write(sum.toString(8).padStart(6, '0') + '\0 ', 148);
+    return buf;
+  };
+  const chunks: any[] = [];
+  const walk = async (dir: string, prefix: string) => {
+    for (const name of await nodeFs.promises.readdir(dir)) {
+      const full = nodePath.join(dir, name);
+      const rel = prefix ? prefix + '/' + name : name;
+      const st = await nodeFs.promises.stat(full);
+      if (st.isDirectory()) { await walk(full, rel); continue; }
+      if (!st.isFile()) continue;
+      chunks.push(header(rel, st.size, st.mtimeMs));
+      chunks.push(await nodeFs.promises.readFile(full));
+      if (st.size % 512) chunks.push(Buffer.alloc(512 - (st.size % 512)));
+    }
+  };
+  await walk(srcDir, '');
+  chunks.push(Buffer.alloc(1024));
+  await nodeFs.promises.writeFile(destFile, Buffer.concat(chunks));
 }
 
 /* ======================== Data helpers ======================== */
@@ -2268,7 +2320,14 @@ joplin.plugins.register({
                 try {
                   const dirs = await joplin.views.dialogs.showOpenDialog({ properties: ['openDirectory'] });
                   const dir = Array.isArray(dirs) ? dirs[0] : dirs;
-                  if (dir) await joplin.commands.execute('exportFolders', [id], msg.format || 'jex', dir);
+                  const fmt = msg.format || 'jex';
+                  if (dir && fmt === 'jex') {
+                    // exportFolders refuses a directory for JEX; give it a file.
+                    const folder = await joplin.data.get(['folders', id], { fields: ['title'] });
+                    await joplin.commands.execute('exportFolders', [id], fmt, await jexPathIn(dir, folder && folder.title));
+                  } else if (dir) {
+                    await joplin.commands.execute('exportFolders', [id], fmt, dir);
+                  }
                 } catch (e) {
                   console.error('Joplin Explorer: exportFolder error', e);
                   await showNativeInfo(t.exportFailed || 'Export failed', String(e && (e as any).message ? (e as any).message : e));
@@ -2394,14 +2453,28 @@ joplin.plugins.register({
                 catch (e) { console.error('Joplin Explorer: exportPdf error', e); }
                 break;
               case 'exportNote': {
-                // Directory-target formats (md/jex/html...): pick the folder
-                // ourselves, then run the desktop exportNotes command.
+                // Pick the folder ourselves, then run the desktop exportNotes
+                // command (directory formats: md, md_frontmatter, html). JEX
+                // is a file format it cannot write, so it goes through raw.
                 try {
                   const dirs = await joplin.views.dialogs.showOpenDialog({ properties: ['openDirectory'] });
                   const dir = Array.isArray(dirs) ? dirs[0] : dirs;
-                  if (dir) await joplin.commands.execute('exportNotes', [id], msg.format || 'md', dir);
+                  const fmt = msg.format || 'md';
+                  if (dir && fmt === 'jex') {
+                    const tmp = await nodeFs.promises.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'joplin-explorer-jex-'));
+                    try {
+                      await joplin.commands.execute('exportNotes', [id], 'raw', tmp);
+                      const note = await joplin.data.get(['notes', id], { fields: ['title'] });
+                      await writeTarFromDir(tmp, await jexPathIn(dir, note && note.title));
+                    } finally {
+                      await nodeFs.promises.rm(tmp, { recursive: true, force: true });
+                    }
+                  } else if (dir) {
+                    await joplin.commands.execute('exportNotes', [id], fmt, dir);
+                  }
                 } catch (e) {
                   console.error('Joplin Explorer: exportNote error', e);
+                  await showNativeInfo(t.exportFailed || 'Export failed', String(e && (e as any).message ? (e as any).message : e));
                 }
                 break;
               }
