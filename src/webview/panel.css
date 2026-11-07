@@ -182,6 +182,13 @@ html, body {
   background: var(--joplin-selected-color, rgba(74, 156, 245, 0.2));
 }
 
+/* Keyboard cursor (#47): drawn only after a key moved it, never on click. */
+.kb-cursor:focus { outline: none; }
+body.kb-active .kb-cursor {
+  outline: 1px solid var(--joplin-url-color, #4a9cf5);
+  outline-offset: -1px;
+}
+
 /* Toggle arrow */
 .toggle {
   width: 14px;

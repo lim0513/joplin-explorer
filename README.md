@@ -27,7 +27,7 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 - **Sidebar Toggle** — A toolbar button, a **View** menu entry and an assignable keyboard shortcut hide and show the panel, so you can reclaim the width without disabling the plugin
 - **Row Density** — Row font size and row height are adjustable (Advanced settings), for fitting more of a large tree on screen
 - **Conflicts** — Sync conflicts are listed in their own section, which only appears while there are any
-- **Keyboard Shortcuts** — With focus in the panel: **F2** renames the row you last clicked, **F5** refreshes, **Delete** deletes (after confirming)
+- **Keyboard** — With focus in the panel: **↑ ↓** move between rows without opening anything, **→** expands (or steps into an expanded notebook), **←** collapses (or steps out to the parent), **Enter** / **Space** open the note or fold the notebook, **Home** / **End** jump to the first / last row, **Tab** / **Shift+Tab** jump between sections. **F2** renames, **F5** refreshes, **Delete** deletes (after confirming). A click moves the keyboard cursor too
 - **Sync Button** — Trigger synchronization with status feedback (syncing → done); becomes **Cancel** while a sync is running
 - **Auto Expand** — Automatically expands to the currently selected note on startup
 - **Collapse All** — One-click collapse all notebooks

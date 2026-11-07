@@ -2022,36 +2022,166 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-// ======================== Keyboard shortcuts ========================
-// F2 rename, F5 refresh, Delete delete - the same actions as the context menu
-// and the toolbar, so confirmations and dialogs are the existing ones. These
-// are document-level inside the panel iframe, so they only fire while focus is
-// in Explorer and never compete with the editor. Joplin's own F1/F6/F10/F11
-// are menu accelerators and keep working.
+// ======================== Keyboard ========================
+// Everything here is document-level inside the panel iframe, so it only fires
+// while focus is in Explorer and never competes with the editor. Joplin's own
+// F1/F6/F10/F11 are menu accelerators and keep working.
 //
-// Folders have no selected state, so the target is the row last pressed, kept
-// as attributes rather than an element: a re-render replaces every row. A press
-// anywhere else clears it, so Delete can never hit a row the user moved away from.
+// The keyboard cursor is the row (or section header) the keys act on: arrows
+// move it, Enter/Space and Left/Right do what a click on it would, F2/Delete
+// act on it. A click moves it too. It is kept as a selector plus an occurrence
+// index rather than an element, because a re-render replaces every row and the
+// same note can be listed twice (pinned and in the tree). A press anywhere
+// else clears it, so Delete can never hit a row the user moved away from.
+// The outline only shows once a key has moved it (body.kb-active).
+var KB_HEADERS = '.pinned-section-header, .smart-section-header, .tree-section-header, .tags-section-header, .trash-section-header, .conflicts-section-header, .search-section-header';
+var KB_ITEMS = '.tree-item, .search-folder-item, .search-tag-item, ' + KB_HEADERS;
+var KB_KEY_ATTRS = ['id', 'type', 'tagId', 'tagPath', 'smartId', 'folderId', 'section', 'trash'];
 var _kbRow = null;
 
+function kbKeyFor(el) {
+  var sel;
+  if (el.id) {
+    sel = '#' + el.id;
+  } else {
+    sel = '.' + el.classList[0];
+    for (var i = 0; i < KB_KEY_ATTRS.length; i++) {
+      var k = KB_KEY_ATTRS[i];
+      if (el.dataset[k] === undefined) continue;
+      var attr = 'data-' + k.replace(/[A-Z]/g, function(c) { return '-' + c.toLowerCase(); });
+      sel += '[' + attr + '="' + cssEscapeAttr(el.dataset[k]) + '"]';
+    }
+  }
+  var idx = Array.prototype.indexOf.call(document.querySelectorAll(sel), el);
+  return { sel: sel, idx: idx < 0 ? 0 : idx };
+}
+
+function keyboardTargetRow() {
+  if (!_kbRow) return null;
+  var all = document.querySelectorAll(_kbRow.sel);
+  return all[_kbRow.idx] || all[0] || null;
+}
+
+function kbVisibleItems() {
+  var out = [];
+  document.querySelectorAll(KB_ITEMS).forEach(function(el) {
+    if (el.offsetParent !== null) out.push(el);
+  });
+  return out;
+}
+
+// Headers sit above every row, rows nest by their indent.
+function kbLevel(el) {
+  if (el.matches(KB_HEADERS)) return -1;
+  return parseFloat(getComputedStyle(el).paddingLeft) || 0;
+}
+
+// 'expanded', 'collapsed', or null for rows a click does not fold.
+function kbExpandState(el) {
+  if (el.classList.contains('search-section-header')) {
+    var sb = document.getElementById('search-section-' + el.dataset.section);
+    return sb ? (sb.classList.contains('collapsed') ? 'collapsed' : 'expanded') : null;
+  }
+  if (el.matches(KB_HEADERS)) return el.classList.contains('collapsed') ? 'collapsed' : 'expanded';
+  if (!el.classList.contains('tree-item') || el.dataset.type === 'note') return null;
+  if (el.dataset.trash === '1') {
+    var tg = el.querySelector('.toggle');
+    var arrow = tg ? tg.textContent : '';
+    return arrow === '▼' ? 'expanded' : arrow === '▶' ? 'collapsed' : null;
+  }
+  if (el.classList.contains('pinned-item')) return null;
+  var kids = null;
+  if (el.classList.contains('smart-folder')) {
+    kids = document.querySelector('.smart-children[data-smart-id="' + el.dataset.smartId + '"]');
+  } else if (el.classList.contains('tag-folder')) {
+    kids = el.dataset.tagPath
+      ? document.querySelector('.tag-children[data-tag-path="' + cssEscapeAttr(el.dataset.tagPath) + '"]')
+      : document.querySelector('.tag-children[data-tag-id="' + el.dataset.tagId + '"]');
+  } else {
+    kids = document.querySelector('.children[data-folder-id="' + el.dataset.id + '"]');
+    if (kids && !kids.firstElementChild) kids = null; // empty notebook
+  }
+  if (!kids) return null;
+  return el.classList.contains('collapsed') ? 'collapsed' : 'expanded';
+}
+
+function kbScrollParent(el) {
+  var c = el.parentElement;
+  while (c && c !== document.body) {
+    var oy = getComputedStyle(c).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && c.scrollHeight > c.clientHeight) return c;
+    c = c.parentElement;
+  }
+  return null;
+}
+
+// scrollIntoView alone leaves a row under the sticky section headers, which
+// park at the top and bottom edges in stacked mode. Bring it into view, then
+// clear it of every header before it (stuck above) and after it (parked below).
+function kbReveal(el) {
+  el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  if (el.matches(KB_HEADERS)) return;
+  var c = kbScrollParent(el);
+  if (!c) return;
+  var r = el.getBoundingClientRect();
+  var cr = c.getBoundingClientRect();
+  var top = cr.top;
+  var bottom = cr.bottom;
+  c.querySelectorAll(KB_HEADERS).forEach(function(h) {
+    if (h.offsetParent === null) return;
+    var hr = h.getBoundingClientRect();
+    if (h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) top = Math.max(top, hr.bottom);
+    else bottom = Math.min(bottom, hr.top);
+  });
+  if (r.top < top) c.scrollTop -= top - r.top;
+  else if (r.bottom > bottom) c.scrollTop += r.bottom - bottom;
+  if (c.id === 'tree-container') _savedScrollTop = c.scrollTop;
+}
+
+// Marks the cursor element and gives it real focus, so Tab carries on from
+// there when it leaves the sections. Never takes focus from a text field, and
+// never pulls it back into the panel: re-renders also repaint while the user
+// is typing in the editor.
+function kbPaint() {
+  document.querySelectorAll('.kb-cursor').forEach(function(old) {
+    old.classList.remove('kb-cursor');
+    old.removeAttribute('tabindex');
+  });
+  var el = keyboardTargetRow();
+  if (!el || !document.body.classList.contains('kb-active')) return null;
+  el.classList.add('kb-cursor');
+  el.setAttribute('tabindex', '-1');
+  var a = document.activeElement;
+  var typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+  if (!typing && a !== el && document.hasFocus()) el.focus({ preventScroll: true });
+  return el;
+}
+
+function kbMoveTo(el) {
+  _kbRow = kbKeyFor(el);
+  document.body.classList.add('kb-active');
+  kbPaint();
+  kbReveal(el);
+}
+
+// Re-renders replace the rows; put the cursor back on the new copy.
+new MutationObserver(function() {
+  if (_kbRow && document.body.classList.contains('kb-active')) kbPaint();
+}).observe(document.body, { childList: true, subtree: true });
+
 document.addEventListener('mousedown', function(e) {
-  var row = e.target.closest ? e.target.closest('.tree-item') : null;
+  document.body.classList.remove('kb-active');
+  var row = e.target.closest ? e.target.closest(KB_ITEMS) : null;
   if (!row) {
     // Using a context menu or dialog is not moving away from the row.
     if (e.target.closest && e.target.closest('#ctx-menu')) return;
     _kbRow = null;
+    kbPaint();
     return;
   }
-  _kbRow = { id: row.dataset.id, type: row.dataset.type, tagId: row.dataset.tagId };
+  _kbRow = kbKeyFor(row);
+  kbPaint();
 }, true);
-
-function keyboardTargetRow() {
-  if (!_kbRow) return null;
-  var selector = _kbRow.type === 'tag'
-    ? '.tree-item[data-tag-id="' + _kbRow.tagId + '"]'
-    : '.tree-item[data-id="' + _kbRow.id + '"][data-type="' + _kbRow.type + '"]';
-  return document.querySelector(selector);
-}
 
 // Action per key for a row, or nothing. Mirrors what the context menu offers:
 // trash rows, smart folders and virtual tag prefixes have no rename or delete
@@ -2073,12 +2203,77 @@ function keyboardAction(key, row) {
   return null;
 }
 
+// Arrows, Home/End, Enter/Space and Tab (#47), laid out like Windows Explorer.
+// Tab only walks the section headers while there is a header to go to; past
+// the last one it is left alone, so focus can still leave the panel.
+function keyboardNavigate(e) {
+  var items = kbVisibleItems();
+  if (!items.length) return false;
+  var cur = keyboardTargetRow();
+  var i = cur ? items.indexOf(cur) : -1;
+  if (e.key === 'Tab') {
+    if (i < 0) return false;
+    var step = e.shiftKey ? -1 : 1;
+    for (var t = i + step; t >= 0 && t < items.length; t += step) {
+      if (items[t].matches(KB_HEADERS)) { kbMoveTo(items[t]); return true; }
+    }
+    return false;
+  }
+  if (i < 0) {
+    // First key with no cursor lands on the open note, else the first row.
+    if (e.key === 'Enter' || e.key === ' ') return false;
+    var sel = items.filter(function(el) { return el.classList.contains('selected'); })[0];
+    kbMoveTo(sel || items[0]);
+    return true;
+  }
+  var state;
+  switch (e.key) {
+    case 'ArrowDown': if (i < items.length - 1) kbMoveTo(items[i + 1]); else kbMoveTo(cur); return true;
+    case 'ArrowUp': if (i > 0) kbMoveTo(items[i - 1]); else kbMoveTo(cur); return true;
+    case 'Home': kbMoveTo(items[0]); return true;
+    case 'End': kbMoveTo(items[items.length - 1]); return true;
+    case 'Enter':
+    case ' ':
+      kbMoveTo(cur);
+      cur.click();
+      return true;
+    case 'ArrowRight':
+      state = kbExpandState(cur);
+      kbMoveTo(cur);
+      if (state === 'collapsed') cur.click();
+      else if (state === 'expanded' && items[i + 1] && kbLevel(items[i + 1]) > kbLevel(cur)) kbMoveTo(items[i + 1]);
+      return true;
+    case 'ArrowLeft':
+      state = kbExpandState(cur);
+      kbMoveTo(cur);
+      if (state === 'expanded') { cur.click(); return true; }
+      var lv = kbLevel(cur);
+      for (var p = i - 1; p >= 0; p--) {
+        if (kbLevel(items[p]) < lv) { kbMoveTo(items[p]); break; }
+      }
+      return true;
+  }
+  return false;
+}
+
+var KB_NAV_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1, End: 1, Enter: 1, ' ': 1, Tab: 1 };
+
 document.addEventListener('keydown', function(e) {
-  if (e.key !== 'F2' && e.key !== 'F5' && e.key !== 'Delete') return;
-  if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey || e.repeat) return;
-  // Delete has to keep editing text in the search box and inline prompts.
+  var nav = KB_NAV_KEYS[e.key] === 1;
+  if (!nav && e.key !== 'F2' && e.key !== 'F5' && e.key !== 'Delete') return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.shiftKey && e.key !== 'Tab') return;
+  // Text fields (search box, inline prompts) keep every one of these keys.
   var el = e.target;
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+  // A toolbar button keeps Enter, Space and Tab.
+  if (el && el.tagName === 'BUTTON') return;
+  if (document.getElementById('ctx-menu')) return;
+  if (nav) {
+    if (keyboardNavigate(e)) e.preventDefault();
+    return;
+  }
+  if (e.repeat) return;
   if (e.key === 'F5') {
     e.preventDefault();
     postMsg({ name: 'refreshView' });

@@ -171,8 +171,13 @@ Every `openFolderDialog` call must pass `parentId` (all three call sites do now)
 
 ## Keyboard shortcuts
 
-- F2, F5 and Delete are plain keydown listeners in the panel document, so they only fire while focus is in Explorer. Clicking a row leaves focus in the panel iframe (measured with real input events), and Joplin's F1/F6/F10/F11 are menu accelerators that keep working.
-- **Folders have no selected state**, so the target is the row last pressed, stored as attributes because a re-render replaces every row. A press outside any row clears it on purpose: Delete must not reach a row the user has moved away from. There is deliberately no fallback to the selected note.
+- Every key is a plain keydown listener in the panel document, so it only fires while focus is in Explorer. Clicking a row leaves focus in the panel iframe (measured with real input events), and Joplin's F1/F6/F10/F11 are menu accelerators that keep working.
+- **The keyboard cursor is separate from the open note** (#47): arrows move it without opening anything. Folders have no selected state, so it is stored as a selector plus occurrence index (a re-render replaces every row, and a note can be listed twice, pinned and in the tree). A click moves it; a press outside any row clears it on purpose, so Delete never reaches a row the user moved away from. There is deliberately no fallback to the selected note for F2/Delete.
+- **Enter, Space, Left and Right call `row.click()`** instead of re-implementing each row type's toggle (main tree, tags with lazy notes, smart folders, trash's flat DFS list, search sections). Expand state is read per type in `kbExpandState`; nesting for Left/Right comes from the row's padding-left, with section headers above every row.
+- **Tab only moves between section headers while there is one to go to.** Past the last (or first) it is not prevented, otherwise keyboard users could never leave the panel. The cursor row gets real focus (tabindex -1) so that default Tab continues from it.
+- The cursor takes focus only when `document.hasFocus()`: the MutationObserver repaints it after every re-render, and without that check a re-render pulled focus out of the editor.
+- `scrollIntoView` alone leaves a row under the sticky section headers in stacked mode; `kbReveal` then clears it of the headers stuck above and parked below.
+- Outline only after a key moved the cursor (`body.kb-active`), never on click.
 
 ## Testing in a real Joplin
 
@@ -181,6 +186,8 @@ A second instance runs beside the user's own and shares nothing with it:
 ```
 Joplin.exe --profile <empty dir> --remote-debugging-port=9333
 ```
+
+When the shell is a VS Code terminal it inherits `ELECTRON_RUN_AS_NODE`, and Joplin.exe then starts as plain Node (`bad option: --profile`): launch it with `env -u ELECTRON_RUN_AS_NODE`. The test profile's UI may come up in the system language whatever `locale` says, so do not match buttons or labels by English text.
 
 Put `api.token` and `clipperServer.autoStart` in that profile's settings.json and the `.jpl` in its plugins/. The API lands on the next free port (41185); a token of its own means a request sent to the user's 41184 by mistake is rejected. Over CDP (Node's global WebSocket is enough): `joplin.*` works in the `plugin_index.html?pluginId=...` target, the panel is a same-origin iframe of the main page (`#plugin-view-com.github.joplin-explorer-notesInListPanel`), and `Browser.close` stops only this instance. Never close it by process name - that kills the user's Joplin.
 
