@@ -448,6 +448,12 @@ document.addEventListener('click', function(e) {
       if (menuBack && window._ctxMainHtml) menuBack.innerHTML = window._ctxMainHtml;
       return;
     }
+    if (ctxItem.dataset.multi) {
+      postMsg({ name: 'multiAction', action: ctxItem.dataset.multi, ids: _multi.slice(), format: ctxItem.dataset.format });
+      var mm = document.getElementById('ctx-menu');
+      if (mm) mm.remove();
+      return;
+    }
     if (!ctxItem.dataset.action) return;
     postMsg({
       name: 'contextMenu',
@@ -921,6 +927,16 @@ document.addEventListener('contextmenu', function(e) {
 
   e.preventDefault();
 
+  if (multiActive() && multiEligible(item) && _multi.indexOf(item.dataset.id) >= 0) {
+    document.body.insertAdjacentHTML('beforeend', multiMenuHtml(e.pageX, e.pageY));
+    var mMenu = document.getElementById('ctx-menu');
+    var mRect = mMenu.getBoundingClientRect();
+    if (mRect.right > window.innerWidth) mMenu.style.left = (window.innerWidth - mRect.width - 4) + 'px';
+    if (mRect.bottom > window.innerHeight) mMenu.style.top = (window.innerHeight - mRect.height - 4) + 'px';
+    return;
+  }
+  multiClear();
+
   var type = item.dataset.type;
   var id = item.dataset.id;
   // Smart folder rows (#43): they are saved searches, so the menu is about
@@ -1311,16 +1327,18 @@ document.addEventListener('dragstart', function(e) {
   // JSON blob in front of the link. The built-in note list sets no text/plain,
   // so leaving it empty makes an editor drop insert just the clean
   // [title](:/id) link from the native mime below.
+  var dragIds = !isPinned && multiActive() && multiEligible(item) && _multi.indexOf(item.dataset.id) >= 0 ? _multi.slice() : null;
   e.dataTransfer.setData('text/x-je-item', JSON.stringify({
     id: item.dataset.id,
     type: item.dataset.type,
     pinned: isPinned,
+    ids: dragIds,
   }));
   // Joplin-native drag payload (#12): the same mime types the built-in note
   // list sets, so native drop targets (editor -> insert link, Canvas -> note
   // card) accept drags from this panel too.
   if (item.dataset.type === 'note') {
-    e.dataTransfer.setData('text/x-jop-note-ids', JSON.stringify([item.dataset.id]));
+    e.dataTransfer.setData('text/x-jop-note-ids', JSON.stringify(dragIds || [item.dataset.id]));
   } else if (item.dataset.type === 'folder') {
     e.dataTransfer.setData('text/x-jop-folder-ids', JSON.stringify([item.dataset.id]));
   }
@@ -1609,19 +1627,25 @@ document.addEventListener('drop', function(e) {
 
   var dragId = data.id;
   var dragType = data.type;
+  var dragIds = Array.isArray(data.ids) && data.ids.length > 1 ? data.ids : null;
 
   var isDragFromPinned = data.pinned;
 
   // Drop on drop zone -> create new notebook (not for pinned items)
   var onDZ = el0 ? el0.closest('#drop-zone-empty') : null;
   if (onDZ && !isDragFromPinned) {
-    postMsg({ name: 'dragToEmpty', dragId: dragId, dragType: dragType });
+    postMsg({ name: 'dragToEmpty', dragId: dragId, dragType: dragType, dragIds: dragIds });
     endDrag();
     return;
   }
 
   // Drop on pinned header -> pin the item
   var onPinnedH2 = el0 ? el0.closest('.pinned-section-header') : null;
+  if (dragIds && (onPinnedH2 || (el0 && el0.closest('.pinned-section-body')))) {
+    postMsg({ name: 'multiAction', action: 'pin', ids: dragIds });
+    endDrag();
+    return;
+  }
   if (onPinnedH2 && !isDragFromPinned) {
     if (dragType === 'note') {
       postMsg({ name: 'contextMenu', action: 'pinNote', id: dragId, itemType: 'note' });
@@ -1662,7 +1686,7 @@ document.addEventListener('drop', function(e) {
   var onTagF = el0 ? el0.closest('.tag-folder') : null;
   if (onTagF) {
     if (dragType === 'note' && onTagF.dataset.tagId) {
-      postMsg({ name: 'tagNoteAdd', tagId: onTagF.dataset.tagId, noteId: dragId });
+      postMsg({ name: 'tagNoteAdd', tagId: onTagF.dataset.tagId, noteId: dragId, noteIds: dragIds });
     }
     endDrag();
     return;
@@ -1688,6 +1712,13 @@ document.addEventListener('drop', function(e) {
   var targetType = target.dataset.type;
 
   if (dragId === targetId) { endDrag(); return; } // Can't drop on self
+  if (dragIds) {
+    if (dragIds.indexOf(targetId) < 0) {
+      postMsg({ name: 'dragDrop', dragId: dragId, dragType: dragType, dragIds: dragIds, targetId: targetId, position: 'into' });
+    }
+    endDrag();
+    return;
+  }
 
   var rect = target.getBoundingClientRect();
   var y = e.clientY - rect.top;
@@ -2204,6 +2235,7 @@ function keyboardAction(key, row) {
 }
 
 // Arrows, Home/End, Enter/Space and Tab (#47), laid out like Windows Explorer.
+// Shift+Up/Down also extends the multi-selection (#49).
 // Tab only walks the section headers while there is a header to go to; past
 // the last one it is left alone, so focus can still leave the panel.
 function keyboardNavigate(e) {
@@ -2228,8 +2260,13 @@ function keyboardNavigate(e) {
   }
   var state;
   switch (e.key) {
-    case 'ArrowDown': if (i < items.length - 1) kbMoveTo(items[i + 1]); else kbMoveTo(cur); return true;
-    case 'ArrowUp': if (i > 0) kbMoveTo(items[i - 1]); else kbMoveTo(cur); return true;
+    case 'ArrowDown':
+    case 'ArrowUp': {
+      var next = items[i + (e.key === 'ArrowDown' ? 1 : -1)] || cur;
+      kbMoveTo(next);
+      if (e.shiftKey) multiExtendTo(next, cur);
+      return true;
+    }
     case 'Home': kbMoveTo(items[0]); return true;
     case 'End': kbMoveTo(items[items.length - 1]); return true;
     case 'Enter':
@@ -2262,7 +2299,7 @@ document.addEventListener('keydown', function(e) {
   var nav = KB_NAV_KEYS[e.key] === 1;
   if (!nav && e.key !== 'F2' && e.key !== 'F5' && e.key !== 'Delete') return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
-  if (e.shiftKey && e.key !== 'Tab') return;
+  if (e.shiftKey && e.key !== 'Tab' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
   // Text fields (search box, inline prompts) keep every one of these keys.
   var el = e.target;
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
@@ -2280,11 +2317,164 @@ document.addEventListener('keydown', function(e) {
     return;
   }
   var row = keyboardTargetRow();
+  if (e.key === 'Delete' && row && multiActive() && multiEligible(row) && _multi.indexOf(row.dataset.id) >= 0) {
+    e.preventDefault();
+    postMsg({ name: 'multiAction', action: 'delete', ids: _multi.slice() });
+    return;
+  }
   var act = row ? keyboardAction(e.key, row) : null;
   if (!act) return;
   e.preventDefault();
   postMsg({ name: 'contextMenu', action: act.action, id: act.id, itemType: act.itemType });
 });
+
+// ======================== Multi-select (#49) ========================
+// Ctrl/Cmd+click toggles a note, Shift+click selects the range from the last
+// Ctrl+clicked note, Shift+Up/Down extends it from the keyboard cursor. A
+// plugin cannot set Joplin's own note selection, so this one is Explorer's:
+// the menu, Delete and drag act on it, while other plugins' commands keep
+// seeing Joplin's selection. A plain click on a row or Escape ends it.
+var _multi = [];
+var _multiAnchor = null;
+
+function multiEligible(row) {
+  return !!row && row.classList.contains('tree-item') && row.dataset.type === 'note' && !!row.dataset.id
+    && row.dataset.trash !== '1' && row.dataset.conflict !== '1';
+}
+
+function multiVisibleNotes() {
+  var out = [];
+  document.querySelectorAll('.tree-item.note').forEach(function(r) {
+    if (r.offsetParent !== null && multiEligible(r)) out.push(r);
+  });
+  return out;
+}
+
+function multiActive() { return _multi.length > 1; }
+
+function multiPaint() {
+  document.querySelectorAll('.multi-selected').forEach(function(el) { el.classList.remove('multi-selected'); });
+  document.body.classList.toggle('multi-active', _multi.length > 0);
+  _multi.forEach(function(id) {
+    document.querySelectorAll('.tree-item.note[data-id="' + id + '"]').forEach(function(el) {
+      if (multiEligible(el)) el.classList.add('multi-selected');
+    });
+  });
+}
+
+function multiClear() {
+  if (!_multi.length) return;
+  _multi = [];
+  _multiAnchor = null;
+  multiPaint();
+}
+
+function multiAnchorRow() {
+  if (!_multiAnchor) return null;
+  var all = document.querySelectorAll(_multiAnchor.sel);
+  return all[_multiAnchor.idx] || all[0] || null;
+}
+
+// Ids of the visible notes between two rows, both included.
+function multiRange(fromRow, toRow) {
+  var rows = multiVisibleNotes();
+  var a = rows.indexOf(fromRow);
+  var b = rows.indexOf(toRow);
+  if (a < 0 || b < 0) return [toRow.dataset.id];
+  var ids = [];
+  rows.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(function(r) {
+    if (ids.indexOf(r.dataset.id) < 0) ids.push(r.dataset.id);
+  });
+  return ids;
+}
+
+// The note open in the editor starts the selection, as in Joplin's list.
+function multiSeed() {
+  if (_multi.length) return;
+  var open = document.querySelector('.tree-item.note.selected');
+  if (open && multiEligible(open) && open.offsetParent !== null) {
+    _multi.push(open.dataset.id);
+    if (!_multiAnchor) _multiAnchor = kbKeyFor(open);
+  }
+}
+
+// Capture phase, so a modified click never reaches the dispatcher that opens
+// the note.
+document.addEventListener('click', function(e) {
+  var row = e.target.closest ? e.target.closest('.tree-item') : null;
+  if (!row) return;
+  var mod = e.ctrlKey || e.metaKey;
+  if (!mod && !e.shiftKey) { multiClear(); return; }
+  if (!multiEligible(row)) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  multiSeed();
+  if (e.shiftKey) {
+    var anchor = multiAnchorRow() || row;
+    var range = multiRange(anchor, row);
+    if (mod) range.forEach(function(id) { if (_multi.indexOf(id) < 0) _multi.push(id); });
+    else _multi = range;
+  } else {
+    var at = _multi.indexOf(row.dataset.id);
+    if (at >= 0) _multi.splice(at, 1); else _multi.push(row.dataset.id);
+    _multiAnchor = kbKeyFor(row);
+  }
+  multiPaint();
+}, true);
+
+// Shift+Up/Down: the cursor has already moved to row; select from the anchor.
+function multiExtendTo(row, fromRow) {
+  if (!multiEligible(row)) return;
+  if (!_multiAnchor) _multiAnchor = kbKeyFor(multiEligible(fromRow) ? fromRow : row);
+  _multi = multiRange(multiAnchorRow() || row, row);
+  multiPaint();
+}
+
+// Re-renders replace the rows: drop deleted notes, repaint the rest.
+new MutationObserver(function() {
+  if (!_multi.length) return;
+  _multi = _multi.filter(function(id) { return !!document.querySelector('.tree-item.note[data-id="' + id + '"]'); });
+  multiPaint();
+}).observe(document.body, { childList: true, subtree: true });
+
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape' || !_multi.length) return;
+  var el = e.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+  multiClear();
+});
+
+function multiMenuHtml(x, y) {
+  var n = _multi.length;
+  var allPinned = _multi.every(function(id) { return isPinned(id); });
+  var anyTodo = _multi.some(function(id) {
+    var r = document.querySelector('.tree-item.note[data-id="' + id + '"]');
+    return r && r.dataset.todo === '1';
+  });
+  var item = function(action, label, extra) {
+    return '<div class="ctx-item' + (extra || '') + '" data-multi="' + action + '">' + label + '</div>';
+  };
+  var html = '<div id="ctx-menu" class="context-menu" style="left:' + x + 'px;top:' + y + 'px;">'
+    + '<div class="ctx-label">' + escapeHtml(T('multiSelected').split('{n}').join(String(n))) + '</div>'
+    + '<div class="ctx-sep"></div>'
+    + item(allPinned ? 'unpin' : 'pin', allPinned ? T('ctxUnpin') : T('ctxPin'))
+    + '<div class="ctx-sep"></div>'
+    + item('setTags', T('ctxSetTags'));
+  if (anyTodo) html += item('toggleTodo', T('ctxToggleTodo'));
+  html += item('move', T('ctxMoveToFolder'))
+    + '<div class="ctx-sep"></div>'
+    + '<div class="ctx-item ctx-drill">' + T('ctxExport') + '<span class="ctx-sub-arrow">▶</span></div>'
+    + '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExport') + '">'
+    + '<div class="ctx-item" data-multi="export" data-format="md">Markdown</div>'
+    + '<div class="ctx-item" data-multi="export" data-format="md_frontmatter">Markdown + Front Matter</div>'
+    + '<div class="ctx-item" data-multi="export" data-format="jex">JEX</div>'
+    + '<div class="ctx-item" data-multi="export" data-format="html">HTML</div>'
+    + '</div>'
+    + '<div class="ctx-sep"></div>'
+    + item('delete', T('ctxDeleteNotes'), ' ctx-danger')
+    + '</div>';
+  return html;
+}
 
 // ✕ clear button (#37): clears, hides itself, refocuses the input.
 document.addEventListener('click', function(e) {

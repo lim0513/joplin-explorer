@@ -23,6 +23,7 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 - **Context Menus**
   - Notebooks: pin/unpin, new note, new to-do, new sub-notebook, rename, export, delete
   - Notes: pin/unpin, open, open in new window, copy Markdown link, duplicate, switch note/to-do type, toggle completed, rename, view properties, delete
+- **Multi-select** — **Ctrl+click** (Cmd on macOS) adds or removes a note, **Shift+click** selects a range, **Shift+↑ ↓** extends from the keyboard. Right-click the selection to pin, tag, move, export, toggle to-dos or delete them all; **Delete** and drag act on the whole selection too. **Esc** or a plain click ends it. This selection belongs to Explorer: plugins can't set Joplin's own note selection, so other plugins' commands (e.g. Combine Notes) don't see it
 - **Drag & Drop** — Move notes between notebooks, reorganize folder hierarchy; drag to empty area to create a new notebook; drag to pinned section to pin
 - **Sidebar Toggle** — A toolbar button, a **View** menu entry and an assignable keyboard shortcut hide and show the panel, so you can reclaim the width without disabling the plugin
 - **Row Density** — Row font size and row height are adjustable (Advanced settings), for fitting more of a large tree on screen

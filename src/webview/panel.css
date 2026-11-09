@@ -182,6 +182,21 @@ html, body {
   background: var(--joplin-selected-color, rgba(74, 156, 245, 0.2));
 }
 
+/* Multi-selection (#49). While it is on, the open note is only highlighted
+   when it is part of it, so the highlight always shows what the menu acts on. */
+.tree-item.note.multi-selected {
+  background: var(--joplin-selected-color, rgba(74, 156, 245, 0.2));
+}
+body.multi-active .tree-item.note.selected:not(.multi-selected) {
+  background: none;
+}
+.ctx-label {
+  padding: 4px 14px;
+  font-size: 0.9em;
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* Keyboard cursor (#47): drawn only after a key moved it, never on click. */
 .kb-cursor:focus { outline: none; }
 body.kb-active .kb-cursor {

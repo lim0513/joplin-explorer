@@ -2820,6 +2820,76 @@ joplin.plugins.register({
       await saveFolderOrder();
     }
 
+    // #49: Explorer's own multi-selection. A plugin cannot set Joplin's note
+    // selection, so these act on the ids the panel sends. The native commands
+    // used here (setTags, moveToFolder, exportNotes) all take a list.
+    async function handleMultiAction(msg: any): Promise<void> {
+      const ids: string[] = Array.isArray(msg.ids) ? msg.ids.map(String).filter(Boolean) : [];
+      if (!ids.length) return;
+      try {
+        switch (msg.action) {
+          case 'setTags':
+            await joplin.commands.execute('setTags', ids);
+            break;
+          case 'move':
+            await joplin.commands.execute('moveToFolder', ids);
+            break;
+          case 'pin':
+            for (const id of ids) {
+              if (!pinnedItems.some(p => p.id === id)) pinnedItems.push({ id, type: 'note' });
+            }
+            await savePinned();
+            break;
+          case 'unpin':
+            pinnedItems = pinnedItems.filter(p => ids.indexOf(p.id) < 0);
+            await savePinned();
+            break;
+          case 'toggleTodo': {
+            // Like a group of checkboxes: complete the open ones first, and
+            // only reopen when every selected to-do is already done.
+            const todos: any[] = [];
+            for (const id of ids) {
+              const n = await joplin.data.get(['notes', id], { fields: ['id', 'is_todo', 'todo_completed'] });
+              if (n && n.is_todo) todos.push(n);
+            }
+            const value = todos.some(n => !n.todo_completed) ? Date.now() : 0;
+            for (const n of todos) {
+              if (!!n.todo_completed !== !!value) await joplin.data.put(['notes', n.id], null, { todo_completed: value });
+            }
+            break;
+          }
+          case 'export': {
+            const dirs = await joplin.views.dialogs.showOpenDialog({ properties: ['openDirectory'] });
+            const dir = Array.isArray(dirs) ? dirs[0] : dirs;
+            const fmt = msg.format || 'md';
+            if (dir && fmt === 'jex') {
+              const tmp = await nodeFs.promises.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'joplin-explorer-jex-'));
+              try {
+                await joplin.commands.execute('exportNotes', ids, 'raw', tmp);
+                await writeTarFromDir(tmp, await jexPathIn(dir, 'Notes ' + new Date().toISOString().slice(0, 10)));
+              } finally {
+                await nodeFs.promises.rm(tmp, { recursive: true, force: true });
+              }
+            } else if (dir) {
+              await joplin.commands.execute('exportNotes', ids, fmt, dir);
+            }
+            break;
+          }
+          case 'delete':
+            if (await showNativeConfirm(String(t.confirmDeleteNotes).split('{n}').join(String(ids.length)))) {
+              for (const id of ids) await joplin.data.delete(['notes', id]);
+            }
+            break;
+        }
+      } catch (e) {
+        console.error('Joplin Explorer: multiAction error', msg.action, e);
+        if (msg.action === 'export') {
+          await showNativeInfo(t.exportFailed || 'Export failed', String(e && (e as any).message ? (e as any).message : e));
+        }
+      }
+      await refreshPanel();
+    }
+
     async function handleDragDrop(msg: any): Promise<void> {
 
         try {
@@ -2828,7 +2898,16 @@ joplin.plugins.register({
           const targetId = msg.targetId;
           const position = msg.position; // 'into', 'above', 'below'
 
-          if (dragType === 'note') {
+          if (dragType === 'note' && Array.isArray(msg.dragIds) && msg.dragIds.length > 1) {
+            // Several notes (#49): always a plain move into the target folder,
+            // or into the target note's folder. No exact slot in manual sort.
+            const destId = folderById[targetId]
+              ? targetId
+              : (await joplin.data.get(['notes', targetId], { fields: ['parent_id'] })).parent_id;
+            for (const nid of msg.dragIds) {
+              if (nid !== targetId) await joplin.data.put(['notes', nid], null, { parent_id: destId });
+            }
+          } else if (dragType === 'note') {
             const targetIsFolder = !!folderById[targetId];
             if (targetIsFolder) {
               // Dropping a note anywhere on a folder means "move into it"
@@ -3012,7 +3091,8 @@ joplin.plugins.register({
         // Note dropped onto a tag folder - assign the tag, then push the
         // fresh note list so an expanded tag updates in place.
         try {
-          await joplin.data.post(['tags', msg.tagId, 'notes'], null, { id: msg.noteId });
+          const tagIds = Array.isArray(msg.noteIds) && msg.noteIds.length ? msg.noteIds : [msg.noteId];
+          for (const nid of tagIds) await joplin.data.post(['tags', msg.tagId, 'notes'], null, { id: nid });
           const notes = await fetchTagNotes(msg.tagId);
           await joplin.views.panels.postMessage(panel, { name: 'tagFolderNotes', tagId: msg.tagId, notes });
         } catch (err) {
@@ -3202,6 +3282,8 @@ joplin.plugins.register({
         await handleContextMenu(msg);
       } else if (msg.name === 'dragDrop') {
         await handleDragDrop(msg);
+      } else if (msg.name === 'multiAction') {
+        await handleMultiAction(msg);
       } else if (msg.name === 'dragToEmpty') {
         try {
           const dragId = msg.dragId;
@@ -3225,7 +3307,8 @@ joplin.plugins.register({
                   seenFolders[created.id] = true; // panel-created: keep it expanded
                   delete collapsedFolders[created.id];
                   if (dragType === 'note') {
-                    await joplin.data.put(['notes', dragId], null, { parent_id: created.id });
+                    const moveIds = Array.isArray(msg.dragIds) && msg.dragIds.length ? msg.dragIds : [dragId];
+                    for (const nid of moveIds) await joplin.data.put(['notes', nid], null, { parent_id: created.id });
                   } else if (dragType === 'folder' && dragId !== created.id) {
                     await joplin.data.put(['folders', dragId], null, { parent_id: created.id });
                   }

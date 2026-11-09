@@ -169,6 +169,13 @@ Every `openFolderDialog` call must pass `parentId` (all three call sites do now)
 - **Opening one is the hard part** - measured in a real instance. `openNote` resolves `parent_id`, so the list shows the original notebook (the note opens, but the editor toolbar is greyed because it is not in that list), and it throws if the notebook is gone. That is not rare: `Folder.markNotesAsConflict` makes conflicts of a remotely deleted notebook's notes. `openFolder` on the virtual id does NOT select the clicked note. `openNoteInNewWindow` works with a missing parent (WINDOW_OPEN never loads the folder). `revealInNotebook` is exact but newer than Joplin as installed here, so that first step of the chain is untested.
 - `POST /notes` drops `is_conflict`; `PUT` accepts it. That is how to make test conflicts.
 
+## Multi-select (#49)
+
+- **Explorer's own selection, not Joplin's.** `joplin.workspace` can only read `selectedNoteIds`, and no command selects several notes (checked in 3.7.22), so other plugins' commands never see it. #25 was closed on that limit; #49 got the Explorer-side version because the bulk actions are real: `setTags`, `moveToFolder` and `exportNotes` all take a list of ids.
+- Ctrl/Shift+click is caught in a **capture-phase** click listener with `stopImmediatePropagation`, so the dispatcher that opens notes never sees it. A plain click on a row, Escape, or a right click outside the selection ends it.
+- Stored as ids (a note can be listed twice) and repainted by a MutationObserver after every re-render; ids whose rows are gone are dropped. The open note seeds the selection, as in Joplin's list, and while a selection exists the open-note highlight only shows if it is part of it.
+- Backend: `multiAction` message (pin, unpin, setTags, move, toggleTodo, export, delete), plus `dragIds` / `noteIds` on `dragDrop`, `tagNoteAdd` and `dragToEmpty`. A multi drag is always a plain move into the target folder; no exact slot in manual sort.
+
 ## Export
 
 - `exportNotes(noteIds, format, dir)` hardwires a **directory** target, so it can only run directory formats (md, md_frontmatter, html, raw). JEX is a file format: a note's JEX is its `raw` export tarred by `writeTarFromDir` (files at the archive root, like Joplin's own exporter). Verified by re-importing with `importFrom` in a test instance, attachment included.
@@ -193,6 +200,8 @@ A second instance runs beside the user's own and shares nothing with it:
 ```
 Joplin.exe --profile <empty dir> --remote-debugging-port=9333
 ```
+
+**Never pass Chromium switches** (e.g. `--disable-features=...`) to Joplin.exe: it rejects unknown flags with a blocking "Unknown flag" error window on the user's screen. If the test window is fully covered by other windows, Chromium marks it hidden (`document.visibilityState === 'hidden'`): Joplin's own dialogs (move to notebook, tags) then don't render and `Page.captureScreenshot` hangs. Check visibility before testing dialogs; that environment can't verify them.
 
 When the shell is a VS Code terminal it inherits `ELECTRON_RUN_AS_NODE`, and Joplin.exe then starts as plain Node (`bad option: --profile`): launch it with `env -u ELECTRON_RUN_AS_NODE`. The test profile's UI may come up in the system language whatever `locale` says, so do not match buttons or labels by English text.
 
