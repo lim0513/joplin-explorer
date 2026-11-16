@@ -23,6 +23,8 @@ interface FolderItem {
   parent_id: string;
   icon?: string;
   order?: number;
+  user_created_time?: number;
+  user_updated_time?: number;
 }
 
 // Joplin's Conflicts notebook is virtual: no row in the folders table, always
@@ -168,15 +170,56 @@ function noteBadgesHtml(n: { is_shared?: number; cb_total?: number; cb_done?: nu
   return html;
 }
 
-/* ======================== JEX export ======================== */
-// JEX can only be written to a file, and the plugin API has a folder picker
-// but no save dialog: the archive goes into the chosen folder as
-// "<title>.jex", numbered when that name is taken.
-async function jexPathIn(dir: string, title: string): Promise<string> {
+/* ======================== File exports (JEX, HTML file) ======================== */
+// JEX and HTML File are single-file formats, and the plugin API has a folder
+// picker but no save dialog: the file goes into the chosen folder as
+// "<title><ext>", numbered when that name is taken.
+async function filePathIn(dir: string, title: string, ext: string): Promise<string> {
   const base = String(title || '').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim().slice(0, 100) || 'Untitled';
   for (let n = 1; ; n++) {
-    const p = nodePath.join(dir, base + (n > 1 ? ' (' + n + ')' : '') + '.jex');
+    const p = nodePath.join(dir, base + (n > 1 ? ' (' + n + ')' : '') + ext);
     try { await nodeFs.promises.access(p); } catch (_) { return p; }
+  }
+}
+
+function jexPathIn(dir: string, title: string): Promise<string> {
+  return filePathIn(dir, title, '.jex');
+}
+
+// #50: "HTML File" - one self-contained .html per note, with styles, images
+// and attachments inlined (the native note list's "HTML - HTML File").
+// exportNotes can only write the HTML *directory* format, so each note is
+// exported to a temp dir and packed with @joplin/htmlpack, the same packer
+// Joplin's own file exporter runs on that output.
+const htmlpack: (inputFile: string, outputFile: string) => Promise<void> = require('@joplin/htmlpack').default;
+
+async function exportNotesAsHtmlFiles(noteIds: string[], dir: string): Promise<void> {
+  // The directory export nests the note under its notebook path; its assets
+  // sit in pluginAssets/ and _resources/ at the root.
+  const findNoteHtml = async (root: string): Promise<string | null> => {
+    for (const ent of await nodeFs.promises.readdir(root, { withFileTypes: true })) {
+      const full = nodePath.join(root, ent.name);
+      if (ent.isDirectory()) {
+        if (ent.name === 'pluginAssets' || ent.name === '_resources') continue;
+        const found = await findNoteHtml(full);
+        if (found) return found;
+      } else if (/\.html$/i.test(ent.name)) {
+        return full;
+      }
+    }
+    return null;
+  };
+  for (const id of noteIds) {
+    const tmp = await nodeFs.promises.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'joplin-explorer-html-'));
+    try {
+      await joplin.commands.execute('exportNotes', [id], 'html', tmp);
+      const src = await findNoteHtml(tmp);
+      if (!src) throw new Error('HTML export produced no file');
+      const note = await joplin.data.get(['notes', id], { fields: ['title'] });
+      await htmlpack(src, await filePathIn(dir, note && note.title, '.html'));
+    } finally {
+      await nodeFs.promises.rm(tmp, { recursive: true, force: true });
+    }
   }
 }
 
@@ -317,7 +360,7 @@ async function getAllFolders(): Promise<FolderItem[]> {
   let hasMore = true;
   while (hasMore) {
     const result = await joplin.data.get(['folders'], {
-      fields: ['id', 'title', 'parent_id', 'icon'],
+      fields: ['id', 'title', 'parent_id', 'icon', 'user_created_time', 'user_updated_time'],
       page, limit: 100,
     });
     folders = folders.concat(result.items);
@@ -362,14 +405,64 @@ async function getAllNotes(): Promise<NoteItem[]> {
 // Sibling folders are ordered by their `order` field DESC (matching Joplin's
 // own custom notebook order), falling back to title ASC when orders tie (e.g.
 // folders that have never been manually reordered all have order 0).
-function compareFolders(a: TreeNode, b: TreeNode): number {
+function compareFolders(a: { order?: number, title: string }, b: { order?: number, title: string }): number {
   const oa = a.order || 0;
   const ob = b.order || 0;
   if (oa !== ob) return ob - oa;
   return (a.title || '').localeCompare(b.title || '');
 }
 
-function buildTree(folders: FolderItem[], notesByFolder: { [id: string]: NoteItem[] }): TreeNode[] {
+// #51: notebook sort. 'manual' is the drag order above (the default, and the
+// only order before this setting existed); 'joplin' follows View > Sort
+// notebooks by. Returns each folder's position; siblings are compared by it.
+interface JoplinFolderSort { field: string; reverse: boolean; }
+const titleCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+function rankFolders(folders: FolderItem[], notes: NoteItem[], mode: string, joplinSort: JoplinFolderSort): { [id: string]: number } {
+  const list = folders.slice();
+  const byTitle = (a: FolderItem, b: FolderItem) => titleCollator.compare(a.title || '', b.title || '');
+  const created = (f: FolderItem) => f.user_created_time || 0;
+  switch (mode) {
+    case 'title_asc': list.sort(byTitle); break;
+    case 'title_desc': list.sort((a, b) => byTitle(b, a)); break;
+    case 'created_asc': list.sort((a, b) => (created(a) - created(b)) || byTitle(a, b)); break;
+    case 'created_desc': list.sort((a, b) => (created(b) - created(a)) || byTitle(a, b)); break;
+    case 'joplin': {
+      // Same as Joplin's Folder.allForDisplay: title in the chosen direction,
+      // then for "updated date" a stable re-sort by the newest note inside
+      // the notebook or any sub-notebook (orderByLastModified).
+      const desc = !!joplinSort.reverse;
+      list.sort((a, b) => desc ? byTitle(b, a) : byTitle(a, b));
+      if (joplinSort.field === 'last_note_user_updated_time') {
+        const parentOf: { [id: string]: string } = {};
+        for (const f of folders) parentOf[f.id] = f.parent_id || '';
+        const latest: { [id: string]: number } = {};
+        for (const n of notes) {
+          if (n.parent_id && (latest[n.parent_id] || 0) < (n.user_updated_time || 0)) latest[n.parent_id] = n.user_updated_time || 0;
+        }
+        for (const id of Object.keys(latest)) {
+          const tm = latest[id];
+          const seen: { [id: string]: boolean } = {};
+          for (let p = parentOf[id]; p && !seen[p]; p = parentOf[p]) {
+            seen[p] = true;
+            if ((latest[p] || 0) < tm) latest[p] = tm;
+          }
+        }
+        const time = (f: FolderItem) => latest[f.id] || f.user_updated_time || 0;
+        const c = desc ? 1 : -1;
+        list.sort((a, b) => { const ta = time(a), tb = time(b); return ta < tb ? c : ta > tb ? -c : 0; });
+      }
+      break;
+    }
+    default: list.sort(compareFolders); break;
+  }
+  const rank: { [id: string]: number } = {};
+  list.forEach((f, i) => { rank[f.id] = i; });
+  return rank;
+}
+
+function buildTree(folders: FolderItem[], notesByFolder: { [id: string]: NoteItem[] }, folderRank: { [id: string]: number }): TreeNode[] {
+  const byRank = (a: TreeNode, b: TreeNode) => (folderRank[a.id] || 0) - (folderRank[b.id] || 0);
   const folderMap: { [id: string]: TreeNode } = {};
   const childFolders: { [id: string]: TreeNode[] } = {};
   const childNotes: { [id: string]: TreeNode[] } = {};
@@ -405,12 +498,12 @@ function buildTree(folders: FolderItem[], notesByFolder: { [id: string]: NoteIte
   // Assemble each folder's children: sub-folders (sorted) first, then notes
   // (already sorted by the active note sort). Then recurse.
   function assemble(node: TreeNode): void {
-    const subs = childFolders[node.id].sort(compareFolders);
+    const subs = childFolders[node.id].sort(byRank);
     for (const s of subs) assemble(s);
     node.note_count = childNotes[node.id].length;
     node.children = subs.concat(childNotes[node.id]);
   }
-  rootFolders.sort(compareFolders);
+  rootFolders.sort(byRank);
   for (const rf of rootFolders) assemble(rf);
   const roots: TreeNode[] = rootFolders;
 
@@ -851,6 +944,23 @@ joplin.plugins.register({
           public: true,
           label: t.sExpandMode,
           description: t.sExpandModeDesc,
+        },
+        'folderSortMode': {
+          section: 'joplinExplorer',
+          type: 2, // SettingItemType.String = 2
+          value: 'manual',
+          isEnum: true,
+          options: {
+            manual: t.sFolderSortManual,
+            joplin: t.sFolderSortJoplin,
+            title_asc: t.sFolderSortTitleAsc,
+            title_desc: t.sFolderSortTitleDesc,
+            created_desc: t.sFolderSortCreatedDesc,
+            created_asc: t.sFolderSortCreatedAsc,
+          },
+          public: true,
+          label: t.sFolderSort,
+          description: t.sFolderSortDesc,
         },
         'collapseAllScope': {
           section: 'joplinExplorer',
@@ -1369,6 +1479,27 @@ joplin.plugins.register({
       }
     }
 
+    // #51: Joplin's notebook sort lives in its View menu, whose changes fire
+    // no plugin event - so in 'joplin' mode it is re-read every render and
+    // polled while that mode is active.
+    let folderSortMode = 'manual';
+    let joplinFolderSort: JoplinFolderSort = { field: 'title', reverse: false };
+    async function readJoplinFolderSort(): Promise<JoplinFolderSort> {
+      try {
+        return {
+          field: String((await joplin.settings.globalValue('folders.sortOrder.field')) || 'title'),
+          reverse: !!(await joplin.settings.globalValue('folders.sortOrder.reverse')),
+        };
+      } catch (_) {
+        return { field: 'title', reverse: false };
+      }
+    }
+    setInterval(async () => {
+      if (folderSortMode !== 'joplin') return;
+      const now = await readJoplinFolderSort();
+      if (now.field !== joplinFolderSort.field || now.reverse !== joplinFolderSort.reverse) scheduleRefreshPanel(100);
+    }, 2000);
+
     async function refreshPanel(): Promise<void> {
       try {
         const folders = await getAllFolders();
@@ -1440,7 +1571,9 @@ joplin.plugins.register({
         const openPinnedIcon = await resolveIconSettingCached(openPinnedIconSetting, '\uD83D\uDCCC', 'openPinnedIcon', pluginDataDir);
         const closedPinnedIcon = await resolveIconSettingCached(closedPinnedIconSetting, '\uD83D\uDCCC', 'closedPinnedIcon', pluginDataDir);
         const showToggleArrows = showFolderToggles !== false;
-        const tree = buildTree(folders, notesByFolder);
+        folderSortMode = String((await joplin.settings.value('folderSortMode')) || 'manual');
+        if (folderSortMode === 'joplin') joplinFolderSort = await readJoplinFolderSort();
+        const tree = buildTree(folders, notesByFolder, rankFolders(folders, fetchedNotes, folderSortMode, joplinFolderSort));
         const treeHtml = renderTreeHtml(tree, selectedNoteId, collapsedFolders, 0, showToggleArrows, openFolderIcon, closedFolderIcon);
 
         // Tags section data: every tag, sorted by title. Notes load lazily
@@ -1852,6 +1985,7 @@ joplin.plugins.register({
         || event.keys.indexOf('hoverPreview') >= 0
         || event.keys.indexOf('expandAllMode') >= 0
         || event.keys.indexOf('collapseAllScope') >= 0
+        || event.keys.indexOf('folderSortMode') >= 0
         || event.keys.indexOf('showTagsSection') >= 0
         || event.keys.indexOf('tagNestSeparator') >= 0
         || event.keys.indexOf('stackSectionHeaders') >= 0
@@ -2469,6 +2603,8 @@ joplin.plugins.register({
                     } finally {
                       await nodeFs.promises.rm(tmp, { recursive: true, force: true });
                     }
+                  } else if (dir && fmt === 'html_file') {
+                    await exportNotesAsHtmlFiles([id], dir);
                   } else if (dir) {
                     await joplin.commands.execute('exportNotes', [id], fmt, dir);
                   }
@@ -2870,6 +3006,8 @@ joplin.plugins.register({
               } finally {
                 await nodeFs.promises.rm(tmp, { recursive: true, force: true });
               }
+            } else if (dir && fmt === 'html_file') {
+              await exportNotesAsHtmlFiles(ids, dir);
             } else if (dir) {
               await joplin.commands.execute('exportNotes', ids, fmt, dir);
             }

@@ -19,7 +19,8 @@ A unified sidebar plugin for [Joplin](https://joplinapp.org/) that displays note
 - **Favorites (Pin)** — Pin notes and notebooks to a collapsible section at the top of the tree; drag items to the pinned section to pin, drag within to reorder; persists across restarts
 - **Enhanced Search** — Search notes, notebooks, and tags simultaneously with keyword highlighting; results grouped in collapsible sections; local title substring matching for partial queries (e.g. "8121R" finds "KY8121R")
 - **Smart Folders** — saved searches shown as folders (Recently updated, Open to-dos, and your own). **Tools > Manage smart folders** edits them as a list, with a live match count per row so a typo shows before you save. Or try a query in the search bar and click **Save as smart folder**; right-click a smart folder to open its query in the search bar, edit it, rename or delete it
-- **Sort** — Toggle between sorting by update time or title (ascending/descending)
+- **Sort** — Toggle between sorting notes by update time or title (ascending/descending). Notebooks have their own **Notebook sort order** setting: manual (drag), title, creation date, or the same order as Joplin's **View > Sort notebooks by**
+- **Export** — Notes export as Markdown, Markdown + Front Matter, JEX, **HTML File** (one self-contained file with images and styles inlined, easy to share) or HTML Directory
 - **Context Menus**
   - Notebooks: pin/unpin, new note, new to-do, new sub-notebook, rename, export, delete
   - Notes: pin/unpin, open, open in new window, copy Markdown link, duplicate, switch note/to-do type, toggle completed, rename, view properties, delete

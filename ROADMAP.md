@@ -24,11 +24,12 @@ This document outlines the current state and long-term direction of **Joplin Exp
 
 **Sorting & drag/drop**
 - Sorting: updated time / title / manual (persists across restarts)
+- Notebook sort setting: manual / title / creation date / same as Joplin's View > Sort notebooks by (#51)
 - Manual sort: drag notes to an exact position; folders drag-ordered too
 - Drag & drop moving with clear drop indicators, edge auto-scroll, drag-to-empty-area to create a notebook
 
 **Context menus** (near-parity with Joplin's native menus)
-- Notes: open / open in new window, set tags, note-todo switch, toggle completed, move to notebook, duplicate, copy Markdown / external link, publish note, Export drill-in submenu (PDF / MD / MD+Front Matter / JEX / HTML), rename, note info, delete (always last)
+- Notes: open / open in new window, set tags, note-todo switch, toggle completed, move to notebook, duplicate, copy Markdown / external link, publish note, Export drill-in submenu (PDF / MD / MD+Front Matter / JEX / HTML File / HTML Directory), rename, note info, delete (always last)
 - Notebooks: new note/todo/sub-notebook, rename, export, delete
 
 **Trash** (v1.5)

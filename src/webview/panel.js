@@ -994,7 +994,7 @@ document.addEventListener('contextmenu', function(e) {
       + '<div class="ctx-item" data-action="exportFolder" data-format="jex" data-id="' + id + '" data-type="folder">JEX</div>'
       + '<div class="ctx-item" data-action="exportFolder" data-format="md" data-id="' + id + '" data-type="folder">Markdown</div>'
       + '<div class="ctx-item" data-action="exportFolder" data-format="md_frontmatter" data-id="' + id + '" data-type="folder">Markdown + Front Matter</div>'
-      + '<div class="ctx-item" data-action="exportFolder" data-format="html" data-id="' + id + '" data-type="folder">HTML</div>'
+      + '<div class="ctx-item" data-action="exportFolder" data-format="html" data-id="' + id + '" data-type="folder">HTML Directory</div>'
       + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item ctx-danger" data-action="deleteFolder" data-id="' + id + '" data-type="folder">' + T('ctxDeleteFolder') + '</div>';
@@ -1035,7 +1035,8 @@ document.addEventListener('contextmenu', function(e) {
       + '<div class="ctx-item" data-action="exportNote" data-format="md" data-id="' + id + '" data-type="note">Markdown</div>'
       + '<div class="ctx-item" data-action="exportNote" data-format="md_frontmatter" data-id="' + id + '" data-type="note">Markdown + Front Matter</div>'
       + '<div class="ctx-item" data-action="exportNote" data-format="jex" data-id="' + id + '" data-type="note">JEX</div>'
-      + '<div class="ctx-item" data-action="exportNote" data-format="html" data-id="' + id + '" data-type="note">HTML</div>'
+      + '<div class="ctx-item" data-action="exportNote" data-format="html_file" data-id="' + id + '" data-type="note">HTML File</div>'
+      + '<div class="ctx-item" data-action="exportNote" data-format="html" data-id="' + id + '" data-type="note">HTML Directory</div>'
       + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameNote" data-id="' + id + '" data-type="note" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameNote') + '</div>';
@@ -2468,7 +2469,8 @@ function multiMenuHtml(x, y) {
     + '<div class="ctx-item" data-multi="export" data-format="md">Markdown</div>'
     + '<div class="ctx-item" data-multi="export" data-format="md_frontmatter">Markdown + Front Matter</div>'
     + '<div class="ctx-item" data-multi="export" data-format="jex">JEX</div>'
-    + '<div class="ctx-item" data-multi="export" data-format="html">HTML</div>'
+    + '<div class="ctx-item" data-multi="export" data-format="html_file">HTML File</div>'
+    + '<div class="ctx-item" data-multi="export" data-format="html">HTML Directory</div>'
     + '</div>'
     + '<div class="ctx-sep"></div>'
     + item('delete', T('ctxDeleteNotes'), ' ctx-danger')

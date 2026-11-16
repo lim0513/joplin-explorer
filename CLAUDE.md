@@ -180,8 +180,16 @@ Every `openFolderDialog` call must pass `parentId` (all three call sites do now)
 
 - `exportNotes(noteIds, format, dir)` hardwires a **directory** target, so it can only run directory formats (md, md_frontmatter, html, raw). JEX is a file format: a note's JEX is its `raw` export tarred by `writeTarFromDir` (files at the archive root, like Joplin's own exporter). Verified by re-importing with `importFrom` in a test instance, attachment included.
 - `exportFolders(folderIds, format, path)` switches to a file target when `path` is not a directory, and refuses a directory for JEX. Hence `jexPathIn`: the plugin API has a folder picker but no save dialog, so the archive is written as "<title>.jex" inside the chosen folder.
+- **HTML File (#50)** is the native "HTML - HTML File": the note's `html` directory export, written to a temp dir, then packed by `@joplin/htmlpack` (bundled; the same packer Joplin's file exporter runs) into "<title>.html" in the chosen folder. One file per note, also for multi-select; notebooks don't get it, as in Joplin (the file exporter is not a note archive). Pinned to an htmlpack version at least two weeks old.
 - #48: formats added by other plugins (docx exporters) cannot be offered. The plugin API can register an exporter but not list them, and a file-target exporter could not be reached through `exportNotes` anyway.
 - The folder picker is a native dialog CDP cannot answer. To test exports, pack a copy of `publish/` whose `showOpenDialog({properties:["openDirectory"]})` calls are replaced by a fixed path; overriding `joplin.views.dialogs` from DevTools does nothing (every access returns a fresh proxy).
+
+## Notebook sort (#51)
+
+- `folderSortMode` setting; `manual` (the `folderOrder` drag order, title on ties) stays the default, it was the only order before. Ordering is a rank per folder from `rankFolders`, and `buildTree` compares siblings by it.
+- `joplin` mirrors `Folder.allForDisplay`: title (natural collator) in the chosen direction, then for `last_note_user_updated_time` a stable re-sort by the newest note in the notebook or any sub-notebook; a notebook without notes uses its own `user_updated_time`. Note that Joplin's "not reversed" updated order is OLDEST first. Verified identical to the native sidebar in a test instance.
+- Joplin's notebook sort is changed from its View menu and fires no plugin event: `folders.sortOrder.field` / `.reverse` are read with `globalValue` on every render and polled every 2 s while the mode is `joplin`.
+- To flip it in a test instance over CDP: `require("@electron/remote").Menu.getApplicationMenu()` in the main page, find the item and call `item.click(null, remote.getCurrentWindow(), {})`.
 
 ## Keyboard shortcuts
 
