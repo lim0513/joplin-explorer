@@ -193,27 +193,108 @@ function jexPathIn(dir: string, title: string): Promise<string> {
 // Joplin's own file exporter runs on that output.
 const htmlpack: (inputFile: string, outputFile: string) => Promise<void> = require('@joplin/htmlpack').default;
 
-async function exportNotesAsHtmlFiles(noteIds: string[], dir: string): Promise<void> {
-  // The directory export nests the note under its notebook path; its assets
-  // sit in pluginAssets/ and _resources/ at the root.
-  const findNoteHtml = async (root: string): Promise<string | null> => {
-    for (const ent of await nodeFs.promises.readdir(root, { withFileTypes: true })) {
-      const full = nodePath.join(root, ent.name);
-      if (ent.isDirectory()) {
-        if (ent.name === 'pluginAssets' || ent.name === '_resources') continue;
-        const found = await findNoteHtml(full);
-        if (found) return found;
-      } else if (/\.html$/i.test(ent.name)) {
-        return full;
+// The note pages of an HTML directory export. Notes are nested under their
+// notebook path; assets sit in pluginAssets/ (next to each page) and
+// _resources/ (at the root).
+async function exportedHtmlFiles(root: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const ent of await nodeFs.promises.readdir(root, { withFileTypes: true })) {
+    const full = nodePath.join(root, ent.name);
+    if (ent.isDirectory()) {
+      if (ent.name !== 'pluginAssets' && ent.name !== '_resources') out.push(...await exportedHtmlFiles(full));
+    } else if (/\.html$/i.test(ent.name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+// #52: userstyle.css. The native note list hands Joplin's customViewerCss to
+// the exporter, but the exportNotes / exportFolders commands a plugin can
+// call pass none, so HTML exports came out without the user's stylesheet.
+// MdToHtml.render appends that CSS at the end of the note's inline <style>,
+// after the theme CSS so it wins, and that is where it is put back here.
+// Only userstyle.css is reachable: CSS that other plugins add with
+// joplin.window.loadNoteCssFile lives in app state a plugin cannot read.
+async function readUserNoteCss(): Promise<string> {
+  try {
+    // rootProfileDir is a Setting constant; globalValue returns it. Joplin
+    // reads userstyle.css from the root profile even with several profiles.
+    const root = String((await joplin.settings.globalValue('rootProfileDir')) || '');
+    if (!root) return '';
+    return await nodeFs.promises.readFile(nodePath.join(root, 'userstyle.css'), 'utf8');
+  } catch (_) {
+    return '';
+  }
+}
+
+async function addUserCssToExport(root: string, css: string): Promise<void> {
+  if (!css.trim()) return;
+  for (const file of await exportedHtmlFiles(root)) {
+    const html: string = await nodeFs.promises.readFile(file, 'utf8');
+    // The rendered note opens with its <style> block (theme CSS, joined by
+    // newlines) right inside <div class="exported-note">.
+    const start = html.indexOf('<div class="exported-note">');
+    const close = start < 0 ? -1 : html.indexOf('</style>', start);
+    let out: string;
+    if (close >= 0) {
+      out = html.slice(0, close) + '\n' + css + html.slice(close);
+    } else {
+      const head = html.search(/<\/head>/i);
+      if (head < 0) continue;
+      out = html.slice(0, head) + '<style>' + css + '</style>' + html.slice(head);
+    }
+    await nodeFs.promises.writeFile(file, out, 'utf8');
+  }
+}
+
+// HTML Directory with the same stylesheet. Without a userstyle.css the export
+// goes straight into the chosen folder, as before. Otherwise it is written to
+// a temp dir, patched, and copied in the way Joplin writes into an existing
+// folder: note pages take a free "Title (1).html" name, notebook folders and
+// the asset folders merge.
+async function exportHtmlDir(dir: string, run: (target: string) => Promise<any>): Promise<void> {
+  const css = await readUserNoteCss();
+  if (!css.trim()) { await run(dir); return; }
+  const tmp = await nodeFs.promises.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'joplin-explorer-html-'));
+  try {
+    await run(tmp);
+    await addUserCssToExport(tmp, css);
+    await copyExportInto(tmp, dir, false);
+  } finally {
+    await nodeFs.promises.rm(tmp, { recursive: true, force: true });
+  }
+}
+
+async function copyExportInto(src: string, dest: string, inAssets: boolean): Promise<void> {
+  await nodeFs.promises.mkdir(dest, { recursive: true });
+  for (const ent of await nodeFs.promises.readdir(src, { withFileTypes: true })) {
+    const from = nodePath.join(src, ent.name);
+    if (ent.isDirectory()) {
+      await copyExportInto(from, nodePath.join(dest, ent.name), inAssets || ent.name === 'pluginAssets' || ent.name === '_resources');
+      continue;
+    }
+    let to = nodePath.join(dest, ent.name);
+    if (!inAssets && /\.html$/i.test(ent.name)) {
+      const ext = nodePath.extname(to);
+      const base = to.slice(0, to.length - ext.length);
+      for (let n = 1; ; n++) {
+        try { await nodeFs.promises.access(to); } catch (_) { break; }
+        to = base + ' (' + n + ')' + ext;
       }
     }
-    return null;
-  };
+    await nodeFs.promises.copyFile(from, to);
+  }
+}
+
+async function exportNotesAsHtmlFiles(noteIds: string[], dir: string): Promise<void> {
+  const css = await readUserNoteCss();
   for (const id of noteIds) {
     const tmp = await nodeFs.promises.mkdtemp(nodePath.join(nodeOs.tmpdir(), 'joplin-explorer-html-'));
     try {
       await joplin.commands.execute('exportNotes', [id], 'html', tmp);
-      const src = await findNoteHtml(tmp);
+      await addUserCssToExport(tmp, css);
+      const src = (await exportedHtmlFiles(tmp))[0];
       if (!src) throw new Error('HTML export produced no file');
       const note = await joplin.data.get(['notes', id], { fields: ['title'] });
       await htmlpack(src, await filePathIn(dir, note && note.title, '.html'));
@@ -2459,6 +2540,8 @@ joplin.plugins.register({
                     // exportFolders refuses a directory for JEX; give it a file.
                     const folder = await joplin.data.get(['folders', id], { fields: ['title'] });
                     await joplin.commands.execute('exportFolders', [id], fmt, await jexPathIn(dir, folder && folder.title));
+                  } else if (dir && fmt === 'html') {
+                    await exportHtmlDir(dir, (target) => joplin.commands.execute('exportFolders', [id], 'html', target));
                   } else if (dir) {
                     await joplin.commands.execute('exportFolders', [id], fmt, dir);
                   }
@@ -2605,6 +2688,8 @@ joplin.plugins.register({
                     }
                   } else if (dir && fmt === 'html_file') {
                     await exportNotesAsHtmlFiles([id], dir);
+                  } else if (dir && fmt === 'html') {
+                    await exportHtmlDir(dir, (target) => joplin.commands.execute('exportNotes', [id], 'html', target));
                   } else if (dir) {
                     await joplin.commands.execute('exportNotes', [id], fmt, dir);
                   }
@@ -3008,6 +3093,8 @@ joplin.plugins.register({
               }
             } else if (dir && fmt === 'html_file') {
               await exportNotesAsHtmlFiles(ids, dir);
+            } else if (dir && fmt === 'html') {
+              await exportHtmlDir(dir, (target) => joplin.commands.execute('exportNotes', ids, 'html', target));
             } else if (dir) {
               await joplin.commands.execute('exportNotes', ids, fmt, dir);
             }
