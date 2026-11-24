@@ -988,6 +988,13 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-sep"></div>';
     menuHtml += '<div class="ctx-item" data-action="renameFolder" data-id="' + id + '" data-type="folder" data-title="' + title.replace(/"/g, '&quot;') + '">' + T('ctxRenameFolder') + '</div>';
     menuHtml += '<div class="ctx-item" data-action="copyFolderId" data-id="' + id + '" data-type="folder">' + T('ctxCopyFolderId') + '</div>';
+    // Share / Leave / Publish: the backend stamps which ones the native menu
+    // would enable for this notebook (data-share-menu); same place as native,
+    // right before Export.
+    var shareMenu = (item.dataset.shareMenu || '').split(' ');
+    if (shareMenu.indexOf('share') >= 0) menuHtml += '<div class="ctx-item" data-action="shareFolder" data-id="' + id + '" data-type="folder">' + T('ctxShareFolder') + '</div>';
+    if (shareMenu.indexOf('leave') >= 0) menuHtml += '<div class="ctx-item" data-action="leaveFolder" data-id="' + id + '" data-type="folder">' + T('ctxLeaveFolder') + '</div>';
+    if (shareMenu.indexOf('publish') >= 0) menuHtml += '<div class="ctx-item" data-action="publishFolder" data-id="' + id + '" data-type="folder">' + T('ctxPublishFolder') + '</div>';
     // Export drill-in (folders can't do PDF - that's a single-note command).
     menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExportFolder') + '<span class="ctx-sub-arrow">▶</span></div>';
     menuHtml += '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExportFolder') + '">'
@@ -1028,7 +1035,12 @@ document.addEventListener('contextmenu', function(e) {
     menuHtml += '<div class="ctx-item" data-action="copyExternalLink" data-id="' + id + '" data-type="note">' + T('ctxCopyExternalLink') + '</div>';
     menuHtml += '<div class="ctx-sep"></div>';
     // ...then publish/export. Unlike the native menu, Delete stays LAST.
-    menuHtml += '<div class="ctx-item" data-action="publishNote" data-id="' + id + '" data-type="note">' + T('ctxPublishNote') + '</div>';
+    // Native shows "Publish note..." only with Joplin Server / Cloud sync
+    // (enabledCondition joplinServerConnected); the backend stamps that.
+    var srvRoot = document.getElementById('notes-in-list-root');
+    if (srvRoot && srvRoot.dataset.serverConnected === '1') {
+      menuHtml += '<div class="ctx-item" data-action="publishNote" data-id="' + id + '" data-type="note">' + T('ctxPublishNote') + '</div>';
+    }
     menuHtml += '<div class="ctx-item ctx-drill">' + T('ctxExport') + '<span class="ctx-sub-arrow">\u25B6</span></div>';
     menuHtml += '<div class="ctx-export-template" style="display:none" data-title="' + T('ctxExport') + '">'
       + '<div class="ctx-item" data-action="exportPdf" data-id="' + id + '" data-type="note">PDF</div>'

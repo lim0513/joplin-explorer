@@ -113,11 +113,53 @@ let sharedFolderTitle = 'Shared';
 function folderShareHtml(f: { share_id?: string, parent_id?: string }): string {
   if (!f.share_id || f.parent_id) return '';
   return '<span class="share-icon" title="' + escapeHtml(sharedFolderTitle) + '" aria-label="' + escapeHtml(sharedFolderTitle) + '">'
-    + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8.6 13.4l6.8 4M15.4 6.6l-6.8 4" stroke="currentColor" stroke-width="2.2" fill="none"/><circle cx="18" cy="5" r="3.2"/><circle cx="6" cy="12" r="3.2"/><circle cx="18" cy="19" r="3.2"/></svg></span>';
+    + '<svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8.6 13.4l6.8 4M15.4 6.6l-6.8 4" stroke="currentColor" stroke-width="2.4" fill="none"/><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/></svg></span>';
 }
 function folderShareClass(f: { share_id?: string, parent_id?: string }): string {
   if (!f.share_id) return '';
   return f.parent_id ? ' shared' : ' shared share-root';
+}
+
+// Share / Leave / Publish notebook in the folder menu, offered exactly when
+// the native sidebar menu enables them (the commands' enabledCondition):
+//   share:   joplinServerConnected && joplinCloudAccountType != 1 && (folderIsShareRootAndOwnedByUser || !folderIsShared)
+//   leave:   joplinServerConnected && folderIsShareRootAndNotOwnedByUser
+//   publish: joplinServerConnected && (folderIsShareRootAndOwnedByUser || !folderIsShared)
+// Ownership is shares.find(folder_id).user.id === sync.userId. Joplin keeps
+// its share list (state.shareService) as JSON in the non-secure setting
+// sync.shareCache, so globalValue can read all of it. Refreshed per render.
+interface ShareContext { connected: boolean; cloudAccountType: number; userId: string; ownerByFolder: { [folderId: string]: string }; }
+let shareContext: ShareContext = { connected: false, cloudAccountType: 0, userId: '', ownerByFolder: {} };
+
+async function readShareContext(): Promise<ShareContext> {
+  const ctx: ShareContext = { connected: false, cloudAccountType: 0, userId: '', ownerByFolder: {} };
+  try {
+    const target = Number(await joplin.settings.globalValue('sync.target'));
+    ctx.connected = [9, 10, 11].indexOf(target) >= 0; // Joplin Server, Joplin Cloud, Joplin Server (SAML)
+    if (!ctx.connected) return ctx;
+    if (target === 10) ctx.cloudAccountType = Number(await joplin.settings.globalValue('sync.10.accountType')) || 0;
+    ctx.userId = String((await joplin.settings.globalValue('sync.userId')) || '');
+    let cache: any = await joplin.settings.globalValue('sync.shareCache');
+    if (typeof cache === 'string') cache = cache ? JSON.parse(cache) : null;
+    const shares: any[] = cache && Array.isArray(cache.shares) ? cache.shares : [];
+    for (const s of shares) {
+      if (s && s.folder_id && s.user && s.user.id) ctx.ownerByFolder[s.folder_id] = String(s.user.id);
+    }
+  } catch (_) { /* keep what was read */ }
+  return ctx;
+}
+
+function folderShareMenuAttr(f: { id: string, share_id?: string, parent_id?: string }): string {
+  const c = shareContext;
+  if (!c.connected) return '';
+  const shared = !!f.share_id;
+  const root = shared && !f.parent_id;
+  const owned = root && c.ownerByFolder[f.id] !== undefined && c.ownerByFolder[f.id] === c.userId;
+  const items: string[] = [];
+  if (c.cloudAccountType !== 1 && (owned || !shared)) items.push('share');
+  if (root && !owned) items.push('leave');
+  if (owned || !shared) items.push('publish');
+  return items.length ? ' data-share-menu="' + items.join(' ') + '"' : '';
 }
 function sharedBadgeHtml(): string {
   return '<span class="shared-badge" title="' + sharedBadgeTitle + '">'
@@ -792,7 +834,7 @@ function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet:
       const isCollapsed = collapsedSet[node.id] === true;
       const arrowChar = isCollapsed ? '\u25B6' : '\u25BC';
       const toggleClass = isCollapsed ? 'toggle' : 'toggle expanded';
-      html += '<div class="tree-item folder' + (isCollapsed ? ' collapsed' : '') + folderShareClass(node) + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="folder">';
+      html += '<div class="tree-item folder' + (isCollapsed ? ' collapsed' : '') + folderShareClass(node) + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="folder"' + folderShareMenuAttr(node) + '>';
       if (showFolderToggles) html += '<span class="' + toggleClass + '">' + arrowChar + '</span>';
       // Both icon variants are always in the DOM; CSS picks one via the
       // .collapsed class so the webview can toggle folders without a
@@ -1601,6 +1643,32 @@ joplin.plugins.register({
       if (now.field !== joplinFolderSort.field || now.reverse !== joplinFolderSort.reverse) scheduleRefreshPanel(100);
     }, 2000);
 
+    // After a share / leave / publish action: poll that folder's share_id
+    // (every 2 s, up to 2 min) and refresh once it changes or the folder is
+    // gone. One watcher at a time; a new action replaces it.
+    let shareWatchTimer: any = null;
+    async function folderShareState(id: string): Promise<string> {
+      try {
+        const f = await joplin.data.get(['folders', id], { fields: ['share_id', 'deleted_time'] });
+        return f ? String(f.share_id || '') + '|' + String(f.deleted_time || 0) : 'gone';
+      } catch (_) { return 'gone'; }
+    }
+    function watchFolderShare(id: string): void {
+      if (shareWatchTimer) clearInterval(shareWatchTimer);
+      let ticks = 0;
+      let initial: string | null = null;
+      folderShareState(id).then((s) => { initial = s; });
+      shareWatchTimer = setInterval(async () => {
+        ticks++;
+        const now = await folderShareState(id);
+        if ((initial !== null && now !== initial) || ticks >= 60) {
+          clearInterval(shareWatchTimer);
+          shareWatchTimer = null;
+          if (ticks < 60) scheduleRefreshPanel(100);
+        }
+      }, 2000);
+    }
+
     async function refreshPanel(): Promise<void> {
       try {
         const folders = await getAllFolders();
@@ -1674,6 +1742,7 @@ joplin.plugins.register({
         const showToggleArrows = showFolderToggles !== false;
         folderSortMode = String((await joplin.settings.value('folderSortMode')) || 'manual');
         if (folderSortMode === 'joplin') joplinFolderSort = await readJoplinFolderSort();
+        shareContext = await readShareContext();
         const tree = buildTree(folders, notesByFolder, rankFolders(folders, fetchedNotes, folderSortMode, joplinFolderSort));
         const treeHtml = renderTreeHtml(tree, selectedNoteId, collapsedFolders, 0, showToggleArrows, openFolderIcon, closedFolderIcon);
 
@@ -1754,7 +1823,7 @@ joplin.plugins.register({
               const folder = folderById[p.id] || null;
               if (folder) {
                 const fi = getFolderIcon(folder as any, true, openFolderIcon, closedFolderIcon);
-                pinnedHtml += '<div class="tree-item folder pinned-item' + folderShareClass(folder) + '" data-id="' + folder.id + '" data-type="folder">';
+                pinnedHtml += '<div class="tree-item folder pinned-item' + folderShareClass(folder) + '" data-id="' + folder.id + '" data-type="folder"' + folderShareMenuAttr(folder) + '>';
                 pinnedHtml += renderIconHtml(fi, 'folder-icon');
                 pinnedHtml += '<span class="label">' + escapeHtml(folder.title) + '</span>';
                 pinnedHtml += folderShareHtml(folder);
@@ -1999,7 +2068,7 @@ joplin.plugins.register({
         let rowH = Number(await joplin.settings.value('rowHeight'));
         if (!isFinite(rowH) || rowH < 16) rowH = 24;
         if (rowH > 40) rowH = 40;
-        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px;--row-font:' + rowFont + 'px;--row-h:' + rowH + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-note-tabs="' + ((await noteTabsAvailable()) ? '1' : '0') + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
+        const html = '<div id="notes-in-list-root" style="--sec-gap:' + secGap + 'px;--row-font:' + rowFont + 'px;--row-h:' + rowH + 'px" data-i18n="' + i18nJson + '" data-pinned="' + pinnedJson + '" data-sort="' + escapeHtml(currentSort) + '" data-expand-mode="' + escapeHtml(expandAllMode) + '" data-collapse-scope="' + escapeHtml(collapseScope) + '" data-hover-preview="' + hoverPreviewOn + '" data-arrow-pos="' + arrowPos + '" data-note-tabs="' + ((await noteTabsAvailable()) ? '1' : '0') + '" data-server-connected="' + (shareContext.connected ? '1' : '0') + '" data-stack-headers="' + stackHeaders + '" data-collapse-snapshot="' + escapeHtml(JSON.stringify(collapseSnapshot)) + '">'
           + '  <div class="toolbar">'
           + '    <button id="btn-new" title="' + t.newItem + '">\uFF0B</button>'
           + '    <button id="btn-sort" title="' + t.sort + '">' + sortLabels[currentSort] + '</button>'
@@ -2545,6 +2614,19 @@ joplin.plugins.register({
                 } catch (e) {
                   await joplin.views.panels.postMessage(panel, { name: 'copyText', text: id });
                 }
+                break;
+              }
+              // Native share dialogs / leave command; they report their own
+              // errors. Sharing or leaving changes the folder's share_id (or
+              // deletes it), which fires no event the panel listens for, so
+              // watch that one folder for a while and refresh when it changes.
+              case 'shareFolder':
+              case 'leaveFolder':
+              case 'publishFolder': {
+                const cmd = msg.action === 'shareFolder' ? 'showShareFolderDialog'
+                  : msg.action === 'leaveFolder' ? 'leaveSharedFolder' : 'showPublishFolderDialog';
+                try { await joplin.commands.execute(cmd, id); } catch (e) { console.error('Joplin Explorer: ' + cmd + ' error', e); }
+                watchFolderShare(id);
                 break;
               }
               case 'exportFolder': {
