@@ -959,6 +959,30 @@ mark.search-highlight {
   border-radius: 2px;
 }
 
+/* ---- Shared notebooks (#53), as in the native sidebar: name and icon in
+   the warning colour, icon right after the name on the top-level one.
+   Not --joplin-color-warn2: that is the native SIDEBAR's variant (light
+   orange, invisible on a light panel - same trap as color2). Not plain
+   --joplin-color-warn either: the default dark theme sets it to #9A5B00,
+   brown on near-black. warn3 is the one readable on the main background
+   (#ffcb81 dark), but on the light theme its #ff7626 is only 2.7:1 on
+   white. Mixing in 40% of the theme's text colour darkens it on light
+   themes (4.8:1) and keeps a warm tint on dark ones; themes without warn3
+   fall back to warn. ---- */
+.tree-item.folder.shared > .label,
+.tree-item.folder.shared > .share-icon {
+  color: color-mix(in srgb, var(--joplin-color-warn3, var(--joplin-color-warn, #e45600)) 60%, var(--joplin-color, #32373f));
+}
+.share-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 3px; /* + the row's 5px gap = native's 8px */
+}
+.share-icon svg { display: block; }
+.tree-item.folder.share-root > .label { flex: 0 1 auto; }
+.tree-item.folder.share-root > .count { margin-left: auto; }
+
 /* ---- Note-row badges: checkbox progress pie + published link ---- */
 /* Hug the badges to the title text instead of the row's right edge. */
 .tree-item.note .label { flex: 0 1 auto; }

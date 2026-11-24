@@ -25,6 +25,7 @@ interface FolderItem {
   order?: number;
   user_created_time?: number;
   user_updated_time?: number;
+  share_id?: string;
 }
 
 // Joplin's Conflicts notebook is virtual: no row in the folders table, always
@@ -57,6 +58,7 @@ interface TreeNode {
   order?: number;
   note_count?: number;
   total_count?: number;
+  share_id?: string;
   children?: TreeNode[];
   is_shared?: number;
   cb_total?: number;
@@ -101,6 +103,22 @@ function todoPieHtml(done: number, total: number): string {
 // dialog (Joplin keeps share URLs server-side, so the dialog is the only
 // surface that can show them). Tooltip text is set from i18n at startup.
 let sharedBadgeTitle = 'Published';
+
+// #53: the native sidebar's "Shared" marker. A notebook shared through Joplin
+// Cloud / Server carries a share_id (its sub-notebooks too); Joplin tints all
+// of them with the warning colour but puts the icon only on the top-level one
+// (FolderItem: shareId && !parentId). Drawn inline: plugin panels don't get
+// Joplin's Font Awesome.
+let sharedFolderTitle = 'Shared';
+function folderShareHtml(f: { share_id?: string, parent_id?: string }): string {
+  if (!f.share_id || f.parent_id) return '';
+  return '<span class="share-icon" title="' + escapeHtml(sharedFolderTitle) + '" aria-label="' + escapeHtml(sharedFolderTitle) + '">'
+    + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8.6 13.4l6.8 4M15.4 6.6l-6.8 4" stroke="currentColor" stroke-width="2.2" fill="none"/><circle cx="18" cy="5" r="3.2"/><circle cx="6" cy="12" r="3.2"/><circle cx="18" cy="19" r="3.2"/></svg></span>';
+}
+function folderShareClass(f: { share_id?: string, parent_id?: string }): string {
+  if (!f.share_id) return '';
+  return f.parent_id ? ' shared' : ' shared share-root';
+}
 function sharedBadgeHtml(): string {
   return '<span class="shared-badge" title="' + sharedBadgeTitle + '">'
     + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span>';
@@ -441,7 +459,7 @@ async function getAllFolders(): Promise<FolderItem[]> {
   let hasMore = true;
   while (hasMore) {
     const result = await joplin.data.get(['folders'], {
-      fields: ['id', 'title', 'parent_id', 'icon', 'user_created_time', 'user_updated_time'],
+      fields: ['id', 'title', 'parent_id', 'icon', 'user_created_time', 'user_updated_time', 'share_id'],
       page, limit: 100,
     });
     folders = folders.concat(result.items);
@@ -550,7 +568,7 @@ function buildTree(folders: FolderItem[], notesByFolder: { [id: string]: NoteIte
   for (const f of folders) {
     folderMap[f.id] = {
       type: 'folder', id: f.id, title: f.title,
-      parent_id: f.parent_id, icon: f.icon, order: f.order || 0,
+      parent_id: f.parent_id, icon: f.icon, order: f.order || 0, share_id: f.share_id,
       note_count: 0, children: [],
     };
     childFolders[f.id] = [];
@@ -774,7 +792,7 @@ function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet:
       const isCollapsed = collapsedSet[node.id] === true;
       const arrowChar = isCollapsed ? '\u25B6' : '\u25BC';
       const toggleClass = isCollapsed ? 'toggle' : 'toggle expanded';
-      html += '<div class="tree-item folder' + (isCollapsed ? ' collapsed' : '') + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="folder">';
+      html += '<div class="tree-item folder' + (isCollapsed ? ' collapsed' : '') + folderShareClass(node) + '" style="padding-left:' + indent + 'px" data-id="' + node.id + '" data-type="folder">';
       if (showFolderToggles) html += '<span class="' + toggleClass + '">' + arrowChar + '</span>';
       // Both icon variants are always in the DOM; CSS picks one via the
       // .collapsed class so the webview can toggle folders without a
@@ -782,6 +800,7 @@ function renderTreeHtml(nodes: TreeNode[], selectedNoteId: string, collapsedSet:
       html += renderIconHtml(getFolderIcon(node, false, openFolderIcon, closedFolderIcon), 'folder-icon icon-when-open');
       html += renderIconHtml(getFolderIcon(node, true, openFolderIcon, closedFolderIcon), 'folder-icon icon-when-collapsed');
       html += '<span class="label">' + escapeHtml(node.title) + '</span>';
+      html += folderShareHtml(node);
       html += '<span class="count">' + count + '</span>';
       html += '</div>';
       html += '<div class="children' + (isCollapsed ? ' collapsed' : '') + '" data-folder-id="' + node.id + '">';
@@ -827,6 +846,7 @@ joplin.plugins.register({
     const locale = (await joplin.settings.globalValue('locale')) || 'en_US';
     const t = getI18n(locale);
     sharedBadgeTitle = (t as any).sharedBadge || sharedBadgeTitle;
+    sharedFolderTitle = (t as any).sharedFolder || sharedFolderTitle;
 
     const panel = await joplin.views.panels.create('notesInListPanel');
     await joplin.views.panels.addScript(panel, 'webview/panel.css');
@@ -1734,9 +1754,10 @@ joplin.plugins.register({
               const folder = folderById[p.id] || null;
               if (folder) {
                 const fi = getFolderIcon(folder as any, true, openFolderIcon, closedFolderIcon);
-                pinnedHtml += '<div class="tree-item folder pinned-item" data-id="' + folder.id + '" data-type="folder">';
+                pinnedHtml += '<div class="tree-item folder pinned-item' + folderShareClass(folder) + '" data-id="' + folder.id + '" data-type="folder">';
                 pinnedHtml += renderIconHtml(fi, 'folder-icon');
                 pinnedHtml += '<span class="label">' + escapeHtml(folder.title) + '</span>';
+                pinnedHtml += folderShareHtml(folder);
                 pinnedHtml += '</div>';
               }
             } else {

@@ -194,6 +194,14 @@ Every `openFolderDialog` call must pass `parentId` (all three call sites do now)
 - Joplin's notebook sort is changed from its View menu and fires no plugin event: `folders.sortOrder.field` / `.reverse` are read with `globalValue` on every render and polled every 2 s while the mode is `joplin`.
 - To flip it in a test instance over CDP: `require("@electron/remote").Menu.getApplicationMenu()` in the main page, find the item and call `item.click(null, remote.getCurrentWindow(), {})`.
 
+## Shared notebooks (#53)
+
+- Native rule (FolderItem): a folder with `share_id` gets the warning text colour; the `fa-share-alt` icon only when it also has no `parent_id` (sub-notebooks of a share carry the same share_id but no icon). `folderShareClass` / `folderShareHtml` do the same, in the tree and on pinned rows. `share_id` is a normal `fields=` column; `PUT /folders/:id {share_id}` sets a fake one for testing. API folder edits fire no change event the panel listens for, so refresh by hand when testing (a real sync refreshes it).
+- Icon is an inline SVG: plugin panels don't load Joplin's Font Awesome.
+- **Colour:** `--joplin-color-warn2` is the sidebar variant (light orange, invisible on a light panel); `--joplin-color-warn` is #9A5B00 on the default dark theme (brown on near-black); `--joplin-color-warn3` fits the main background on dark themes but is #ff7626 on light, only 2.7:1 on white. Used: warn3 mixed 60/40 with `--joplin-color` - measured 4.8:1 light, ~11:1 dark, Dracula and Nord similar, 3.2:1 on Solarized Light (whose own body text is 4.1:1).
+- Spacing: the row has `gap: 5px`, so `margin-left: 3px` gives native's 8px.
+- Test windows were visible this time, so `Page.captureScreenshot` worked; switch themes by writing `theme` (1 light, 2 dark, 3 solarized light, 5 dracula, 6 nord) and `themeAutoDetect: false` into the test profile's settings.json and restarting.
+
 ## Keyboard shortcuts
 
 - Every key is a plain keydown listener in the panel document, so it only fires while focus is in Explorer. Clicking a row leaves focus in the panel iframe (measured with real input events), and Joplin's F1/F6/F10/F11 are menu accelerators that keep working.
