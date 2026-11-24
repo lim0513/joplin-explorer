@@ -113,7 +113,7 @@ let sharedFolderTitle = 'Shared';
 function folderShareHtml(f: { share_id?: string, parent_id?: string }): string {
   if (!f.share_id || f.parent_id) return '';
   return '<span class="share-icon" title="' + escapeHtml(sharedFolderTitle) + '" aria-label="' + escapeHtml(sharedFolderTitle) + '">'
-    + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8.6 13.4l6.8 4M15.4 6.6l-6.8 4" stroke="currentColor" stroke-width="2.2" fill="none"/><circle cx="18" cy="5" r="3.2"/><circle cx="6" cy="12" r="3.2"/><circle cx="18" cy="19" r="3.2"/></svg></span>';
+    + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8.6 13.4l6.8 4M15.4 6.6l-6.8 4" stroke="currentColor" stroke-width="2.2" fill="none"/><circle cx="18" cy="5" r="3.2"/><circle cx="6" cy="12" r="3.2"/><circle cx="18" cy="19" r="3.2"/></svg></span>';
 }
 function folderShareClass(f: { share_id?: string, parent_id?: string }): string {
   if (!f.share_id) return '';

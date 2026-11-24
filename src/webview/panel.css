@@ -980,6 +980,10 @@ mark.search-highlight {
   margin-left: 3px; /* + the row's 5px gap = native's 8px */
 }
 .share-icon svg { display: block; }
+/* Flex centres the boxes, but the label box has room for descenders below the
+   baseline, so a centred icon sat ~0.75px above the letters (measured from
+   pixels at 4x) and looked high next to lowercase names. */
+.share-icon { position: relative; top: 1px; }
 .tree-item.folder.share-root > .label { flex: 0 1 auto; }
 .tree-item.folder.share-root > .count { margin-left: auto; }
 
